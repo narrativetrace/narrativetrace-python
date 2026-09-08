@@ -25,7 +25,18 @@ on:
   # A manual run still passes the `release` environment, whose deployment policy admits v*
   # tags only — a dispatch from a branch is refused at the gate, and the tag assertion below
   # refuses it again.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: >-
+          Space-separated subset of the publishable packages, or empty for all of them.
+          A subset exists for one reason: PyPI rate-limits NEW PROJECT creation, so a
+          release can legitimately reach the names that already exist before the rest.
+          Every name must still be one of the eight below; publishing a subset is safe
+          because the dependency direction is one-way (every package depends on
+          narrativetrace, nothing depends on the optional integrations).
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -79,10 +90,26 @@ jobs:
       - run: uv sync --all-packages
       - run: uv run poe check
 
+      # A dispatch may narrow the set (see the input's description); every requested name is
+      # checked against PUBLISHABLE_PACKAGES first, so a typo builds nothing rather than
+      # silently publishing less than the release claims.
       - name: Build publishable distributions
+        env:
+          REQUESTED: ${{ inputs.packages }}
         run: |
+          selected="$PUBLISHABLE_PACKAGES"
+          if [ -n "$REQUESTED" ]; then
+            for pkg in $REQUESTED; do
+              case " $PUBLISHABLE_PACKAGES " in
+                *" $pkg "*) ;;
+                *) echo "refusing: '$pkg' is not a publishable package"; exit 1 ;;
+              esac
+            done
+            selected="$REQUESTED"
+            echo "publishing a SUBSET of this release: $selected"
+          fi
           mkdir -p dist
-          for pkg in $PUBLISHABLE_PACKAGES; do
+          for pkg in $selected; do
             uv build --package "$pkg" --out-dir dist
           done
           ls -1 dist
