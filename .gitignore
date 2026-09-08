@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.mutmut-cache
+mutants/
+htmlcov/
+.coverage
+.coverage.*
+dist/
+build/
+*.egg-info/
+
+# Cache for security-tool binaries auto-fetched by scripts/run_security_tool.py
+.tools/
+
+# Local tooling state (contains credentials — never commit)
+
+# Local tooling state (holds host-absolute paths)

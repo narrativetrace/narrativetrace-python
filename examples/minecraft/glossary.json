@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "minecraft": {
+      "packages": ["examples.minecraft.minecraft"],
+      "description": "The Minecraft-flavored naming demo"
+    }
+  },
+  "terms": [
+    {
+      "term": "add item",
+      "context": "minecraft",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "añadir objeto"
+      },
+      "sources": ["PlayerInventory.add_item"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "craft",
+      "context": "minecraft",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "fabricar"
+      },
+      "sources": ["CraftingTable.craft"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "crafting table",
+      "context": "minecraft",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "mesa de fabricación"
+      },
+      "sources": ["CraftingTable"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "creature spawner",
+      "context": "minecraft",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generador de criaturas"
+      },
+      "sources": ["CreatureSpawner"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "generate chunk",
+      "context": "minecraft",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generar fragmento"
+      },
+      "sources": ["WorldGenerator.generate_chunk"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "item",
+      "context": "minecraft",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "objeto"
+      },
+      "sources": ["PlayerInventory.add_item"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "player inventory",
+      "context": "minecraft",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "inventario del jugador"
+      },
+      "sources": ["PlayerInventory"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "player joined",
+      "context": "minecraft",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "jugador se unió"
+      },
+      "sources": ["WorldServer.player_joined"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "spawn hostile",
+      "context": "minecraft",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "generar hostil"
+      },
+      "sources": ["CreatureSpawner.spawn_hostile"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "world server",
+      "context": "minecraft",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "servidor del mundo"
+      },
+      "sources": ["WorldServer"],
+      "firstSeen": "2026-09-07"
+    }
+  ]
+}

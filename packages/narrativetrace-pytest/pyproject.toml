@@ -1,0 +1,36 @@
+[project]
+name = "narrativetrace-pytest"
+version = "0.1.0"
+description = "pytest plugin for narrativetrace: per-test trace fixtures, artifacts, and reporting"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+classifiers = [
+    "Framework :: Pytest",
+    "Typing :: Typed",
+]
+dependencies = [
+    "narrativetrace",
+    "narrativetrace-diagrams",
+    "narrativetrace-clarity",
+    "narrativetrace-glossary",
+    "pytest>=8",
+]
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[project.entry-points.pytest11]
+narrativetrace = "narrativetrace_pytest.plugin"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_pytest"]

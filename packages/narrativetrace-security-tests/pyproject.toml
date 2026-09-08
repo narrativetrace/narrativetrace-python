@@ -1,0 +1,37 @@
+[project]
+name = "narrativetrace-security-tests"
+version = "0.1.0"
+description = "Cross-module hostile-input fuzz suite: the cross-runtime hostile corpus and oracles, shared with the other NarrativeTrace runtimes (test-only)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+# "Private :: Do Not Upload" is the standard PyPI/twine convention for a package that must never
+# reach the index. This module has no `main`-equivalent sources (see src/narrativetrace_security_
+# tests/__init__.py) -- it exists to be built and tested like every other workspace member (the
+# licence gate, mypy, and `poe test` all cover it), never to be installed by a consumer. Its
+# *source* still ships in the public snapshot, matching the Java
+# module: excluded from publishing, not from the public tree.
+classifiers = ["Private :: Do Not Upload", "Typing :: Typed"]
+dependencies = [
+    "narrativetrace",
+    "narrativetrace-diagrams",
+    "narrativetrace-asgi",
+]
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_security_tests"]
+
+[dependency-groups]
+dev = ["pyyaml>=6"]

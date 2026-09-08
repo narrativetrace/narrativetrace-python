@@ -1,0 +1,19 @@
+# gitleaks config — extends the default rule set; nothing is disabled globally.
+# Mirrors the family shape (java/.gitleaks.toml). Allowlist entries are
+# accepted-risk records, each scoped and reasoned.
+
+[extend]
+useDefault = true
+
+# Found by the family-wide pre-release scan of 2026-09-06 (the dotnet v0.1.0
+# publish run surfaced the class): the redaction tests prove JWT-shaped
+# values are redacted, which is only provable with a string that genuinely
+# matches the JWT shape — a synthetic, unsigned vector, valuable to nobody.
+# Scoped to the jwt rule in the two test files.
+[[allowlists]]
+description = "synthetic JWT fixtures in the redaction tests exist to prove JWT redaction"
+targetRules = ["jwt"]
+paths = [
+  '''packages/narrativetrace/tests/test_redaction\.py''',
+  '''packages/narrativetrace/tests/test_secret_value_shapes\.py''',
+]

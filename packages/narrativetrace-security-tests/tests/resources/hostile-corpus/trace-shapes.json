@@ -1,0 +1,9 @@
+{
+  "$comment": "TraceNode call-tree shapes for the tree-walk bound (ai.narrativetrace.core.tree.TreeWalk): a legitimate deep recursive method and a hand-built cyclic child list. `TreeWalk.MAX_DEPTH` itself (10,000) is exercised directly against the walker in TreeWalkTest, not replayed through every renderer here - several renderers indent proportionally to depth, so a chain that deep would make output size, not the bound, the thing under test. See README.md.",
+  "cases": [
+    { "id": "deep-chain-200", "description": "a two-hundred-node call chain - a legitimate deep recursive method, must render in full, not crash; kept well under Oracles.MAX_OUTPUT_BYTES, since several renderers indent proportionally to depth", "kind": "chain", "n": 200 },
+    { "id": "self-holding-node", "description": "a node whose own children list holds itself", "kind": "cycle", "n": 1 },
+    { "id": "two-node-ring", "description": "a hand-built tree whose child list contains an ancestor - undefended TraceNode.children", "kind": "cycle", "n": 2 },
+    { "id": "hundred-node-ring", "description": "a ring long enough that a naive walk would need to fully traverse it before ever repeating", "kind": "cycle", "n": 100 }
+  ]
+}

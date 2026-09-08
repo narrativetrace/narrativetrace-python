@@ -1,0 +1,54 @@
+# Equivalent-mutant ledger, read by `poe mutate-gate` (scripts/mutation_gate.py).
+#
+# One line per mutant: the mutmut mutant id (as printed by `mutmut results`),
+# a tab, then a one-line reason a human can review. A mutant listed here is
+# excluded from the gate's denominator — it can never be killed because the
+# mutated code is behaviourally identical to the original, not because the
+# test suite has a gap. Every entry must be re-verified (`mutmut show <id>`)
+# before being trusted; do not add an entry just because a mutant survives.
+#
+# Provenance: the private backlog ("uv run poe mutate is broken") documented
+# these 15 as equivalent when the mutation harness was repaired on
+# 2026-08-31. Moved here verbatim on 2026-09-01 so the gate can read them
+# without parsing prose.
+
+# _common_fields (tree_canonical.py): timestamp/level/message placeholders
+# that `replace(...)` in `_enter_entry`/`_exit_entry` always overwrites
+# before the value reaches an EnterEntry/ExitEntry.
+narrativetrace.tree_canonical.x__common_fields__mutmut_6	timestamp="" placeholder mutated to None, always overwritten by replace()
+narrativetrace.tree_canonical.x__common_fields__mutmut_32	timestamp="" placeholder mutated to "XXXX", always overwritten by replace()
+narrativetrace.tree_canonical.x__common_fields__mutmut_7	level="" placeholder mutated to None, always overwritten by replace()
+narrativetrace.tree_canonical.x__common_fields__mutmut_33	level="" placeholder mutated to "XXXX", always overwritten by replace()
+narrativetrace.tree_canonical.x__common_fields__mutmut_8	message="" placeholder mutated to None, always overwritten by replace()
+narrativetrace.tree_canonical.x__common_fields__mutmut_34	message="" placeholder mutated to "XXXX", always overwritten by replace()
+
+# _common_fields (tree_canonical.py): dropping the nt_schema_version kwarg
+# restates the CanonicalEntry dataclass's own default value.
+narrativetrace.tree_canonical.x__common_fields__mutmut_22	drops nt_schema_version=SCHEMA_VERSION kwarg, which restates the dataclass default
+
+# _exit_entry (tree_canonical.py): getattr(cls, "__module__", None) mutated
+# to the 2-arg form; every class defines __module__, so the fallback is
+# unreachable either way.
+narrativetrace.tree_canonical.x__exit_entry__mutmut_57	getattr(..., "__module__", None) -> 2-arg getattr; __module__ always exists, default unreachable
+
+# export_chapter (chapter.py): ensure_ascii=False mutated to None; None is
+# falsy, so json.dumps selects the same (non-ASCII-escaping) encoder.
+narrativetrace.chapter.x_export_chapter__mutmut_58	ensure_ascii=False -> None; None is falsy so json.dumps behaves identically
+
+# entries_from_tree (tree_canonical.py) and resolve_identity (identity.py):
+# message text on a postcondition `assert` that never fires along any tested
+# (or reachable) path, and one `and` -> `or` on an assert whose operands are
+# never both false in practice.
+narrativetrace.tree_canonical.x_entries_from_tree__mutmut_23	assert message text mutated; the assert never fires so the message is unobservable
+narrativetrace.tree_canonical.x_entries_from_tree__mutmut_24	assert message text mutated; the assert never fires so the message is unobservable
+narrativetrace.identity.x_resolve_identity__mutmut_26	assert `and` -> `or`; story_id and chapter_id are never independently falsy here
+narrativetrace.identity.x_resolve_identity__mutmut_27	assert message text mutated; the assert never fires so the message is unobservable
+narrativetrace.identity.x_resolve_identity__mutmut_28	assert message text mutated; the assert never fires so the message is unobservable
+
+# _prune_summary_node (tree.py): `_prune_summary_node` is only ever called
+# with is_root=True (see `_prune_summary`), so `not node.children or is_root`
+# is vacuously true and `node.children or is_root` is equivalent for every
+# real call site. Java's TraceTreeBuilder.pruneSummaryNode(root, true) has
+# the identical vestigial shape — deliberately not simplified here (tracked
+# in the private backlog).
+narrativetrace.tree.x__prune_summary_node__mutmut_2	is_root is always True at the only call site, so the `or` branch is unreachable either way

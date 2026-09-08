@@ -1,0 +1,35 @@
+# narrativetrace-python
+
+> Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
+> workspace with a dependency-free core and thin integration packages.
+
+Wrap an object with `trace_object(obj, context)`; call it; render `context.capture_trace()`.
+The narrative is generated from names and values — no logging calls in the business code.
+
+## Packages
+
+- [narrativetrace](../packages/narrativetrace/README.md): core — capture context, `trace_object`, `@narrated`/`@on_error`/`@not_traced`, renderers (Markdown/Prose/Indented), redaction, fork-join/fire-and-forget concurrency, canonical JSON export, stdlib logging bridge.
+- [narrativetrace-pytest](../packages/narrativetrace-pytest/README.md): pytest plugin — `narrative_trace` fixture, per-test artifacts, failure narratives, suite footer with clarity split.
+- [narrativetrace-diagrams](../packages/narrativetrace-diagrams/README.md): Mermaid and PlantUML sequence-diagram renderers.
+- [narrativetrace-otel](../packages/narrativetrace-otel/README.md): OpenTelemetry bridge — live `OtelTraceEventListener` and batch `TraceSpanExporter` with typed `narrative.*` attributes.
+- [narrativetrace-asgi](../packages/narrativetrace-asgi/README.md): ASGI middleware for Starlette/FastAPI — fail-safe request-boundary capture, W3C traceparent adopt/inject, `get_narrative_context()`.
+- [narrativetrace-clarity](../packages/narrativetrace-clarity/README.md): naming-clarity engine and CI gate — 1053 verbs, abbreviation/collocation/role dictionaries, five weighted scorers, `narrativetrace-clarity` console script.
+- [narrativetrace-structlog](../packages/narrativetrace-structlog/README.md): structlog processor injecting the same correlation keys as the stdlib filter.
+
+## Guides
+
+- [Installation](guides/installation.md)
+- [Configuration](guides/configuration.md)
+- [Decorators](guides/decorators.md)
+- [pytest plugin](guides/pytest.md)
+- [FastAPI / ASGI](guides/fastapi-asgi.md)
+- [Logging & structlog](guides/logging.md)
+- [OpenTelemetry](guides/opentelemetry.md)
+- [Clarity](guides/clarity.md)
+
+## Examples
+
+- [ecommerce](../examples/ecommerce): fork-join + fire-and-forget concurrency.
+- [minecraft](../examples/minecraft): generic vs domain naming, identical structure.
+- [hotel_booking](../examples/hotel_booking): a generic-verb class flagged HIGH by clarity.
+- [fastapi_service](../examples/fastapi_service): ASGI request traced end-to-end.

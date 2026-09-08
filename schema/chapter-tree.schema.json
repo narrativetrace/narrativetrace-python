@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://narrativetrace.ai/schema/v1/chapter-tree.schema.json",
+  "title": "NarrativeTrace Chapter Tree",
+  "description": "The nested trace tree embedded in nt.chapterTree. Contains the full method call tree for one service's contribution to a trace, with parameters, return values, durations, and concurrency information. This is the structure produced by the library's captureTrace() + exportJson() pipeline.",
+  "type": "object",
+  "required": [
+    "version",
+    "events"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "traceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "traceName": {
+          "type": "string",
+          "pattern": "^[a-z]+ [a-z]+ [a-z]+$"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "serviceVersion": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "httpMethod": {
+          "type": "string"
+        },
+        "httpRoute": {
+          "type": "string"
+        }
+      },
+      "description": "Trace-level context. traceId and traceName are always present (resolved from the shared trace identity, depth-first); the remaining fields appear only when the tree carried a span context to inherit them from."
+    },
+    "scenario": {
+      "type": "object",
+      "required": [
+        "name",
+        "result"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "testClass": {
+          "type": "string"
+        },
+        "testMethod": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Wall-clock duration of the scenario, first entry to last exit. Not the first root's duration: a scenario with async work has more than one root. Fractional values are expected — the unit is milliseconds, the resolution is microseconds."
+        }
+      },
+      "description": "Scenario metadata (test context, request context, etc.).",
+      "additionalProperties": false
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "spanId",
+          "type",
+          "className",
+          "methodName"
+        ],
+        "properties": {
+          "spanId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "enter",
+              "exit"
+            ]
+          },
+          "className": {
+            "type": "string"
+          },
+          "methodName": {
+            "type": "string"
+          },
+          "parentSpanId": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "value"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "redacted": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "returned",
+              "threw",
+              "incomplete"
+            ]
+          },
+          "returnValue": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorType": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Duration of this span, inclusive of its children. Null when the span has no matching exit — unknown, which is not the same as instant. Fractional values are expected."
+          },
+          "concurrency": {
+            "type": "object",
+            "properties": {
+              "groupId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "fork-join",
+                  "fire-and-forget",
+                  "async"
+                ]
+              },
+              "taskLabel": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "description": "Flattened enter/exit event pairs ordered by call sequence."
+    }
+  },
+  "additionalProperties": false
+}

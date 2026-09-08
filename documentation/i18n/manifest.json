@@ -1,0 +1,143 @@
+{
+  "sourceLanguage": "en",
+  "languages": [
+    {
+      "code": "es",
+      "displayName": "Español",
+      "directory": "documentation/es",
+      "index": "documentation/LEAME.md",
+      "rootReadme": "LEAME.md",
+      "status": "complete"
+    },
+    {
+      "code": "pt-BR",
+      "displayName": "Português",
+      "directory": "documentation/pt-BR",
+      "index": "documentation/LEIAME.md",
+      "rootReadme": "LEIAME.md",
+      "status": "complete"
+    },
+    {
+      "code": "zh-CN",
+      "displayName": "简体中文",
+      "directory": "documentation/zh-CN",
+      "index": "documentation/自述文件.md",
+      "rootReadme": "自述文件.md",
+      "status": "complete"
+    }
+  ],
+  "documents": [
+    {
+      "source": "documentation/first-10-minutes.md",
+      "translations": {
+        "es": "primeros-10-minutos.md",
+        "pt-BR": "primeiros-10-minutos.md",
+        "zh-CN": "前10分钟.md"
+      }
+    },
+    {
+      "source": "documentation/choosing-an-integration.md",
+      "translations": {
+        "es": "eligiendo-una-integracion.md",
+        "pt-BR": "escolhendo-uma-integracao.md",
+        "zh-CN": "选择集成方式.md"
+      }
+    },
+    {
+      "source": "documentation/guides/installation.md",
+      "translations": {
+        "es": "guia-de-instalacion.md",
+        "pt-BR": "guia-de-instalacao.md",
+        "zh-CN": "安装指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/configuration.md",
+      "translations": {
+        "es": "guia-de-configuracion.md",
+        "pt-BR": "guia-de-configuracao.md",
+        "zh-CN": "配置指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/decorators.md",
+      "translations": {
+        "es": "guia-de-decoradores.md",
+        "pt-BR": "guia-de-decoradores.md",
+        "zh-CN": "装饰器指南.md"
+      }
+    },
+    {
+      "source": "documentation/privacy-and-redaction.md",
+      "translations": {
+        "es": "privacidad-y-ocultacion.md",
+        "pt-BR": "privacidade-e-ocultacao.md",
+        "zh-CN": "隐私与脱敏.md"
+      }
+    },
+    {
+      "source": "documentation/what-to-commit.md",
+      "translations": {
+        "es": "que-commitear.md",
+        "pt-BR": "o-que-commitar.md",
+        "zh-CN": "应提交的内容.md"
+      }
+    },
+    {
+      "source": "documentation/troubleshooting.md",
+      "translations": {
+        "es": "solucion-de-problemas.md",
+        "pt-BR": "solucao-de-problemas.md",
+        "zh-CN": "故障排查.md"
+      }
+    },
+    {
+      "source": "documentation/guides/pytest.md",
+      "translations": {
+        "es": "guia-de-pytest.md",
+        "pt-BR": "guia-de-pytest.md",
+        "zh-CN": "pytest插件指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/fastapi-asgi.md",
+      "translations": {
+        "es": "guia-de-fastapi-asgi.md",
+        "pt-BR": "guia-de-fastapi-asgi.md",
+        "zh-CN": "FastAPI与ASGI指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/opentelemetry.md",
+      "translations": {
+        "es": "guia-de-opentelemetry.md",
+        "pt-BR": "guia-de-opentelemetry.md",
+        "zh-CN": "OpenTelemetry指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/logging.md",
+      "translations": {
+        "es": "guia-de-logging.md",
+        "pt-BR": "guia-de-logging.md",
+        "zh-CN": "日志与structlog指南.md"
+      }
+    },
+    {
+      "source": "documentation/guides/clarity.md",
+      "translations": {
+        "es": "guia-de-claridad.md",
+        "pt-BR": "guia-de-clareza.md",
+        "zh-CN": "清晰度指南.md"
+      }
+    },
+    {
+      "source": "documentation/feature-guide.md",
+      "translations": {
+        "es": "guia-de-funcionalidades.md",
+        "pt-BR": "guia-de-funcionalidades.md",
+        "zh-CN": "功能指南.md"
+      }
+    }
+  ]
+}

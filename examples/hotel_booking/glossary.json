@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "hotel": {
+      "packages": ["examples.hotel_booking.hotel_booking"],
+      "description": "The hotel-reservation domain"
+    }
+  },
+  "terms": [
+    {
+      "term": "authorize payment",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "autorizar pago"
+      },
+      "sources": ["PaymentGateway.authorize_payment"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "confirm reservation",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "confirmar reserva"
+      },
+      "sources": ["ReservationService.confirm_reservation"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "find available room",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "buscar habitación disponible"
+      },
+      "sources": ["AvailabilityChecker.find_available_rooms"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "guest",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "huésped"
+      },
+      "sources": ["GuestRepository", "GuestRepository.find_guest_by_id", "ReservationService.confirm_reservation"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "handle booking",
+      "context": "hotel",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "gestionar reserva"
+      },
+      "sources": ["BookingManager.handle_booking"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "payment",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "pago"
+      },
+      "sources": ["PaymentGateway"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "reservation",
+      "context": "hotel",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "reserva"
+      },
+      "sources": ["ReservationService", "ReservationService.confirm_reservation"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "room category",
+      "context": "hotel",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "categoría de habitación"
+      },
+      "sources": ["AvailabilityChecker.find_available_rooms", "ReservationService.confirm_reservation"],
+      "firstSeen": "2026-09-07"
+    }
+  ]
+}

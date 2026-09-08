@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://narrativetrace.ai/schema/v1/entry.schema.json",
+  "title": "NarrativeTrace Entry",
+  "description": "Atomic trace event emitted by the NarrativeTrace library on method entry, exit, fork, or join. Layer 1 (universal) + Layer 2 (OTel) + Layer 3 (NarrativeTrace extensions).",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "level",
+    "message",
+    "service",
+    "trace_id",
+    "span_id",
+    "code.namespace",
+    "code.function",
+    "nt.entryType",
+    "nt.eventType",
+    "nt.schemaVersion"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with millisecond precision."
+    },
+    "level": {
+      "type": "string",
+      "enum": ["trace", "debug", "info", "warn", "error"],
+      "description": "Log level. method_enter/method_exit = trace, errors = warn/error."
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable summary. e.g., '→ OrderService.placeOrder(customerId: C1)' or '!! PaymentDeclinedException: Card expired'."
+    },
+    "service": {
+      "type": "string",
+      "description": "Service name. Maps to OTel resource attribute service.name."
+    },
+    "environment": {
+      "type": "string",
+      "description": "Deployment environment (production, staging, development, test)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Service version. Maps to OTel resource attribute service.version."
+    },
+    "host.name": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Auto-detected host name; absent when narrativetrace.capture.resource is disabled. Added in 1.2."
+    },
+    "process.pid": {
+      "type": ["integer", "null"],
+      "description": "OTel semantic convention. Process id; absent when resource capture is disabled. Added in 1.2."
+    },
+    "process.runtime.version": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Java runtime version; absent when resource capture is disabled. Added in 1.2."
+    },
+    "tenantId": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "W3C trace ID. 32 lowercase hex characters."
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "W3C span ID. 16 lowercase hex characters."
+    },
+    "parent_span_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "Parent span ID. Null for root spans."
+    },
+    "code.namespace": {
+      "type": "string",
+      "description": "OTel semantic convention. Class or module name (e.g., 'OrderService')."
+    },
+    "code.function": {
+      "type": "string",
+      "description": "OTel semantic convention. Method or function name (e.g., 'placeOrder')."
+    },
+    "code.filepath": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Source file of the entry; absent unless narrativetrace.capture.sourceLocation is enabled. Agent records the declaration site, proxy the call site. Added in 1.2."
+    },
+    "code.lineno": {
+      "type": ["integer", "null"],
+      "description": "OTel semantic convention. 1-based line number matching code.filepath. Added in 1.2."
+    },
+    "exception.type": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Exception class name when outcome is error."
+    },
+    "exception.message": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Exception message when outcome is error."
+    },
+
+    "thread.name": {
+      "type": ["string", "null"],
+      "description": "OTel semantic convention. Name of the thread that executed the entry. Added in 1.2."
+    },
+    "thread.id": {
+      "type": ["integer", "null"],
+      "description": "OTel semantic convention. Numeric id of the thread that executed the entry. Added in 1.2."
+    },
+
+    "durationMs": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Method duration in milliseconds. Present on exit events."
+    },
+
+    "nt.entryType": {
+      "type": "string",
+      "const": "entry",
+      "description": "Discriminator. Always 'entry' for atomic events. See chapter.schema.json for chapters."
+    },
+    "nt.eventType": {
+      "type": "string",
+      "enum": [
+        "method_enter",
+        "method_exit",
+        "fork",
+        "join",
+        "async_dispatch",
+        "async_resume",
+        "log",
+        "checkpoint"
+      ],
+      "description": "Event type within the trace lifecycle."
+    },
+    "nt.chapterId": {
+      "type": "string",
+      "description": "Chapter this entry belongs to. Generated by the library per service per request."
+    },
+    "nt.storyId": {
+      "type": "string",
+      "description": "Story ID. Typically derived from trace_id."
+    },
+    "nt.causalId": {
+      "type": ["string", "null"],
+      "description": "Causal chain identifier. Survives thread/async boundaries for causality tracking."
+    },
+    "nt.forkId": {
+      "type": ["string", "null"],
+      "description": "Fork group identifier. Present on fork/join events for concurrent branch correlation."
+    },
+    "nt.branchIndex": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Branch index within a fork group. Identifies which concurrent branch this entry belongs to."
+    },
+    "nt.outcome": {
+      "type": ["string", "null"],
+      "enum": ["success", "failure", "incomplete", null],
+      "description": "Outcome of the method call. Present on exit events."
+    },
+    "nt.traceName": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z]+ [a-z]+ [a-z]+$",
+      "description": "Human-readable 3-word name derived from trace_id (e.g., 'bold elk soars'). Cross-platform deterministic."
+    },
+    "nt.schemaVersion": {
+      "type": "string",
+      "const": "1.2",
+      "description": "Schema version. Allows backward-compatible evolution. 1.1 added nt.narrationTemplate; 1.2 added the additive nullable identity fields nt.package, nt.exceptionPackage, nt.returnType, the type property on nt.parameters items, thread identity (thread.name, thread.id, nt.threadVirtual), and process resource identity (host.name, process.pid, process.runtime.version)."
+    },
+    "nt.threadVirtual": {
+      "type": ["boolean", "null"],
+      "description": "Whether the entry ran on a virtual thread. Null when thread identity was not captured. Added in 1.2."
+    },
+    "nt.instanceId": {
+      "type": ["string", "null"],
+      "description": "Identity hash of the receiver object in lowercase hex. Absent unless narrativetrace.capture.instanceIds is enabled. Added in 1.2."
+    },
+    "nt.returnType": {
+      "type": ["string", "null"],
+      "description": "Declared return type in Class.getTypeName() form (e.g. 'java.lang.String', 'void', 'long[]'). With parameter types this makes overloads distinguishable. Added in 1.2."
+    },
+    "nt.package": {
+      "type": ["string", "null"],
+      "description": "Package of the declaring type behind code.namespace (e.g. 'com.acme.billing'). code.namespace stays a simple name for readability; this field completes the identity. Added in 1.2."
+    },
+    "nt.exceptionPackage": {
+      "type": ["string", "null"],
+      "description": "Package of the exception class behind exception.type. exception.type stays a simple name; this field completes the identity. Added in 1.2."
+    },
+    "nt.narrationTemplate": {
+      "type": ["string", "null"],
+      "description": "Raw @Narrated template with placeholders intact (e.g. 'Opening for {customerId}'), when an annotation was present. Added in 1.1 so translated views can render per-locale template variants and fill placeholders from untouched values."
+    },
+    "nt.parameters": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["name", "value"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Parameter name from method signature."
+          },
+          "value": {
+            "type": "string",
+            "description": "Serialized parameter value. May be '[REDACTED]' for sensitive fields."
+          },
+          "redacted": {
+            "type": "boolean",
+            "description": "True if value was redacted by @NotTraced or equivalent."
+          },
+          "type": {
+            "type": ["string", "null"],
+            "description": "Declared parameter type in Class.getTypeName() form. Added in 1.2."
+          }
+        }
+      },
+      "description": "Method parameters. Present on method_enter events."
+    },
+    "nt.returnValue": {
+      "type": ["string", "null"],
+      "description": "Serialized return value. Present on method_exit events with success outcome."
+    }
+  },
+  "additionalProperties": true
+}

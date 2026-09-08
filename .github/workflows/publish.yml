@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+name: Publish
+
+# Public release — authored in the private tree like ci.yml and shipped with the snapshot.
+# Fires on the annotated v<version> tag the (private) release pipeline pushes; the `release`
+# environment (required reviewer, v* tags only — set up once during one-time repository setup)
+# gates the job, so publishing happens only after a human approves this exact run.
+#
+# Publishing uses PyPI Trusted Publishing (OIDC): pypa/gh-action-pypi-publish exchanges this
+# workflow's identity token for a short-lived upload credential per project, so no long-lived
+# PyPI API token exists anywhere to leak or rotate. Each narrativetrace* project's Trusted
+# Publisher settings on pypi.org pin this exact repository, this exact workflow file path
+# (.github/workflows/publish.yml — renaming it breaks publishing on purpose) and the `release`
+# environment. Eight of the nine workspace members publish; narrativetrace-security-tests
+# carries "Private :: Do Not Upload" and is deliberately never built or uploaded here (see its
+# pyproject.toml) — its source still ships in the public snapshot, only the PyPI upload is
+# skipped, mirroring the Java module of the same name and shape.
+
+on:
+  push:
+    tags: ["v*"]
+  # A manual run still passes the `release` environment, whose deployment policy admits v*
+  # tags only — a dispatch from a branch is refused at the gate, and the tag assertion below
+  # refuses it again.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# The packages that publish, in workspace order (see the header comment above for the one
+# that deliberately does not).
+env:
+  PUBLISHABLE_PACKAGES: >-
+    narrativetrace
+    narrativetrace-asgi
+    narrativetrace-clarity
+    narrativetrace-diagrams
+    narrativetrace-glossary
+    narrativetrace-otel
+    narrativetrace-pytest
+    narrativetrace-structlog
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      # Trusted Publishing: pypa/gh-action-pypi-publish presents this job's OIDC token to
+      # pypi.org in exchange for a temporary upload credential, per project.
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+
+      # Same check the (private) release pipeline already applies before it will create a tag
+      # (detect_version + the *-SNAPSHOT*/*-dev*/0.0.0 refusal) — repeated here because the
+      # tag is what actually triggers this job, and the workflow must not trust that the tag
+      # it was handed is one the script produced.
+      - name: Assert tag matches the workspace version
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)"
+          [ "v$version" = "${GITHUB_REF_NAME}" ] || {
+            echo "tag ${GITHUB_REF_NAME} does not match workspace version $version"; exit 1; }
+          case "$version" in
+              *-SNAPSHOT*|*-dev*|0.0.0)
+                  echo "refusing to release $version"; exit 1 ;;
+          esac
+
+      # The single quality gate — same invocation as ci.yml. A tag push does not imply the
+      # tagged commit ever ran it (the public branch is pushed by hand after review), so it
+      # runs again here rather than being trusted.
+      - run: uv sync --all-packages
+      - run: uv run poe check
+
+      - name: Build publishable distributions
+        run: |
+          mkdir -p dist
+          for pkg in $PUBLISHABLE_PACKAGES; do
+            uv build --package "$pkg" --out-dir dist
+          done
+          ls -1 dist
+
+      # --skip-existing (via skip-existing below) makes a re-run after a partial failure
+      # safe: already-published files are not re-rejected as errors. Attestations (PEP 740)
+      # ride Trusted Publishing automatically — no separate signing step or secret.
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist
+          attestations: true
+          skip-existing: true

@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "library": {
+      "packages": ["examples.library.library"],
+      "description": "The book-lending domain"
+    }
+  },
+  "terms": [
+    {
+      "term": "Book {isbn} not found in catalog",
+      "context": "library",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Libro {isbn} no encontrado en el catálogo"
+      },
+      "sources": ["CatalogService.find_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "Borrowing book {isbn} for member {member_id}",
+      "context": "library",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Pidiendo prestado el libro {isbn} para el socio {member_id}"
+      },
+      "sources": ["LendingService.borrow_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "book",
+      "context": "library",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "libro"
+      },
+      "sources": ["CatalogService.find_book", "LendingService.borrow_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "book unavailable",
+      "context": "library",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "libro no disponible"
+      },
+      "sources": ["LendingService.borrow_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "borrow book",
+      "context": "library",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "pedir prestado un libro"
+      },
+      "sources": ["LendingService.borrow_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "card number",
+      "context": "library",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "número de tarjeta"
+      },
+      "sources": ["MemberService.lookup_member"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "catalog",
+      "context": "library",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "catálogo"
+      },
+      "sources": ["CatalogService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "find book",
+      "context": "library",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "buscar libro"
+      },
+      "sources": ["CatalogService.find_book"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "lending",
+      "context": "library",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "préstamo"
+      },
+      "sources": ["LendingService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "lookup member",
+      "context": "library",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "buscar socio"
+      },
+      "sources": ["MemberService.lookup_member"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "member",
+      "context": "library",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "socio"
+      },
+      "sources": ["MemberService", "MemberService.lookup_member", "LendingService.borrow_book"],
+      "firstSeen": "2026-09-07"
+    }
+  ]
+}

@@ -1,0 +1,413 @@
+[project]
+name = "narrativetrace-workspace"
+version = "0.1.0"
+description = "Workspace root for NarrativeTrace for Python"
+requires-python = ">=3.12"
+# Virtual workspace root: no distribution is built from this file.
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+narrativetrace = { workspace = true }
+narrativetrace-asgi = { workspace = true }
+narrativetrace-clarity = { workspace = true }
+narrativetrace-diagrams = { workspace = true }
+narrativetrace-glossary = { workspace = true }
+narrativetrace-otel = { workspace = true }
+narrativetrace-pytest = { workspace = true }
+narrativetrace-structlog = { workspace = true }
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "narrativetrace",
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "starlette>=0.37",
+    "httpx>=0.27",
+    "structlog>=24",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "pytest-benchmark>=4",
+    "hypothesis>=6",
+    # Conformance only: the canonical artifacts are validated against schema/*.schema.json in the
+    # test suite. A DEV dependency by design — the core distribution stays dependency-free.
+    "jsonschema>=4",
+    "types-jsonschema>=4",
+    # Security-tests only: Markdown frontmatter is parsed back as YAML in the well-formedness
+    # property tests. Also a DEV dependency — the core distribution stays dependency-free.
+    "pyyaml>=6",
+    "types-pyyaml>=6",
+    "mutmut>=3",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "radon>=6",
+    "xenon>=0.9",
+    "poethepoet>=0.27",
+    "import-linter>=2",
+    # In-gate SAST (poe check): fast, offline, pure Python — see documentation/security-tooling.md.
+    "bandit>=1.9",
+]
+
+# Scheduled/on-demand security tooling only (never `poe check`): network-dependent or too slow
+# for every commit, so kept out of the default sync — CI installs this group explicitly
+# (`uv sync --group security`) for the jobs that need it. See documentation/security-tooling.md.
+security = [
+    "semgrep>=1.176",
+    "pip-audit>=2.10",
+]
+
+# --------------------------------------------------------------------------- #
+# Task runner (poethepoet).                                                   #
+# --------------------------------------------------------------------------- #
+[tool.poe.tasks.test]
+cmd = "pytest"
+help = "Run the pytest suite across the workspace"
+
+[tool.poe.tasks.lint]
+cmd = "ruff check ."
+help = "Lint (no fixes)"
+
+[tool.poe.tasks.typecheck]
+cmd = "mypy"
+help = "Type-check with mypy --strict"
+
+[tool.poe.tasks.coverage]
+cmd = "pytest --cov --cov-report=term-missing"
+help = "Run tests under coverage with a fail-under threshold"
+
+[tool.poe.tasks.mutate]
+cmd = "mutmut run"
+cwd = "packages/narrativetrace"
+help = "Mutation testing (config in packages/narrativetrace/pyproject.toml)"
+
+[tool.poe.tasks.mutate-glossary]
+cmd = "mutmut run"
+cwd = "packages/narrativetrace-glossary"
+help = "Mutation testing for the glossary distribution (config in its own pyproject.toml)"
+
+[tool.poe.tasks.mutate-gate]
+# No literal "%" in this string: radon's FileConfig.toml_config() (used by `poe metrics`/xenon)
+# reads the whole [tool] table into a ConfigParser with interpolation enabled, so a bare "%"
+# anywhere under [tool.*] in this file breaks `poe metrics` with "invalid interpolation syntax".
+help = """Mutation kill-rate floor: poe mutate, then fail below an 80-of-100 kill rate \
+(killed / (total - mutation/equivalents.txt)); wired into the CI mutation job, not poe check"""
+sequence = [
+    { ref = "mutate" },
+    { cmd = "python scripts/mutation_gate.py" },
+]
+
+[tool.poe.tasks.demo]
+cmd = "python -m examples.demo"
+help = "Run an example with the live narration colorized and paced (--example NAME, --list, --classic, --no-pause)"
+
+[tool.poe.tasks.bench]
+cmd = "pytest --benchmark-only"
+help = "Run pytest-benchmark suites"
+
+[tool.poe.tasks.fuzz]
+cmd = """pytest \
+    packages/narrativetrace-security-tests/tests/test_traceparent_properties.py \
+    packages/narrativetrace-security-tests/tests/test_value_renderer_redaction_properties.py"""
+env = { NARRATIVETRACE_FUZZ = "1" }
+help = """Tier B fallback: budgeted Hypothesis fuzzing of the top two hostile-corpus targets \
+(atheris has no wheel for this container's platform; see documentation/security-testing.md)"""
+
+[tool.poe.tasks.stress-quick]
+cmd = """pytest -m stress \
+    packages/narrativetrace/tests/test_pipeline_stress.py \
+    packages/narrativetrace/tests/test_context_stress.py"""
+help = """Concurrency stress suite, quick/seeded mode: wired into poe check, finishes in seconds \
+(see documentation/concurrency-stress.md)"""
+
+[tool.poe.tasks.stress]
+cmd = """pytest -m stress \
+    packages/narrativetrace/tests/test_pipeline_stress.py \
+    packages/narrativetrace/tests/test_context_stress.py"""
+env = { NARRATIVETRACE_STRESS_LONG = "1" }
+help = """Concurrency stress suite, long/randomised sweep for the scheduled job — never per \
+commit, like poe fuzz and poe mutate (see documentation/concurrency-stress.md)"""
+
+[tool.poe.tasks.bandit]
+# No bare "*" here: poe glob-expands cmd tokens, and an expanded multi-path match would break
+# `-x`'s single-argument, comma-separated-list syntax. List both mutmut working copies literally.
+cmd = """bandit -c pyproject.toml -r packages examples scripts \
+    -x packages/narrativetrace/mutants,packages/narrativetrace-glossary/mutants"""
+help = """Static-analysis security gate (in-gate: fast, offline — wired into poe check). \
+Findings are triaged in [tool.bandit]/inline `# nosec`; see documentation/security-tooling.md"""
+
+[tool.poe.tasks.secrets-scan-staged]
+cmd = "gitleaks protect --staged --redact --no-banner"
+help = """Secrets check over the staged diff — the same check that runs on every commit. \
+PATH-only, no auto-install: per-commit gates never touch the network. \
+Warns and passes if gitleaks is not installed; see documentation/security-tooling.md"""
+
+[tool.poe.tasks.secrets-scan]
+cmd = "python scripts/run_security_tool.py gitleaks detect --source . --redact --no-banner"
+help = """On-demand full-history secrets sweep via gitleaks. Not wired into any per-commit or \
+CI gate — auto-fetches a pinned, checksum-verified binary into .tools/bin/ on first use (network, \
+so never per-commit); see documentation/security-tooling.md"""
+
+[tool.poe.tasks.osv-scan]
+cmd = "python scripts/run_security_tool.py osv-scanner scan source -r ."
+help = """Dependency-vulnerability scan of lockfiles/manifests via OSV-Scanner. Network-dependent \
+— the scheduled/web CI job only, never per-commit; auto-fetches a pinned, checksum-verified \
+binary into .tools/bin/ on first use; see documentation/security-tooling.md"""
+
+[tool.poe.tasks.semgrep]
+cmd = """semgrep --config=p/security-audit --config=p/secrets --metrics=off \
+    packages examples scripts"""
+help = """OSS community security rulesets (no login, no custom rules). CI: merge-request + \
+scheduled/web only, never per push; needs the security dependency group \
+(`uv sync --group security`); see documentation/security-tooling.md"""
+
+[tool.poe.tasks.pip-audit]
+cmd = "pip-audit"
+help = """Known-vulnerability scan of the installed environment. Scheduled/web CI only, beside \
+osv-scan (deliberately overlapping, both kept cheap); needs the security dependency group \
+(`uv sync --group security`); see documentation/security-tooling.md"""
+
+[tool.poe.tasks.metrics]
+cmd = "xenon --max-absolute B --max-modules B --max-average A packages"
+help = "Cyclomatic-complexity / method-length gate (xenon over radon)"
+
+[tool.poe.tasks.clarity]
+# Runs through narrativetrace_glossary.clarity_scan, not the narrativetrace-clarity console
+# script directly: that module composes the base scanner with read_project_vocabulary, so a
+# committed root glossary.json (none yet — item 6's dogfooding decision stays open) becomes the
+# gate's vocabulary automatically. This IS "adopt Java's vocabulary-check defaults" (item 6,
+# prerequisite 5) — glossary-aware scoring by default, with no separate opt-in flag.
+cmd = """python -m narrativetrace_glossary.clarity_scan \
+    packages/narrativetrace/src \
+    packages/narrativetrace-diagrams/src \
+    packages/narrativetrace-otel/src \
+    packages/narrativetrace-asgi/src \
+    packages/narrativetrace-clarity/src \
+    packages/narrativetrace-glossary/src \
+    packages/narrativetrace-pytest/src \
+    packages/narrativetrace-structlog/src \
+    --min-score 0.5 --output-dir build/narrativetrace --glossary-dir ."""
+help = "Naming-clarity gate over package sources (fails below --min-score; glossary-aware)"
+
+[tool.poe.tasks.glossary-scan]
+cmd = """glossary-scan \
+    packages/narrativetrace/src \
+    packages/narrativetrace-diagrams/src \
+    packages/narrativetrace-otel/src \
+    packages/narrativetrace-asgi/src \
+    packages/narrativetrace-clarity/src \
+    packages/narrativetrace-glossary/src \
+    packages/narrativetrace-pytest/src \
+    packages/narrativetrace-structlog/src \
+    --glossary-dir . --output-dir build/narrativetrace"""
+help = "Deliberate, opt-in static glossary harvest over package sources (item 6, Phase 5)"
+
+[tool.poe.tasks.format]
+help = "Format and auto-fix"
+sequence = [
+    { cmd = "ruff format ." },
+    { cmd = "ruff check --fix ." },
+]
+
+[tool.poe.tasks.format-check]
+cmd = "ruff format --check ."
+help = "Verify formatting without writing"
+
+[tool.poe.tasks.lint-imports]
+cmd = "lint-imports"
+help = "Architecture gate: package-dependency contracts (import-linter)"
+
+[tool.poe.tasks.no-license-headers]
+cmd = "python scripts/check_no_license_headers.py"
+help = """Inverse of the publish-time license gate: fails if any tracked source already carries \
+an SPDX/Apache/BSL header block (stamped only at publish time, never committed in-tree)"""
+
+[tool.poe.tasks.translation-check]
+cmd = "python scripts/translation_check.py"
+help = """Translation platform gate: staleness (always) plus, when documentation/i18n/manifest.json \
+exists, completeness, structure parity and index/menu integrity (see the i18n terminology \
+conventions)"""
+
+[tool.poe.tasks.translation-status]
+cmd = "python scripts/translation_status.py"
+help = """Prints the full translation coverage and review-field matrix (not part of check, like \
+Java's ./gradlew translationStatus)"""
+
+[tool.poe.tasks.legal-check]
+cmd = "scripts/legal-check.sh"
+help = """Legal reference-copy consistency gate: legal:* marker well-formedness, packages/*/LICENSE \
+byte-equality, and (when the sibling reference repo is present) derived-LICENSE and per-language \
+legal:plain-words region compares. Warn-only here; LEGAL_CHECK_STRICT=1 (publish preflight) fails \
+on the same findings — see legal.properties."""
+
+[tool.poe.tasks.check]
+help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
+metrics + clarity + no-license-headers + translation-check + legal-check + bandit"""
+sequence = [
+    { ref = "format-check" },
+    { ref = "lint" },
+    { ref = "typecheck" },
+    { ref = "lint-imports" },
+    { ref = "coverage" },
+    { ref = "stress-quick" },
+    { ref = "metrics" },
+    { ref = "clarity" },
+    { ref = "no-license-headers" },
+    { ref = "translation-check" },
+    { ref = "legal-check" },
+    { ref = "bandit" },
+]
+
+# --------------------------------------------------------------------------- #
+# Shared tool configuration                                                   #
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["packages/narrativetrace/src"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",      # pycodestyle + pyflakes
+    "I",                # isort
+    "UP",               # pyupgrade
+    "B",                # bugbear
+    "C90",              # mccabe complexity
+    "PL",               # pylint (incl. PLR0915 too-many-statements)
+    "RUF",
+]
+ignore = [
+    "PLR2004",          # magic-value comparisons: too noisy for this codebase
+    "B027",             # intentional no-op default methods on ABCs (Java interface-default parity)
+]
+# `‹` opens the value-reference label (`‹Hotel›=full`) — product vocabulary shared verbatim with
+# every runtime, not a mistyped `<`. Without this, RUF001 rejects the renderer that emits it.
+allowed-confusables = ["‹", "›", "′"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-statements = 20  # product-wide 20-NCSS method cap (Java PMD NcssCount parity)
+max-args = 6
+max-branches = 12
+max-returns = 8
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["PLR2004", "PLR0913", "S101"]
+
+[tool.bandit]
+# `poe bandit` targets packages/examples/scripts explicitly (never the whole repo root), so this
+# only needs to keep mutmut's working copy out — it duplicates every finding otherwise, the same
+# reason pytest's norecursedirs and coverage both exclude it.
+exclude_dirs = ["mutants"]
+# B101 (assert_used): house style two ways over, not accidental control flow. Pytest tests use
+# bare `assert` throughout; production code asserts postconditions at every function exit
+# (the Contract-Augmented TDD convention). Both are deliberate.
+# B105 (hardcoded_password_string): this is a redaction library — "password"/"token"/"secret"
+# literals are the test fixtures and glossary data the redaction feature exists to catch, not real
+# credentials (e.g. packages/narrativetrace/tests/test_rendering.py::test_key_name_redaction).
+# B404 (subprocess import blacklist): every subprocess.run call site in the repo is reviewed and
+# justified individually with an inline `# nosec B603,B607` comment instead; the bare import
+# carries no separate signal once each call site is.
+skips = ["B101", "B105", "B404"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+files = [
+    "packages/narrativetrace/src",
+    "packages/narrativetrace/tests",
+    "packages/narrativetrace-pytest/src",
+    "packages/narrativetrace-pytest/tests",
+    "packages/narrativetrace-diagrams/src",
+    "packages/narrativetrace-diagrams/tests",
+    "packages/narrativetrace-otel/src",
+    "packages/narrativetrace-otel/tests",
+    "packages/narrativetrace-asgi/src",
+    "packages/narrativetrace-asgi/tests",
+    "packages/narrativetrace-clarity/src",
+    "packages/narrativetrace-clarity/tests",
+    "packages/narrativetrace-glossary/src",
+    "packages/narrativetrace-glossary/tests",
+    "packages/narrativetrace-structlog/src",
+    "packages/narrativetrace-structlog/tests",
+    "packages/narrativetrace-security-tests/src",
+    "packages/narrativetrace-security-tests/tests",
+    "examples",
+]
+mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src"
+exclude = ['(^|/)conftest\.py$']
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "examples"]
+# `mutants/` is mutmut's working copy of the package (sources *and* tests). Collecting it makes
+# every test module ambiguous by basename, so a `poe mutate` run would otherwise break the next
+# `poe check`. The rest restates pytest's own defaults, which setting this key would replace —
+# dropping `.*` would pull Hypothesis' `.hypothesis` cache into collection.
+norecursedirs = ["mutants", "*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}"]
+# Disable our own entry-point plugin in the outer session: it imports narrativetrace at plugin-load
+# time (before pytest-cov's tracer starts), which would read those modules as uncovered. The
+# plugin's behaviour is exercised via isolated pytester subprocesses in its own test suite.
+# `-m "not stress"` excludes the concurrency stress suite from the default run (poe test / poe
+# coverage): it is high-repetition and timing-sensitive by design, run instead via its own
+# `poe stress-quick` (seeded, seconds) / `poe stress` (long sweep) tasks — see poe check's sequence
+# and documentation/concurrency-stress.md.
+addopts = "-q -p no:narrativetrace -m \"not stress\""
+markers = [
+    "stress: high-repetition concurrency race tests (excluded from the default run; poe stress-quick / poe stress)",
+]
+
+[tool.coverage.run]
+source = [
+    "narrativetrace",
+    "narrativetrace_diagrams",
+    "narrativetrace_otel",
+    "narrativetrace_asgi",
+    "narrativetrace_clarity",
+    "narrativetrace_glossary",
+    "narrativetrace_structlog",
+]
+branch = true
+
+[tool.coverage.report]
+fail_under = 95  # ratchet toward the Java 98% gate; raise as headroom allows
+show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.importlinter]
+root_packages = [
+    "narrativetrace",
+    "narrativetrace_asgi",
+    "narrativetrace_clarity",
+    "narrativetrace_diagrams",
+    "narrativetrace_glossary",
+    "narrativetrace_otel",
+    "narrativetrace_pytest",
+    "narrativetrace_structlog",
+]
+
+# The ArchUnit/JDepend analog. One layers contract encodes the
+# sanctioned shape, matching the Java module graph: core at the bottom;
+# clarity above it; glossary and diagrams above clarity (Java glossary depends
+# on clarity); the framework integrations on top — pytest is a composition
+# module like Java's junit5 (which depends on diagrams, clarity, glossary).
+# "|" = siblings within a layer may not import one another; higher layers may
+# import lower, never the reverse.
+[[tool.importlinter.contracts]]
+name = "package layering (integrations | glossary, diagrams | clarity | core)"
+type = "layers"
+layers = [
+    "narrativetrace_asgi | narrativetrace_otel | narrativetrace_pytest | narrativetrace_structlog",
+    "narrativetrace_glossary | narrativetrace_diagrams",
+    "narrativetrace_clarity",
+    "narrativetrace",
+]

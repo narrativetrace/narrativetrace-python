@@ -1,0 +1,26 @@
+{
+  "$comment": "Names an artifact writer must survive: test class and method names that reach the filesystem. See README.md.",
+  "cases": [
+    { "id": "plain", "description": "the well-formed baseline every other case is a mutation of", "value": "OrderServiceTest" },
+    { "id": "empty", "description": "an empty name, which resolves to no path segment at all", "value": "" },
+    { "id": "whitespace", "description": "a name that is only spaces - legible in a listing, unusable as a path", "value": "   " },
+    { "id": "dots-only", "description": "a name that resolves to the current or parent directory", "value": "..." },
+    { "id": "parent-traversal", "description": "a name that walks out of the output directory", "value": "../../etc/passwd" },
+    { "id": "separator-forward", "description": "a POSIX separator inside a name, which would write into a subdirectory", "value": "traces/escaped" },
+    { "id": "separator-backslash", "description": "the Windows separator, which is also a legal POSIX file-name character", "value": "traces\\escaped" },
+    { "id": "control-char", "description": "a NUL inside a name - InvalidPathException before any byte is written", "value": "before\u0000after" },
+    { "id": "newline", "description": "a line break inside a name, which forges a line in any listing", "value": "before\nafter" },
+    { "id": "unpaired-surrogate", "description": "a lone high surrogate: encodes to no bytes, so the path cannot be built", "value": "name\ud800here" },
+    { "id": "astral", "description": "a well-formed surrogate pair, which truncation must not split", "value": "name\ud83d\ude00here" },
+    { "id": "noncharacter", "description": "U+FFFE and U+FFFF in a name - legal UTF-8 bytes that some filesystems refuse", "value": "name\ufffe\uffffhere" },
+    { "id": "rtl-override", "description": "a bidi override in a name, so a listing reads backwards from there", "value": "report\u202egnp.exe" },
+    { "id": "long-241", "description": "the longest name that still leaves room for the longest artifact suffix", "repeat": { "unit": "a", "count": 241 } },
+    { "id": "long-255", "description": "exactly the per-component limit, so any suffix pushes it over", "repeat": { "unit": "a", "count": 255 } },
+    { "id": "long-256", "description": "one byte past the per-component limit every mainstream filesystem shares", "repeat": { "unit": "a", "count": 256 } },
+    { "id": "long-1024", "description": "a name four times the component limit", "repeat": { "unit": "a", "count": 1024 } },
+    { "id": "long-4096", "description": "a name at PATH_MAX, so even the directory it names cannot be created", "repeat": { "unit": "a", "count": 4096 } },
+    { "id": "long-multibyte", "description": "two hundred three-byte characters: under the limit in characters, over it in bytes, which is where a character-counting cap fails", "repeat": { "unit": "\u4e2d", "count": 200 } },
+    { "id": "long-astral", "description": "a long name of surrogate pairs, so a byte-counting cap must still land on a character boundary", "repeat": { "unit": "\ud83d\ude00", "count": 200 } },
+    { "id": "long-with-separator", "description": "over-long and carrying a separator, so neither guard may hide the other", "prefix": "escaped/", "repeat": { "unit": "a", "count": 300 } }
+  ]
+}

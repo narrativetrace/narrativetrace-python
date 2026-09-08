@@ -1,0 +1,503 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "shop": {
+      "packages": ["examples.ecommerce.ecommerce"],
+      "description": "The shop's order flow"
+    }
+  },
+  "terms": [
+    {
+      "term": "Confirming order {order_id} to customer {customer_id} by email and loyalty credit",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Confirmando el pedido {order_id} al cliente {customer_id} mediante correo electrónico y crédito de fidelización",
+        "zh-CN": "正在通过电子邮件和忠诚度积分为顾客 {customer_id} 确认订单 {order_id}"
+      },
+      "sources": ["AsyncNotificationService.notify_order_confirmed"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "Customer {customer_id} not found",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Cliente {customer_id} no encontrado",
+        "zh-CN": "未找到顾客 {customer_id}"
+      },
+      "sources": ["CustomerService.find_customer"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "Failed to notify customer {customer_id} about order {order_id}",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "No se pudo notificar al cliente {customer_id} sobre el pedido {order_id}",
+        "zh-CN": "未能就订单 {order_id} 通知顾客 {customer_id}"
+      },
+      "sources": ["FlakyNotificationService.notify_order_placed", "NotificationService.notify_order_placed"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "Insufficient stock for {product_id}, requested {quantity}",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Existencias insuficientes de {product_id}, se solicitaron {quantity}",
+        "zh-CN": "{product_id} 库存不足,请求数量 {quantity}"
+      },
+      "sources": ["InventoryService.reserve"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "Payment declined for customer {customer_id}, amount was {amount}",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Pago rechazado para el cliente {customer_id}, el importe era {amount}",
+        "zh-CN": "顾客 {customer_id} 的付款被拒绝,金额为 {amount}"
+      },
+      "sources": ["PaymentService.charge"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "Placing order of {quantity} {product_id} for customer {customer_id}",
+      "context": "shop",
+      "kind": "template",
+      "status": "curated",
+      "translations": {
+        "es": "Realizando pedido de {quantity} {product_id} para el cliente {customer_id}",
+        "zh-CN": "正在为顾客 {customer_id} 下达 {quantity} 个 {product_id} 的订单"
+      },
+      "sources": ["OrderService.place_order"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "amount",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "importe",
+        "zh-CN": "金额"
+      },
+      "sources": ["PaymentService.charge"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "async notification",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "notificación asíncrona",
+        "zh-CN": "异步通知"
+      },
+      "sources": ["AsyncNotificationService"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "award point",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "otorgar puntos",
+        "zh-CN": "发放积分"
+      },
+      "sources": ["LoyaltyService.award_points"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "calculate discount",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "calcular descuento",
+        "zh-CN": "计算折扣"
+      },
+      "sources": ["DiscountService.calculate_discount"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "card token",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "token de tarjeta",
+        "zh-CN": "卡令牌"
+      },
+      "sources": ["PaymentService.charge"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "charge",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "cobrar",
+        "zh-CN": "收费"
+      },
+      "sources": ["PaymentService.charge"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "confirmation",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "confirmación",
+        "zh-CN": "确认"
+      },
+      "sources": ["EmailService.send_confirmation"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "customer",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "cliente",
+        "zh-CN": "顾客"
+      },
+      "sources": ["CustomerService", "CustomerService.find_customer", "OrderService.place_order"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "discount",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "descuento",
+        "zh-CN": "折扣"
+      },
+      "sources": ["DiscountService", "DiscountService.calculate_discount"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "email",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "correo electrónico",
+        "zh-CN": "电子邮件"
+      },
+      "sources": ["EmailService"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "estimate",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "estimar",
+        "zh-CN": "估算"
+      },
+      "sources": ["ShippingEstimateService.estimate"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "external service",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "servicio externo",
+        "zh-CN": "外部服务"
+      },
+      "sources": ["FlakyNotificationService.notify_order_placed", "ExternalServiceError"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "find customer",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "buscar cliente",
+        "zh-CN": "查找顾客"
+      },
+      "sources": ["CustomerService.find_customer"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "flaky notification",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "notificación inestable",
+        "zh-CN": "不稳定通知"
+      },
+      "sources": ["FlakyNotificationService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "inventory",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "inventario",
+        "zh-CN": "库存"
+      },
+      "sources": ["InventoryService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "lookup price",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "consultar precio",
+        "zh-CN": "查询价格"
+      },
+      "sources": ["ProductCatalogService.lookup_price"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "loyalty",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "fidelidad",
+        "zh-CN": "忠诚度"
+      },
+      "sources": ["LoyaltyService"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "notification",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "notificación",
+        "zh-CN": "通知"
+      },
+      "sources": ["NotificationService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "notify order confirmed",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "notificar pedido confirmado",
+        "zh-CN": "通知订单已确认"
+      },
+      "sources": ["AsyncNotificationService.notify_order_confirmed"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "notify order placed",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "notificar pedido realizado",
+        "zh-CN": "通知订单已下达"
+      },
+      "sources": ["FlakyNotificationService.notify_order_placed"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "order",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "pedido",
+        "zh-CN": "订单"
+      },
+      "sources": ["OrderService", "OrderService.place_order", "FlakyNotificationService.notify_order_placed"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "order confirmed",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "pedido confirmado",
+        "zh-CN": "订单已确认"
+      },
+      "sources": ["AsyncNotificationService.notify_order_confirmed"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "order placed",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "pedido realizado",
+        "zh-CN": "订单已下达"
+      },
+      "sources": ["FlakyNotificationService.notify_order_placed"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "out of stock",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "sin existencias",
+        "zh-CN": "缺货"
+      },
+      "sources": ["InventoryService.reserve", "OrderService.place_order", "OutOfStockError"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "payment",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "pago",
+        "zh-CN": "付款"
+      },
+      "sources": ["PaymentService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "payment declined",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "pago rechazado",
+        "zh-CN": "付款被拒绝"
+      },
+      "sources": ["OrderService.place_order", "PaymentService.charge", "PaymentDeclinedError"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "place order",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "realizar pedido",
+        "zh-CN": "下订单"
+      },
+      "sources": ["OrderService.place_order"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "price",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "precio",
+        "zh-CN": "价格"
+      },
+      "sources": ["ProductCatalogService.lookup_price"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "product",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "producto",
+        "zh-CN": "产品"
+      },
+      "sources": ["DiscountService.calculate_discount", "InventoryService.reserve", "OrderService.place_order"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "product catalog",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "catálogo de productos",
+        "zh-CN": "产品目录"
+      },
+      "sources": ["ProductCatalogService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "quantity",
+      "context": "shop",
+      "kind": "word",
+      "status": "curated",
+      "translations": {
+        "es": "cantidad",
+        "zh-CN": "数量"
+      },
+      "sources": ["InventoryService.reserve", "OrderService.place_order", "ShippingEstimateService.estimate"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "reserve",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "reservar",
+        "zh-CN": "预留"
+      },
+      "sources": ["InventoryService.reserve"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "send confirmation",
+      "context": "shop",
+      "kind": "verb-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "enviar confirmación",
+        "zh-CN": "发送确认"
+      },
+      "sources": ["EmailService.send_confirmation"],
+      "firstSeen": "2026-09-08"
+    },
+    {
+      "term": "shipping estimate",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "estimación de envío",
+        "zh-CN": "运费估算"
+      },
+      "sources": ["ShippingEstimateService"],
+      "firstSeen": "2026-09-07"
+    },
+    {
+      "term": "unknown customer",
+      "context": "shop",
+      "kind": "noun-phrase",
+      "status": "curated",
+      "translations": {
+        "es": "cliente desconocido",
+        "zh-CN": "未知顾客"
+      },
+      "sources": ["CustomerService.find_customer", "OrderService.place_order", "UnknownCustomerError"],
+      "firstSeen": "2026-09-07"
+    }
+  ]
+}

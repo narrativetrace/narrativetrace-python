@@ -1,0 +1,43 @@
+[project]
+name = "narrativetrace"
+version = "0.1.0"
+description = "Narrative execution tracing for Python — human- and LLM-readable traces"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# BSL 1.1 requires the licence on every copy, and PEP 639 forbids `..` here — so each
+# distribution keeps its own byte-identical copy of the root LICENSE, gated by
+# `packages/narrativetrace/tests/test_distribution_licensing.py`.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+keywords = ["tracing", "observability", "narrative", "debugging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace"]
+
+# Mutation config lives here, not at the workspace root, and `poe mutate` runs with this directory
+# as its cwd. mutmut derives a mutant's key from its path relative to the run root and only strips a
+# leading `src/`; rooted at the workspace it would key mutants as
+# `packages.narrativetrace.src.narrativetrace.*` while the tests import `narrativetrace.*`, and
+# every mutant is then reported as uncovered.
+[tool.mutmut]
+source_paths = ["src/narrativetrace/"]
+also_copy = ["tests/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# The plugin distribution imports narrativetrace at plugin-load time, before the mutated copy is on
+# sys.path — loading it would test the installed package instead of the mutant.
+pytest_add_cli_args = ["-p", "no:narrativetrace"]

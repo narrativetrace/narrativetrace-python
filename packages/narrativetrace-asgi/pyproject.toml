@@ -1,0 +1,35 @@
+[project]
+name = "narrativetrace-asgi"
+version = "0.1.0"
+description = "ASGI middleware (Starlette/FastAPI) for narrativetrace request tracing"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+classifiers = ["Typing :: Typed"]
+dependencies = [
+    "narrativetrace",
+]
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[project.optional-dependencies]
+httpx = ["httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_asgi"]
+
+[dependency-groups]
+dev = [
+    "starlette>=0.37",
+    "httpx>=0.27",
+]

@@ -1,0 +1,38 @@
+NarrativeTrace — Copyright 2026 Empower Agile
+
+<!-- legal:trademark:begin -->
+NarrativeTrace is a trademark of Empower Agile.
+<!-- legal:trademark:end -->
+
+This product includes software developed at Empower Agile
+(https://www.empoweragile.com).
+
+NarrativeTrace's API and output format are open standards (Apache 2.0). Its
+runtime is free and source-available (BSL 1.1, converting to Apache 2.0 four
+years after each release). Pro is commercial.
+
+Which licence applies to what
+------------------------------
+
+  every narrativetrace* distribution on PyPI shipped from this repository
+      Business Source License 1.1 — see LICENSE.
+      The runtime and its integrations. Free to use in production, including
+      in products and services you provide to your own customers; the one
+      exclusion is offering NarrativeTrace itself — or a product or service
+      whose value derives substantially from it — to third parties as a
+      logging, tracing or code-narrative product or service. Each released
+      version converts to the Apache License, Version 2.0 four years after
+      it is published. Every published source file carries
+      "SPDX-License-Identifier: BUSL-1.1".
+
+  documentation/ (prose)
+      Creative Commons Attribution 4.0 International (CC BY 4.0).
+      https://creativecommons.org/licenses/by/4.0/
+      The guides, the ADR log, the feature guide and the format specification.
+      Documentation is not the moat.
+
+  the JSON schema files (schema/*.schema.json)
+      Apache License, Version 2.0.
+      The canonical trace format is a standard other implementations are meant
+      to target, so it is licensed as one. They carry no SPDX header (JSON
+      permits no comments) — see schema/README.md.

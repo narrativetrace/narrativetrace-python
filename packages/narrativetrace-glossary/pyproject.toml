@@ -1,0 +1,41 @@
+[project]
+name = "narrativetrace-glossary"
+version = "0.1.0"
+description = "Domain glossary: ubiquitous-language harvesting and trace translation for narrativetrace"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+classifiers = ["Typing :: Typed"]
+# Term normalization reuses the clarity distribution's tokenizer and lexical tables (ADR-012).
+# The core distribution is a direct dependency because harvesting walks its trace-tree types.
+dependencies = ["narrativetrace", "narrativetrace-clarity"]
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[project.scripts]
+# A deliberate, opt-in write tool (item 6's "glossary writes opt-in" prerequisite) — not a CI
+# gate, unlike narrativetrace-clarity's console script. See glossary_scan_cli's module docstring.
+glossary-scan = "narrativetrace_glossary.glossary_scan_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_glossary"]
+
+# Mutmut derives mutant keys from the run root, so it must run from this directory
+# (`uv run poe mutate-glossary`), not from the workspace root.
+[tool.mutmut]
+source_paths = ["src/narrativetrace_glossary/"]
+also_copy = ["tests/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# The pytest plugin distribution imports narrativetrace at plugin-load time, before the mutated
+# copy is on sys.path — loading it would test the installed package instead of the mutant.
+pytest_add_cli_args = ["-p", "no:narrativetrace"]
