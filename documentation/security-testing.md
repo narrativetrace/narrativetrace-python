@@ -21,7 +21,7 @@ Two tiers:
 | Tier | What it is | When it runs | Cost |
 |---|---|---|---|
 | **A — structured fuzz** | Hypothesis properties fed by the shared hostile corpus | every `poe check`/`poe test` | seconds |
-| **B — coverage-guided fuzz** | budgeted Hypothesis run on the top two targets (atheris fallback — see below) | a separate `poe fuzz` task | ~30s at the current budget |
+| **B — coverage-guided fuzz** | real atheris fuzz of target 1 on x86_64 Linux; a budgeted Hypothesis run on both targets everywhere/always (see below) | a separate `poe fuzz` task | ~60s (atheris) + ~60s (Hypothesis) at the current budgets |
 
 **Every NarrativeTrace runtime mirrors the same corpus.** `tests/resources/hostile-corpus/` is copied
 byte-identical from the shared master copy's `narrativetrace-security-tests/src/test/resources/
@@ -80,37 +80,71 @@ package asserts from this list:
    (`formats.json_shape`/`statements_of`/`frontmatter_keys`/`fence_count`), because well-formedness
    alone would happily accept a forged field.
 
-## Tier B: atheris is not usable on this container
+## Tier B: real on x86_64 Linux, a documented Hypothesis fallback everywhere else (verified 2026-09-09)
 
 Java's Tier B is Jazzer, whose `@FuzzTest` steers generation by the target's own coverage. The
-Python analogue is [atheris](https://github.com/google/atheris), which this container cannot run:
+Python analogue is [atheris](https://github.com/google/atheris) — Google's libFuzzer-backed
+coverage-guided fuzzer for Python. Earlier notes here attributed atheris's unavailability to this
+repo's Python floor (`>=3.12`). **That was never the accurate story**: atheris 3.0.0 (2025-11-24)
+added Python 3.12/3.13 support and 3.1.0 (2026-06-17) added 3.14, both released before this
+correction — the real blocker is **platform/toolchain, not Python version**:
 
-```
-$ uv pip install atheris
-...
-RuntimeError: Failed to find libFuzzer; set either $CLANG_BIN to point to your Clang binary,
-or $LIBFUZZER_LIB to point directly to your libFuzzer .a file. ...
-```
+- **PyPI wheels exist only for `manylinux2014_x86_64`** (cp312, cp313, cp314) — confirmed against
+  atheris 3.1.0's published file list. There is no macOS wheel at all (`arm64` or `x86_64`) and no
+  `aarch64` Linux wheel. Building from source needs a Clang+libFuzzer toolchain.
+- **This repo's `.devcontainer` (`aarch64` Linux, `python:3.13-bookworm`)**: no wheel, and no
+  `clang` binary anywhere on `$PATH` to build from source (`RuntimeError: Failed to find
+  libFuzzer; set either $CLANG_BIN to point to your Clang binary, or $LIBFUZZER_LIB ...`).
+- **A macOS `arm64` host**: also no wheel, and this time Clang *is* present (Apple's own) but does
+  not ship libFuzzer, a different, more specific failure than the devcontainer's "no clang at
+  all" (`RuntimeError: Failed to find libFuzzer; you may be building using Apple Clang. Apple
+  Clang does not come with libFuzzer. ...`).
+- **A plain `x86_64` Linux CPython 3.12 interpreter DOES work** — verified live 2026-09-09 in a
+  `python:3.12-bookworm --platform linux/amd64` container (matching GitHub Actions'
+  `ubuntu-latest` and this repo's own GitLab CI image's architecture): `pip install atheris`
+  resolves the real manylinux wheel, no Clang/libFuzzer toolchain needed at all.
 
-There is no prebuilt wheel for this container's platform (`aarch64` Linux), and building from
-source needs a Clang+libFuzzer toolchain that is not installed (no `clang` binary anywhere on
-`$PATH`). This is the arm64-wheel blocker earlier runs anticipated; it is evidence, not a
-guess — re-run `uv pip install atheris` to reproduce.
+**A real coverage-guided harness is wired for target 1** (`atheris_traceparent_target.py`,
+fuzzing `parse_traceparent`) and **verified actually fuzzing**, not merely importing: a 15-second
+run of exactly this harness, in the same verification container, drove coverage from 3 to 28
+edges over 70,571 executions (~4,400/sec) starting from an empty corpus — real libFuzzer
+`NEW`/`REDUCE` lines, not a smoke test. `scripts/fuzz_report.py` (`poe fuzz`'s entry point) checks
+whether `atheris` is importable and, only where it is, runs this harness for a time-boxed 60
+seconds, reporting its own execution count and failing the run if throughput falls far below what
+a genuine fuzz produces (`AtherisRunReport.is_credible`) — a crash makes libFuzzer itself exit
+non-zero, which propagates as this run's failure, exactly as a real finding should. **Target 2**
+(`ValueRenderer` over hostile object graphs) has **no** atheris harness yet: its input is an
+object graph, not a byte string, so a byte-to-graph decoder is separate, non-trivial work left for
+later — the Hypothesis sweep remains its only Tier B coverage. `atheris` itself is wired as an
+optional dependency (`security` dependency group, `sys_platform == 'linux' and platform_machine
+== 'x86_64'` marker) so `uv sync --group security` installs it for real only where it can
+actually resolve a wheel, and attempts nothing (no source build, no error) everywhere else.
 
-**Fallback:** `poe fuzz` runs a budgeted plain-Hypothesis sweep (`NARRATIVETRACE_FUZZ=1`, 5,000
+**Fallback (every other environment, and target 2 everywhere):** `poe fuzz`
+(`scripts/fuzz_report.py`) runs a budgeted plain-Hypothesis sweep (`NARRATIVETRACE_FUZZ=1`, 5,000
 examples per property instead of the default 100) over the top two targets, per Java's own
-priority table below — targets 1 and 2, not an arbitrary pick. `fuzz_config.fuzz_settings` points
-Hypothesis's example database at `tests/.fuzz-corpus/`, committed to the repository rather than the
-default gitignored `.hypothesis/` cache: a crash `poe fuzz` finds once is saved there and replayed
-first on every subsequent `poe test`/`poe check`, so it becomes a permanent regression the whole
-team inherits — the role Jazzer's committed seed corpus plays for Java. This is a narrower
-guarantee than real coverage guidance (Hypothesis's shrinker explores around a failure, not the
-target's control-flow graph), recorded here rather than left implicit.
+priority table below. This buys **generated-example coverage of the input *shape* space**
+(Hypothesis's strategies + shrinker) — it does **not** buy coverage guidance from the target's own
+control-flow graph the way the real atheris harness above does: a Hypothesis run can miss a branch
+no strategy happens to reach, where a coverage-guided fuzzer would notice the branch went
+uncovered and steer generation toward it. `fuzz_config.fuzz_settings` points Hypothesis's example
+database at `tests/.fuzz-corpus/`, committed to the repository rather than the default gitignored
+`.hypothesis/` cache: a crash `poe fuzz` finds once is saved there and replayed first on every
+subsequent `poe test`/`poe check`, so it becomes a permanent regression the whole team inherits —
+the role Jazzer's committed seed corpus plays for Java.
 
-If a future container has a working Clang/libFuzzer toolchain (or an arm64 atheris wheel ships),
-replacing `fuzz_config.py`'s Hypothesis-only settings with real atheris harnesses for these two
-targets — and, eventually, targets 3/4 to match Java's four — is the natural next step; nothing
-about the corpus or the property tests it feeds needs to change.
+`scripts/fuzz_report.py` makes every branch's own honesty checkable: whichever tier ran (real
+atheris, the Hypothesis fallback, or both), it parses the actual executions/examples and the
+wall-clock duration and fails the task if the total falls below a floor — the exact failure class
+the team already caught once for real (`python-fuzz` reporting "OK" in 16 seconds against a
+budget that cannot finish that fast): a run that collected zero tests, crashed before generating
+anything, or otherwise did nothing while still exiting 0.
+
+The natural next steps, in priority order: (1) confirm the CI runners this repo actually uses are
+x86_64 Linux (both the private and public CI configs use images that suggest it, but that has not
+been independently confirmed from inside a live CI job); (2) write a byte-to-object-graph decoder
+and a real atheris harness for target 2; (3) targets 3/4, to match Java's four. Nothing about the
+corpus or the property tests they feed needs to change for any of these.
 
 ## The targets
 

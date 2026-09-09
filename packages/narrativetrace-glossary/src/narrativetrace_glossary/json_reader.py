@@ -9,6 +9,13 @@ key, a wrong JSON type, a bad enum label, a malformed date — must fail loudly 
 silently dropped. Parsing itself delegates to :mod:`json` (Java hand-rolls a parser); everything
 after it is validation, and every structural rule is enforced by the model constructors this reader
 calls.
+
+``glossary.json`` is user-supplied and untrusted, and :mod:`json` recurses per open container:
+CPython's C-accelerated decoder recurses on the C stack, not the one :func:`sys.setrecursionlimit`
+bounds, so a deeply nested document can exhaust it before Python ever gets a chance to raise a
+catchable error. :func:`_check_nesting_depth` walks the raw text once, tracking container depth
+outside string literals, and refuses a hostile depth before either decoder ever recurses into it.
+The depth limit is a ruled cross-runtime constant, not a value picked locally for this reader.
 """
 
 from __future__ import annotations
@@ -44,6 +51,11 @@ _TERM_KEYS = frozenset(
     }
 )
 _SYNONYM_KEYS = frozenset({"alias", "note"})
+
+_MAX_JSON_NESTING_DEPTH = 16
+"""Deepest ``{``/``[`` nesting a glossary document may open, checked before :mod:`json` ever
+recurses. Ruled once for the family; every runtime that reads a glossary.json enforces this same
+number, not a value picked locally for this reader."""
 
 # Java parses with ISO_LOCAL_DATE. ``date.fromisoformat`` is laxer — it also accepts the basic
 # form ``20260811`` and ISO week dates — so the extended form is required explicitly.
@@ -196,7 +208,41 @@ def _read_contexts(raw: dict[str, Any]) -> dict[str, BoundedContext]:
     return {name: _read_context(name, element) for name, element in raw.items()}
 
 
+def _check_nesting_depth(text: str) -> None:
+    """Rejects text whose container nesting exceeds :data:`_MAX_JSON_NESTING_DEPTH`.
+
+    A single pass over the raw characters, counting ``{``/``[`` depth outside string literals
+    (backslash-escape aware, so a quote inside a string never looks like a closer). No recursion
+    of its own, so this cannot itself be the thing that exhausts the stack — it exists precisely to
+    refuse a hostile depth before :func:`json.loads` gets a chance to recurse into it.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "{[":
+            depth += 1
+            if depth > _MAX_JSON_NESTING_DEPTH:
+                raise ValueError(
+                    f"glossary JSON nesting depth {depth} exceeds the limit of "
+                    f"{_MAX_JSON_NESTING_DEPTH}"
+                )
+        elif char in "}]":
+            depth -= 1
+
+
 def _parse(text: str) -> object:
+    _check_nesting_depth(text)
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:

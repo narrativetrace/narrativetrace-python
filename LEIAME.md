@@ -1,4 +1,4 @@
-<!-- source: README.md blob d471648a833c | translated: 2026-09-07 | reviewed: - -->
+<!-- source: README.md blob 9e7e9aa7cd18 | translated: 2026-09-09 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -365,11 +365,16 @@ A captura é controlada por um nível de tracing verificado *antes* de qualquer 
 trabalho de strings — antes de tocar nos seus argumentos. Para loops quentes, restrinja o escopo
 traçado ou baixe o nível em vez de traçar tudo.
 
-Ainda não publicamos números medidos de latência/alocação para esta implementação da forma que o irmão Java
-faz — `uv run poe bench` (pytest-benchmark) está conectado ao toolchain, mas ainda nenhuma suíte de
-benchmark foi escrita. Até que esteja, não assuma que os números do Java se transferem: os runtimes,
-e o que cada linha de código de tracing custa neles, são diferentes. Não vamos afirmar "overhead
-zero" de nenhuma forma — o tracing faz trabalho, e trabalho custa algo.
+Existe uma suíte de benchmarks inicial (`packages/narrativetrace/tests/test_bench_*.py`, executada
+com `uv run poe bench`): overhead de captura por nível de tracing, uma chamada através de
+`trace_object` contra uma chamada direta, a renderização de uma trace capturada em cada formato, e
+a verificação de redação em um caminho quente. Ainda não publicamos números oficiais a partir dela
+da forma que o irmão Java publica suas cifras de JMH — `uv run poe bench-gate` compara uma execução
+com a anterior na *mesma* máquina (números de referência de uma máquina não são comparáveis entre
+máquinas), por isso isso é um hábito noturno, não um número público. Não assuma que os números do
+Java se transferem: os runtimes, e o que cada linha de código de tracing custa neles, são
+diferentes. Não vamos afirmar "overhead zero" de nenhuma forma — o tracing faz trabalho, e
+trabalho custa algo.
 
 ## O que é gratuito e o que é Pro
 

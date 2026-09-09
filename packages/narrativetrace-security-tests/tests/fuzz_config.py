@@ -7,11 +7,12 @@
 Mirrors Java's target-priority table (``documentation/security-testing.md``): target 1 is
 ``Traceparent``/any wire reader, target 2 is ``ValueRenderer`` over hostile object graphs, target 4
 is template parsing and rendering. Java fuzzes these with Jazzer, whose ``@FuzzTest`` steers
-generation by the target's own coverage; the
-Python equivalent, atheris, has no wheel for this container's platform (aarch64 Linux) and building
-it from source needs a Clang+libFuzzer toolchain this container does not have (``uv pip install
-atheris`` fails with "Failed to find libFuzzer"; no ``clang`` binary anywhere on ``$PATH``). Noted
-in the private backlog; see ``documentation/security-testing.md`` for the full evidence.
+generation by the target's own coverage; the Python equivalent, atheris, has a real, verified
+harness for target 1 only (``atheris_traceparent_target.py``, run by ``scripts/fuzz_report.py``
+where atheris is importable -- a plain x86_64 Linux interpreter, not this repo's own devcontainer
+or any macOS host). This module's Hypothesis settings are what target 2 relies on entirely (no
+byte-to-object-graph harness exists for it yet) and what every target falls back to everywhere
+atheris cannot import. See ``documentation/security-testing.md`` for the full, dated evidence.
 
 Hypothesis's own example database is the fallback: :data:`fuzz_settings` points it at a directory
 committed to the repository (not gitignored) rather than the usual ``.hypothesis/`` cache, so every

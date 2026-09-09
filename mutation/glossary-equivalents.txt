@@ -1,0 +1,15 @@
+# Equivalent-mutant ledger for narrativetrace-glossary, read by `poe mutate-glossary-gate`
+# (scripts/mutation_gate.py, invoked with the "narrativetrace-glossary" argument).
+#
+# Same format as mutation/equivalents.txt: one line per mutant, the mutmut mutant id (as printed
+# by `mutmut results` from packages/narrativetrace-glossary), a tab, then a one-line reason a
+# human can review. A mutant listed here is excluded from the gate's denominator — it can never
+# be killed because the mutated code is behaviourally identical to the original, not because the
+# test suite has a gap. Every entry must be re-verified (`mutmut show <id>`, run from
+# packages/narrativetrace-glossary) before being trusted; do not add an entry just because a
+# mutant survives.
+#
+# Empty as of this file's creation: `poe mutate-glossary` last measured a 93.1% kill rate
+# (2,036/2,186), comfortably above the 80% floor with zero exclusions, and its 147 survivors have
+# not yet been triaged one by one. Add entries here only after that triage confirms a specific
+# survivor is genuinely equivalent, not merely uncovered.

@@ -59,7 +59,7 @@ Technique, since CPython has no jcstress-equivalent scheduler:
 | Mode | What it is | When it runs | Cost |
 |---|---|---|---|
 | **Quick (seeded)** | A small, fixed-seed repetition count — a regression net, not a search | every `poe check` (`poe stress-quick`) | seconds |
-| **Long (randomised)** | A much larger, randomly-seeded repetition count — the actual search | the scheduled job (`poe stress`) | ~10-60s at the current budget |
+| **Long (randomised)** | A much larger, randomly-seeded repetition count — the actual search | a scheduled/web `stress` job (`poe stress`) in the private CI config | ~10-60s at the current budget |
 
 ```bash
 uv run poe check                                                                  # quick mode, part of the full gate

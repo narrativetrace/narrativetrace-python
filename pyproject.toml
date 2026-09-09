@@ -58,6 +58,12 @@ dev = [
 security = [
     "semgrep>=1.176",
     "pip-audit>=2.10",
+    # Real coverage-guided fuzzing (poe fuzz's Tier B, target 1 only -- see
+    # documentation/security-testing.md). PyPI ships wheels only for manylinux x86_64
+    # cp312/cp313/cp314 (verified 2026-09-09); the marker keeps `uv sync --group security` from
+    # even attempting a source build (Clang+libFuzzer) anywhere else -- it simply is not
+    # installed there, and scripts/fuzz_report.py detects that and falls back honestly.
+    "atheris>=3.1; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 # --------------------------------------------------------------------------- #
@@ -93,11 +99,22 @@ help = "Mutation testing for the glossary distribution (config in its own pyproj
 # No literal "%" in this string: radon's FileConfig.toml_config() (used by `poe metrics`/xenon)
 # reads the whole [tool] table into a ConfigParser with interpolation enabled, so a bare "%"
 # anywhere under [tool.*] in this file breaks `poe metrics` with "invalid interpolation syntax".
-help = """Mutation kill-rate floor: poe mutate, then fail below an 80-of-100 kill rate \
-(killed / (total - mutation/equivalents.txt)); wired into the CI mutation job, not poe check"""
+help = """Mutation kill-rate floor for narrativetrace: poe mutate, then fail below an 80-of-100 \
+kill rate (killed / (total - mutation/equivalents.txt)); wired into the CI mutation job, not \
+poe check"""
 sequence = [
     { ref = "mutate" },
-    { cmd = "python scripts/mutation_gate.py" },
+    { cmd = "python scripts/mutation_gate.py narrativetrace" },
+]
+
+[tool.poe.tasks.mutate-glossary-gate]
+help = """Mutation kill-rate floor for narrativetrace-glossary, same 80-of-100 formula as \
+mutate-gate (killed / (total - mutation/glossary-equivalents.txt)); wired into the CI mutation \
+job, not poe check. Previously unfloored (poe mutate-glossary ran with nothing failing the build \
+below the floor) -- see mutation/glossary-equivalents.txt for the last measured score."""
+sequence = [
+    { ref = "mutate-glossary" },
+    { cmd = "python scripts/mutation_gate.py narrativetrace-glossary" },
 ]
 
 [tool.poe.tasks.demo]
@@ -108,13 +125,25 @@ help = "Run an example with the live narration colorized and paced (--example NA
 cmd = "pytest --benchmark-only"
 help = "Run pytest-benchmark suites"
 
+[tool.poe.tasks.bench-gate]
+# No literal "%" in this string -- see scripts/bench_gate.py's own docstring for why (the same
+# radon/ConfigParser interpolation trap [tool.poe.tasks.mutate-gate]'s comment documents).
+cmd = "python scripts/bench_gate.py"
+help = """Benchmark regression gate: runs the starter suite (test_bench_*.py), autosaves the run \
+under .benchmarks/, and fails if any benchmark's mean time regressed more than the threshold in \
+scripts/bench_gate.py against the most recently saved run on this machine. Host-baseline numbers \
+are not comparable across machines (shared CI runners included -- see the .NET benchmark-skip \
+precedent), so this is the nightly's entry point on a fixed machine, never a per-commit/CI gate; \
+the very first run on a machine has nothing to compare against and simply passes while seeding \
+one."""
+
 [tool.poe.tasks.fuzz]
-cmd = """pytest \
-    packages/narrativetrace-security-tests/tests/test_traceparent_properties.py \
-    packages/narrativetrace-security-tests/tests/test_value_renderer_redaction_properties.py"""
-env = { NARRATIVETRACE_FUZZ = "1" }
-help = """Tier B fallback: budgeted Hypothesis fuzzing of the top two hostile-corpus targets \
-(atheris has no wheel for this container's platform; see documentation/security-testing.md)"""
+cmd = "python scripts/fuzz_report.py"
+help = """Tier B: a real, time-boxed coverage-guided atheris fuzz of target 1 where atheris is \
+importable (x86_64 Linux only -- see documentation/security-testing.md), plus a budgeted \
+Hypothesis fuzz of both hostile-corpus targets everywhere/always -- and asserts on the \
+examples/executions actually run, so a suspiciously fast/small run fails instead of reading as \
+success."""
 
 [tool.poe.tasks.stress-quick]
 cmd = """pytest -m stress \
@@ -343,6 +372,13 @@ files = [
 mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src"
 exclude = ['(^|/)conftest\.py$']
 
+# atheris is platform-conditional (see the `security` dependency group below and
+# documentation/security-testing.md) and ships no type stubs of its own; not installed in most
+# environments this repo type-checks in, including this one.
+[[tool.mypy.overrides]]
+module = "atheris"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["packages", "examples"]
 # `mutants/` is mutmut's working copy of the package (sources *and* tests). Collecting it makes
@@ -356,8 +392,11 @@ norecursedirs = ["mutants", "*.egg", ".*", "_darcs", "build", "CVS", "dist", "no
 # `-m "not stress"` excludes the concurrency stress suite from the default run (poe test / poe
 # coverage): it is high-repetition and timing-sensitive by design, run instead via its own
 # `poe stress-quick` (seeded, seconds) / `poe stress` (long sweep) tasks — see poe check's sequence
-# and documentation/concurrency-stress.md.
-addopts = "-q -p no:narrativetrace -m \"not stress\""
+# and documentation/concurrency-stress.md. `--benchmark-skip` keeps the same convention for the
+# `test_bench_*.py` starter suite: still collected (so a broken benchmark fixture still shows up
+# as a skip, never silently), but not timed on every ordinary run — `poe bench` / `poe bench-gate`
+# override it with `--benchmark-only`, which always wins over `--benchmark-skip`.
+addopts = "-q -p no:narrativetrace -m \"not stress\" --benchmark-skip"
 markers = [
     "stress: high-repetition concurrency race tests (excluded from the default run; poe stress-quick / poe stress)",
 ]

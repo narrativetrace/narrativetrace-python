@@ -347,11 +347,15 @@ Capture is gated by a tracing level checked *before* any rendering happens
 string work — before touching your arguments. For hot loops, narrow the traced scope or drop the
 level rather than tracing everything.
 
-We have not yet published measured latency/allocation numbers for this runtime the way the Java
-sibling does — `uv run poe bench` (pytest-benchmark) is wired into the toolchain, but no benchmark
-suite has been written yet. Until it is, do not assume the Java numbers transfer: the runtimes,
-and what each line of tracing code costs on them, are different. We will not claim "zero overhead"
-either way — tracing does work, and work costs something.
+A starter benchmark suite exists (`packages/narrativetrace/tests/test_bench_*.py`, run with
+`uv run poe bench`): capture overhead per tracing level, a call through `trace_object` against a
+direct call, rendering a captured trace to each format, and the redaction check on a hot path.
+We have not yet published official numbers from it the way the Java sibling publishes JMH
+figures — `uv run poe bench-gate` compares a run against the previous one on the *same* machine
+(host-baseline numbers are not comparable across machines), which is why this is a nightly
+habit, not a public number. Do not assume the Java numbers transfer: the runtimes, and what each
+line of tracing code costs on them, are different. We will not claim "zero overhead" either
+way — tracing does work, and work costs something.
 
 ## What is free and what is Pro
 

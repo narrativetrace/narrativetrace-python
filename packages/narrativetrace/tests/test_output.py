@@ -11,7 +11,13 @@ from pathlib import Path
 from narrativetrace.loss import TraceLoss
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Returned, Threw
-from narrativetrace.output.paths import extension_for_format, file_slug, trace_directory, trace_file
+from narrativetrace.output.paths import (
+    _java_string_hash,
+    extension_for_format,
+    file_slug,
+    trace_directory,
+    trace_file,
+)
 from narrativetrace.output.reporter import ConsoleSummaryReporter
 from narrativetrace.output.warnings import collect, format_warnings
 from narrativetrace.output.writer import TraceArtifact, write_trace
@@ -278,6 +284,52 @@ class TestLongNameCap:
         assert len(f.stem.encode("utf-8")) + len(f.suffix.encode("utf-8")) <= (
             self._MAX_COMPONENT_BYTES
         )
+
+    def test_the_disambiguator_is_javas_string_hash_of_the_full_slug(self) -> None:
+        """Wiring check: ``_capped`` must hash the whole slug, not the already-truncated prefix
+        -- hashing the wrong half would still produce eight hex digits and pass every other
+        assertion here while silently breaking the family's cross-runtime hash unification."""
+        slug = file_slug("m" * 1024)
+        assert slug.endswith(f"_{_java_string_hash('m' * 1024):08x}")
+
+
+class TestJavaStringHash:
+    """Parity with Java's specified ``String.hashCode()`` -- ``h = 31*h + c`` over UTF-16 code
+    units -- so the same over-long name resolves to the same disambiguator on every runtime in
+    the family, not a per-port value. Mirrors dotnet's own hand-rolled reimplementation of the
+    same formula (``.NET``, like Python, otherwise randomizes string hashing per process)."""
+
+    def test_the_empty_string_hashes_to_zero(self) -> None:
+        assert _java_string_hash("") == 0
+
+    def test_a_single_ascii_character_hashes_to_its_code_point(self) -> None:
+        assert _java_string_hash("a") == 97
+
+    def test_matches_the_recurrence_for_a_short_string(self) -> None:
+        # h = 31*(31*0 + ord('a')) + ord('b') = 31*97 + 98
+        assert _java_string_hash("ab") == 31 * 97 + 98
+
+    def test_matches_javas_well_known_hash_of_hello(self) -> None:
+        # A widely-verified constant: Java's "hello".hashCode() == 99162322.
+        assert _java_string_hash("hello") == 99162322
+
+    def test_32_bit_overflow_wraps_like_javas_int_arithmetic(self) -> None:
+        # Long enough that the unmasked recurrence would exceed 2**32 partway through; every
+        # step must wrap to stay a 32-bit unsigned value, matching Java's `int` overflow.
+        assert 0 <= _java_string_hash("x" * 50) <= 0xFFFFFFFF
+
+    def test_a_supplementary_character_hashes_as_its_utf16_surrogate_pair(self) -> None:
+        # U+1F600 has no single UTF-16 code unit; Java's UTF-16-backed String stores it (and
+        # therefore hashes it) as the surrogate pair U+D83D, U+DE00.
+        assert _java_string_hash("\U0001f600") == 31 * 0xD83D + 0xDE00
+
+    def test_a_lone_surrogate_hashes_as_one_code_unit_with_no_pairing(self) -> None:
+        # Python permits an unpaired surrogate as a scalar value; Java permits the same as an
+        # unpaired `char`. Neither language treats it as supplementary, so it is not split.
+        assert _java_string_hash("\ud800") == 0xD800
+
+    def test_resolving_the_same_name_twice_gives_the_same_hash(self) -> None:
+        assert _java_string_hash("repeat me") == _java_string_hash("repeat me")
 
 
 class TestWriter:

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Mutation testing via mutmut — schedule + manual dispatch ONLY, never push/PR: a full run is
+# minutes per mutated package, too slow for a per-commit gate (`poe check` already covers
+# correctness; this is the deeper, slower signal, same cadence as this repo's GitLab `mutation`
+# job). Before this file, the public GitHub mirror carried zero mutation signal for this
+# runtime — a contributor working only from GitHub saw nothing here, unlike TypeScript's public
+# mirror (narrative-trace-ts's mutation.yml — the family precedent this file otherwise follows:
+# least privilege, SHA-pinned actions, this repo's own container/task conventions).
+name: Mutation
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    container: ghcr.io/astral-sh/uv:python3.12-bookworm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - run: uv sync --all-packages
+      # Both mutated packages (mutmut has no multi-root mode, so each runs and is floored
+      # independently — see scripts/mutation_gate.py); either failing fails the job.
+      - run: uv run poe mutate-gate
+      - run: uv run poe mutate-glossary-gate

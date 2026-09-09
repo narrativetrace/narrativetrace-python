@@ -480,12 +480,21 @@ class TestDepthAndCycleBounds:
         is set relative to *this test's own* current frame depth, not an absolute number, so the
         margin measured is the renderers' actual frame cost, independent of how deep pytest's own
         collection machinery happens to nest this call. Always restored, even on failure -- a
-        stuck low limit would break every later test in the process."""
+        stuck low limit would break every later test in the process.
+
+        **The headroom below is calibrated for mutmut, not just plain pytest** (2026-09-09 nightly
+        finding): under plain pytest the measured minimum for MarkdownRenderer (the most
+        stack-frame-hungry of the three) is 403 frames above this test's own call depth, but
+        mutmut wraps every function in a dispatch trampoline (`mutmut.mutation.trampoline
+        .wrap_in_trampoline` -- one extra call frame per logical call, present even with no
+        mutant active, i.e. `MUTANT_UNDER_TEST` unset), so the *same* chain measured against
+        `packages/narrativetrace/mutants`'s instrumented copy needs 1,213 frames -- headroom
+        that was fine under plain pytest raised a genuine `RecursionError` once mutmut got
+        involved, breaking the nightly `python-mutate-gate` job. 1,600 clears the
+        mutmut-instrumented measurement with margin; a caller embedding this library natively
+        (no trampoline) keeps roughly 4x that margin on top."""
         chain = self._chain(MAX_DEPTH - 1)
-        # Measured minimum for MarkdownRenderer (the most stack-frame-hungry of the three) is 403
-        # frames above this test's own call depth; 600 keeps a comfortable margin while staying
-        # far below the interpreter's default 1000-frame budget.
-        headroom = 600
+        headroom = 1600
         original_limit = sys.getrecursionlimit()
         sys.setrecursionlimit(self._frame_depth() + headroom)
         try:

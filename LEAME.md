@@ -1,4 +1,4 @@
-<!-- source: README.md blob d471648a833c | translated: 2026-09-07 | reviewed: - -->
+<!-- source: README.md blob 9e7e9aa7cd18 | translated: 2026-09-09 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -365,12 +365,16 @@ cualquier renderizado (`NARRATIVETRACE_LEVEL`): ponlo en `OFF` y los wrappers co
 reflexión, sin trabajo de cadenas — antes de tocar tus argumentos. Para bucles calientes, reduce el
 alcance trazado o baja el nivel en vez de trazarlo todo.
 
-Todavía no hemos publicado cifras medidas de latencia/asignación para esta implementación como sí hace el
-hermano Java — `uv run poe bench` (pytest-benchmark) está cableado en el toolchain, pero aún no se
-ha escrito ninguna suite de benchmarks. Hasta que la haya, no asumas que las cifras de Java se
-trasladan: los runtimes, y lo que cuesta en ellos cada línea de código de tracing, son distintos.
-No vamos a afirmar «sobrecoste cero» en ningún sentido — trazar hace trabajo, y el trabajo cuesta
-algo.
+Existe una suite de benchmarks inicial (`packages/narrativetrace/tests/test_bench_*.py`, se
+ejecuta con `uv run poe bench`): sobrecoste de captura por nivel de tracing, una llamada a través
+de `trace_object` frente a una llamada directa, el renderizado de una traza capturada en cada
+formato, y la comprobación de redacción en una ruta caliente. Todavía no hemos publicado cifras
+oficiales a partir de ella como sí hace el hermano Java con sus cifras de JMH — `uv run poe
+bench-gate` compara una ejecución con la anterior en la *misma* máquina (las cifras de referencia
+de una máquina no son comparables entre máquinas), por eso esto es un hábito nocturno, no una
+cifra pública. No asumas que las cifras de Java se trasladan: los runtimes, y lo que cuesta en
+ellos cada línea de código de tracing, son distintos. No vamos a afirmar «sobrecoste cero» en
+ningún sentido — trazar hace trabajo, y el trabajo cuesta algo.
 
 ## Qué es gratuito y qué es Pro
 

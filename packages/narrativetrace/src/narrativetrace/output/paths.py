@@ -80,20 +80,45 @@ def _to_directory_slug(simple_name: str) -> str:
     return _capped(named, _MAX_COMPONENT_BYTES)
 
 
-def _fnv1a_hex(text: str) -> str:
-    """FNV-1a over ``text``'s UTF-8 bytes, as eight lowercase hex digits.
+_UTF16_SUPPLEMENTARY_BASE = 0x10000
+_UTF16_HIGH_SURROGATE_BASE = 0xD800
+_UTF16_LOW_SURROGATE_BASE = 0xDC00
+_UTF16_LOW_TEN_BITS = 0x3FF
+_UINT32_MASK = 0xFFFFFFFF
+
+
+def _java_string_hash(text: str) -> int:
+    """Java's specified ``String.hashCode()``: ``h = 31*h + c`` over UTF-16 *code units*, as an
+    unsigned 32-bit value (Java's signed overflow and this mask produce the same bit pattern, and
+    that bit pattern -- not its signed value -- is what gets formatted as hex below).
 
     Not Python's built-in ``hash()``: string hashing is salted per-process by default
     (``PYTHONHASHSEED``), and this disambiguator must be stable across runs so the same name
-    always resolves to the same artifact. It is not a security boundary, only a
-    collision-avoidance one -- mirrors the Swift port's ``OutputDirectoryResolver.hexHash``,
-    chosen there for the same reason (Swift's own ``Hasher`` is also randomized per process).
+    always resolves to the same artifact. Java's formula has no such randomization and is
+    specified to give the same result forever, which is why the family standardized on
+    reimplementing it here rather than each runtime inventing its own stable hash -- one hashing
+    scheme, not one per port (dotnet reimplements the same formula for the same reason: ``.NET``
+    also randomizes ``string.GetHashCode()`` per process).
+
+    A Python ``str`` iterates by Unicode code point, not UTF-16 code unit, so a supplementary
+    character (a code point at or above U+10000, one Java ``char`` cannot hold) is expanded to
+    the surrogate pair Java's own UTF-16-backed ``String`` would already store it as. A code
+    point already at or below U+FFFF -- including a lone surrogate, which Python permits as a
+    scalar value and Java permits as an unpaired ``char`` -- is one code unit in both, so it is
+    hashed directly with no pairing.
     """
-    digest = 0x811C9DC5
-    for byte in text.encode("utf-8"):
-        digest ^= byte
-        digest = (digest * 0x01000193) & 0xFFFFFFFF
-    return f"{digest:08x}"
+    digest = 0
+    for char in text:
+        code_point = ord(char)
+        if code_point >= _UTF16_SUPPLEMENTARY_BASE:
+            offset = code_point - _UTF16_SUPPLEMENTARY_BASE
+            high_surrogate = _UTF16_HIGH_SURROGATE_BASE + (offset >> 10)
+            low_surrogate = _UTF16_LOW_SURROGATE_BASE + (offset & _UTF16_LOW_TEN_BITS)
+            digest = (31 * digest + high_surrogate) & _UINT32_MASK
+            digest = (31 * digest + low_surrogate) & _UINT32_MASK
+        else:
+            digest = (31 * digest + code_point) & _UINT32_MASK
+    return digest
 
 
 def _truncate_to_bytes(value: str, max_bytes: int) -> str:
@@ -118,7 +143,7 @@ def _capped(slug: str, max_bytes: int) -> str:
     """
     if len(slug.encode("utf-8")) <= max_bytes:
         return slug
-    suffix = "_" + _fnv1a_hex(slug)
+    suffix = "_" + f"{_java_string_hash(slug):08x}"
     budget = max_bytes - len(suffix.encode("utf-8"))
     return _truncate_to_bytes(slug, budget) + suffix
 

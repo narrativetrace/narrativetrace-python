@@ -24,6 +24,7 @@ from narrativetrace_glossary import (
     read_glossary_json,
     write_glossary_json,
 )
+from narrativetrace_glossary.json_reader import _MAX_JSON_NESTING_DEPTH, _check_nesting_depth
 
 MINIMAL_TERM: dict[str, object] = {
     "term": "invoice",
@@ -298,3 +299,47 @@ def test_reading_rejects_input_that_is_not_text() -> None:
 
 def test_an_empty_glossary_file_reads_as_an_empty_glossary() -> None:
     assert read_glossary_json(write_glossary_json(Glossary())) == Glossary()
+
+
+def test_json_nesting_at_the_family_depth_limit_is_accepted() -> None:
+    text = "[" * _MAX_JSON_NESTING_DEPTH + "]" * _MAX_JSON_NESTING_DEPTH
+
+    _check_nesting_depth(text)  # must not raise
+
+
+def test_json_nesting_one_level_past_the_family_depth_limit_is_rejected() -> None:
+    depth = _MAX_JSON_NESTING_DEPTH + 1
+    text = "[" * depth + "]" * depth
+
+    with pytest.raises(
+        ValueError,
+        match=rf"\Aglossary JSON nesting depth {depth} exceeds the limit of "
+        rf"{_MAX_JSON_NESTING_DEPTH}\Z",
+    ):
+        _check_nesting_depth(text)
+
+
+def test_bracket_characters_inside_a_json_string_do_not_count_toward_nesting_depth() -> None:
+    text = json.dumps({"a": "[" * (_MAX_JSON_NESTING_DEPTH + 50)})
+
+    _check_nesting_depth(text)  # must not raise: only one real container, the root object
+
+
+def test_an_escaped_quote_does_not_end_the_string_early() -> None:
+    depth = _MAX_JSON_NESTING_DEPTH + 1
+    text = '{"a": "value with \\" quote"}' + ("[" * depth + "]" * depth)
+
+    with pytest.raises(ValueError, match=rf"\Aglossary JSON nesting depth {depth} exceeds"):
+        _check_nesting_depth(text)
+
+
+def test_deeply_nested_glossary_json_is_rejected_before_the_decoder_ever_sees_it() -> None:
+    depth = _MAX_JSON_NESTING_DEPTH + 1
+    text = "[" * depth + "]" * depth
+
+    with pytest.raises(
+        ValueError,
+        match=rf"\Aglossary JSON nesting depth {depth} exceeds the limit of "
+        rf"{_MAX_JSON_NESTING_DEPTH}\Z",
+    ):
+        read_glossary_json(text)

@@ -2,13 +2,15 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Mutation kill-rate floor (`poe mutate-gate`).
+"""Mutation kill-rate floor (`poe mutate-gate`, `poe mutate-glossary-gate`).
 
-By design, the suite must kill at least 80% of mutants, computed as
-``killed / (total - ledgered equivalents)``. This script reads the mutmut results `poe mutate`
-(a `mutate-gate` sequence step run just before this one) already produced under
-``packages/narrativetrace/mutants``, cross-references the equivalent-mutant ledger
-(``mutation/equivalents.txt``), and fails the build below the floor.
+By design, every mutated package must kill at least 80% of its mutants, computed as
+``killed / (total - ledgered equivalents)``. This script reads the mutmut results `poe mutate`/
+`poe mutate-glossary` (a sequence step run just before this one) already produced under
+``packages/<package>/mutants``, cross-references that package's own equivalent-mutant ledger,
+and fails the build below the floor. One package per invocation (`argv[1]`, default
+``narrativetrace``) — mutmut has no multi-root mode, so each mutated package's run and ledger
+are independent; `_PACKAGES` is where a future third mutated package registers.
 
 A ledgered mutant only shrinks the denominator while mutmut still reports it as "survived". One
 that a later test happens to kill is simply counted as killed like any other mutant, not
@@ -22,13 +24,31 @@ import json
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 FLOOR = 0.80
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PACKAGE_DIR = REPO_ROOT / "packages" / "narrativetrace"
-LEDGER_PATH = REPO_ROOT / "mutation" / "equivalents.txt"
 _RESULT_LINE = re.compile(r"^\s*(\S+):\s*(\S+)\s*$")
+
+
+@dataclass(frozen=True)
+class MutatedPackage:
+    """Where one mutmut-mutated package's working copy and equivalent-mutant ledger live."""
+
+    package_dir: Path
+    ledger_path: Path
+
+
+_PACKAGES: dict[str, MutatedPackage] = {
+    "narrativetrace": MutatedPackage(
+        REPO_ROOT / "packages" / "narrativetrace", REPO_ROOT / "mutation" / "equivalents.txt"
+    ),
+    "narrativetrace-glossary": MutatedPackage(
+        REPO_ROOT / "packages" / "narrativetrace-glossary",
+        REPO_ROOT / "mutation" / "glossary-equivalents.txt",
+    ),
+}
 
 
 def parse_ledger(text: str) -> dict[str, str]:
@@ -70,9 +90,9 @@ def compute_score(
     return killed / denominator, excluded
 
 
-def _run_mutmut(args: list[str]) -> str:
+def _run_mutmut(args: list[str], package_dir: Path) -> str:
     result = subprocess.run(  # nosec B603, B607 # fixed argv, no shell, no untrusted input
-        ["mutmut", *args], cwd=PACKAGE_DIR, capture_output=True, text=True, check=True
+        ["mutmut", *args], cwd=package_dir, capture_output=True, text=True, check=True
     )
     return result.stdout
 
@@ -91,11 +111,18 @@ def _report(stats: dict[str, int], score: float, excluded: int, stale: list[str]
         )
 
 
-def main() -> int:
-    ledger = parse_ledger(LEDGER_PATH.read_text(encoding="utf-8"))
-    survived_ids = parse_survived_ids(_run_mutmut(["results"]))
-    _run_mutmut(["export-cicd-stats"])
-    stats_path = PACKAGE_DIR / "mutants" / "mutmut-cicd-stats.json"
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    package = args[0] if args else "narrativetrace"
+    target = _PACKAGES.get(package)
+    if target is None:
+        print(f"unknown package {package!r}; expected one of {sorted(_PACKAGES)}", file=sys.stderr)
+        return 2
+
+    ledger = parse_ledger(target.ledger_path.read_text(encoding="utf-8"))
+    survived_ids = parse_survived_ids(_run_mutmut(["results"], target.package_dir))
+    _run_mutmut(["export-cicd-stats"], target.package_dir)
+    stats_path = target.package_dir / "mutants" / "mutmut-cicd-stats.json"
     stats = json.loads(stats_path.read_text(encoding="utf-8"))
 
     score, excluded = compute_score(stats["total"], stats["killed"], set(ledger), survived_ids)

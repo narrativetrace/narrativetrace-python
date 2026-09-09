@@ -7,6 +7,9 @@ __pycache__/
 .hypothesis/
 .mutmut-cache
 mutants/
+# pytest-benchmark autosave (poe bench-gate): per-machine comparison history, never comparable
+# across machines -- stays local to whichever machine runs the nightly, like .venv/.uv-cache.
+.benchmarks/
 htmlcov/
 .coverage
 .coverage.*
