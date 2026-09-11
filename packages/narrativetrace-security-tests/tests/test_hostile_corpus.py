@@ -184,26 +184,29 @@ class TestTraceShapesCoverBothKinds:
 
 
 class TestRedactionCasesDeclareExactlyOneSubjectAndOneDirection:
-    """A row that named neither a field nor a value, or carried an unreadable ``expect``, would
-    be replayed as a silently trivial assertion -- the same failure mode as a fixture that
-    stopped loading, one row at a time."""
+    """A row that named neither a field, a value, nor a ``kind`` -- or that named more than one,
+    or carried an unreadable ``expect`` -- would be replayed as a silently trivial assertion (or
+    not replayed at all): the same failure mode as a fixture that stopped loading, one row at a
+    time."""
 
     def test_every_case_carries_a_canary_or_a_value(self) -> None:
         assert all(c.secret.strip() for c in redactions())
 
-    def test_every_case_is_a_name_case_or_a_value_case_never_both_or_neither(self) -> None:
-        assert all(c.is_name == (c.value is None) for c in redactions())
+    def test_every_case_declares_exactly_one_of_name_value_or_kind(self) -> None:
+        for case in redactions():
+            subjects = [case.name is not None, case.value is not None, case.kind is not None]
+            assert sum(subjects) == 1, f"{case.id}: must declare exactly one of name/value/kind"
 
     def test_every_case_declares_which_way_it_goes(self) -> None:
         assert all(c.expect in ("redacted", "visible") for c in redactions())
 
 
 class TestNoRedactionCanaryIsItselfASecretShape:
-    """A name case whose canary is itself secret-shaped would pass the hidden assertion for the
-    wrong reason -- the value axis would catch it whatever the name said."""
+    """A name or ``kind`` case whose canary is itself secret-shaped would pass the hidden
+    assertion for the wrong reason -- the value axis would catch it whatever the name said."""
 
-    def test_every_name_case_canary_matches_the_canary_naming_convention(self) -> None:
+    def test_every_name_or_kind_case_canary_matches_the_canary_naming_convention(self) -> None:
         for case in redactions():
-            if case.is_name:
+            if case.is_name or case.is_kind:
                 assert case.canary is not None
                 assert re.fullmatch(r"canary-[a-z0-9-]+", case.canary)

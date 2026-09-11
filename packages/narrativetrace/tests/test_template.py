@@ -134,7 +134,11 @@ class TestRedactedPathResolution:
 
 
 class Amount:
-    """The same value as a class rather than a dataclass: its own ``__str__`` stands."""
+    """The same value as a plain class rather than a dataclass. Before the 2026-09-11 family fix
+    this class's own ``__str__`` stood (a plain object with no ``__str__`` override was the only
+    one introspected); now any object carrying instance state is introspected regardless of a
+    custom ``__str__`` -- see ``test_a_plain_object_with_fields_narrates_structurally_too``
+    below."""
 
     def __init__(self, currency: str, units: int) -> None:
         self.currency = currency
@@ -197,10 +201,14 @@ class TestWholeObjectPlaceholderRedaction:
         assert "topsecret" not in result
         assert "[REDACTED]" in result
 
-    def test_a_class_with_nothing_hidden_still_narrates_with_its_own_str(self) -> None:
+    def test_a_plain_object_with_fields_narrates_structurally_too(self) -> None:
+        """2026-09-11 family fix: a plain object exposing instance state is introspected
+        field-by-field regardless of a custom ``__str__`` -- ``Amount``'s hand-written formatting
+        is never consulted, the same as ``Card``/``Order`` above. Only a genuine leaf (no
+        instance state at all) still trusts its own ``str()``."""
         result = resolve("transfer {amount}", {"amount": Amount("EUR", 10)})
 
-        assert result == "transfer EUR 10.00"
+        assert result == 'transfer Amount(currency="EUR", units=10)'
 
     def test_a_dataclass_narrates_structurally_rather_than_through_its_own_str(self) -> None:
         """Where the ruling stops: a *dataclass* narrates structurally (``ValueRenderer`` always
@@ -288,26 +296,45 @@ class HostileEnum(Enum):
 
 
 class TestRogueStr:
-    def test_simple_placeholder_degrades_to_type_marker(self) -> None:
-        assert resolve("Processing {payload}", {"payload": Rogue()}) == "Processing <Rogue>"
+    """``Rogue``/``NonStrStr``/``Recursive`` carry no instance state, so they stay leaves that
+    trust ``str()`` (see ``ValueRenderer._has_instance_state``) -- routed here through
+    :class:`~narrativetrace.rendering.ValueRenderer` (a non-scalar placeholder value always is),
+    which degrades a raising leaf to the typed error marker (owner ruling, 2026-09-11):
+    ``<error: <ExceptionTypeName>>``, never the value's own type name or the exception's message.
+    """
+
+    def test_simple_placeholder_degrades_to_typed_error_marker(self) -> None:
+        assert (
+            resolve("Processing {payload}", {"payload": Rogue()})
+            == "Processing <error: ValueError>"
+        )
 
     def test_a_scalar_whose_str_throws_degrades_to_type_marker(self) -> None:
         result = resolve("count {n}", {"n": RogueNumber(7)})
 
         assert result == "count <RogueNumber>"
 
-    def test_property_placeholder_degrades_to_type_marker(self) -> None:
-        assert resolve("Processing {w.value}", {"w": Wrapper(Rogue())}) == "Processing <Rogue>"
+    def test_property_placeholder_degrades_to_typed_error_marker(self) -> None:
+        assert (
+            resolve("Processing {w.value}", {"w": Wrapper(Rogue())})
+            == "Processing <error: ValueError>"
+        )
 
-    def test_non_str_return_degrades_to_type_marker(self) -> None:
-        assert resolve("Processing {payload}", {"payload": NonStrStr()}) == "Processing <NonStrStr>"
+    def test_non_str_return_degrades_to_typed_error_marker(self) -> None:
+        assert (
+            resolve("Processing {payload}", {"payload": NonStrStr()})
+            == "Processing <error: TypeError>"
+        )
 
     def test_recursive_str_degrades_to_type_marker(self) -> None:
-        assert resolve("Processing {payload}", {"payload": Recursive()}) == "Processing <Recursive>"
+        assert (
+            resolve("Processing {payload}", {"payload": Recursive()})
+            == "Processing <error: RecursionError>"
+        )
 
     def test_other_placeholders_still_resolve_around_a_rogue_value(self) -> None:
         values = {"payload": Rogue(), "id": 7}
-        assert resolve("{id}: {payload}", values) == "7: <Rogue>"
+        assert resolve("{id}: {payload}", values) == "7: <error: ValueError>"
 
 
 class TestHostileScalarSanitizing:

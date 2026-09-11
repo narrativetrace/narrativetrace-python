@@ -5,17 +5,18 @@
 """Replays the shared hostile redaction corpus through the REAL capture path -- ``trace_object``,
 the entry point an application actually uses -- not through ``ValueRenderer`` directly.
 
-**Why this file exists.** ``redaction.json``'s 88 rows (multilingual name spellings, accented/
-decomposed/folded forms, value shapes, and a false-positive half) were never the problem: every
-existing consumer of the corpus -- this package's own
-:mod:`test_redaction_vocabulary_properties`, :mod:`test_value_renderer_redaction_properties` --
-drives ``ValueRenderer`` directly, on an object or a dict. That is one layer below where the
-confirmed defect lived: ``trace_object._build_capture`` deciding parameter redaction from
-``@not_traced`` alone, never asking ``RedactionPolicy``, for a parameter *name*. A corpus replayed
-one layer below a defect cannot catch it, however many rows it has. Java proved this is a real
-guard, not a decoration, by reverting its own capture fix and watching 28 of 88 rows fail; the
-equivalent Python experiment (revert, rerun, confirm red, restore) is recorded in the commit
-history and in ``documentation`` -- see the module-level assertion below that pins the count.
+**Why this file exists.** ``redaction.json``'s 92 rows (multilingual name spellings, accented/
+decomposed/folded forms, value shapes, four composite ``kind`` shapes added 2026-09-11, and a
+false-positive half) were never the problem: every existing consumer of the corpus -- this
+package's own :mod:`test_redaction_vocabulary_properties`,
+:mod:`test_value_renderer_redaction_properties` -- drives ``ValueRenderer`` directly, on an object
+or a dict. That is one layer below where the confirmed defect lived: ``trace_object._build_capture``
+deciding parameter redaction from ``@not_traced`` alone, never asking ``RedactionPolicy``, for a
+parameter *name*. A corpus replayed one layer below a defect cannot catch it, however many rows it
+has. Java proved this is a real guard, not a decoration, by reverting its own capture fix and
+watching 28 of 88 rows fail; the equivalent Python experiment (revert, rerun, confirm red, restore)
+is recorded in the commit history and in ``documentation`` -- see the module-level assertion below
+that pins the count.
 
 **Real capture path, not a shortcut.** Every row is driven through an actual
 :func:`~narrativetrace.trace_object.trace_object`-wrapped method call: a name row traces a method
@@ -32,6 +33,7 @@ import unicodedata
 
 import pytest
 from hostile_corpus import RedactionCase, redactions
+from hostile_redaction_kinds import build as build_kind_case
 
 from narrativetrace.chapter import export_chapter
 from narrativetrace.context import ContextVarNarrativeContext
@@ -54,7 +56,11 @@ def _name_cases() -> list[RedactionCase]:
 
 
 def _value_cases() -> list[RedactionCase]:
-    return [case for case in redactions() if not case.is_name]
+    return [case for case in redactions() if not case.is_name and not case.is_kind]
+
+
+def _kind_cases() -> list[RedactionCase]:
+    return [case for case in redactions() if case.is_kind]
 
 
 def _would_be_altered_by_python_identifier_compilation(name: str) -> bool:
@@ -215,6 +221,26 @@ def _assert_case(case: RedactionCase, params: list[ParameterCapture], artifacts:
         _assert_not_flagged_redacted(where, params)
 
 
+def _assert_kind_case(
+    case: RedactionCase, params: list[ParameterCapture], artifacts: list[str]
+) -> None:
+    """The leak/visibility half of the oracle only (clauses 1/2/5), never the ``redacted`` flag
+    (3/6): a ``kind`` composite's canary sits NESTED inside it (a field, a map key), never as the
+    traced parameter's own name or its own top-level value shape -- exactly the documented
+    boundary on :data:`~narrativetrace.signature.ParameterCapture.redacted` (see
+    ``render_for_capture``'s docstring and ``TestRenderForCapture`` in ``test_rendering.py``'s own
+    nested-JWT case): nested redaction is real and asserted here, it just does not set the
+    parameter-level flag, the same as it would not for a hand-written dataclass with one deep
+    sensitive field."""
+    secret = case.secret
+    where = f"{case.id} ({case.description})"
+    if case.expects_redaction:
+        _assert_no_leak_in_params(where, secret, params)
+        _assert_no_leak_in_artifacts(where, secret, artifacts)
+    else:
+        _assert_secret_survives(where, secret, params, artifacts)
+
+
 class TestHostileCorpusNameCasesThroughRealCapturePath:
     """A traced method's declared parameter, named for the row -- the confirmed defect's exact
     surface: ``_build_capture`` deciding redaction from ``@not_traced`` alone."""
@@ -238,12 +264,28 @@ class TestHostileCorpusValueCasesThroughRealCapturePath:
         _assert_case(case, params, artifacts)
 
 
+class TestHostileCorpusKindCasesThroughRealCapturePath:
+    """A composite the 2026-09-11 family fix governs directly: a curated ``__str__`` overriding
+    introspection, the same shape planted as a map key, or a raising ``@narrative_summary`` --
+    the exact defects confirmed against published 0.1.1 (read-only investigation the same day).
+    Traced through the innocuous ``data`` parameter, same as a value-case row: what matters here
+    is the composite's own internal shape, not the parameter name holding it."""
+
+    @pytest.mark.parametrize("case", _kind_cases(), ids=str)
+    def test_kind_case(self, case: RedactionCase) -> None:
+        assert case.kind is not None, f"{case.id}: a kind-case row with no kind"
+        composite = build_kind_case(case.kind, case.canary or "")
+        params, artifacts = _capture_and_render(_ValueParamService(), composite)
+        _assert_kind_case(case, params, artifacts)
+
+
 def test_every_corpus_row_ran_and_none_was_skipped() -> None:
-    """Counts, reported rather than assumed: the corpus has 88 rows; every one of them is
-    parametrized into ``test_name_case``/``test_value_case`` above, and neither ever calls
-    ``pytest.skip`` -- there is no row this suite silently ran nothing for."""
+    """Counts, reported rather than assumed: the corpus has 92 rows; every one of them is
+    parametrized into ``test_name_case``/``test_value_case``/``test_kind_case`` above, and none
+    ever calls ``pytest.skip`` -- there is no row this suite silently ran nothing for."""
     total = len(redactions())
     name_count = len(_name_cases())
     value_count = len(_value_cases())
-    assert name_count + value_count == total
-    assert total == 88, f"expected the shared corpus to hold 88 rows, found {total}"
+    kind_count = len(_kind_cases())
+    assert name_count + value_count + kind_count == total
+    assert total == 92, f"expected the shared corpus to hold 92 rows, found {total}"

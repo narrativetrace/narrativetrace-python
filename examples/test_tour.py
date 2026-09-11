@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from examples.tour import (
-    LIVE_LOGGER_NAME,
+    BRIDGE_LOGGER_NAME,
     MARKDOWN,
     PLANTUML,
     DemoFormatter,
@@ -140,6 +140,17 @@ class _Register:
         raise PermissionError(f"{name} is banned")
 
 
+class _RecordingHandler(logging.Handler):
+    """Collects the raw records it is handed, with no formatting — a probe on the bridge logger."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
 def _demo_record(message: str, **fields: str) -> logging.LogRecord:
     record = logging.LogRecord("t", logging.DEBUG, "", 0, message, (), None)
     record.__dict__.update(fields)
@@ -250,9 +261,7 @@ class TestNarratedRun:
         with narrated_run(out, classic=True) as context:
             trace_object(_Greeter(), context).greet("world")
         lines = out.getvalue().splitlines()
-        stamp = (
-            r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} DEBUG \[MainThread\] narrativetrace\.examples - "
-        )
+        stamp = r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} DEBUG \[MainThread\] narrativetrace - "
         assert re.fullmatch(stamp + re.escape('→ _Greeter.greet(name: "world")'), lines[0])
         assert re.fullmatch(stamp + re.escape('← returned: "hello world"'), lines[1])
 
@@ -276,7 +285,28 @@ class TestNarratedRun:
         entries = [line for line in out.getvalue().splitlines() if "→ _Greeter.greet(" in line]
         assert len(entries) == 2
 
-    def test_nothing_leaks_into_the_stdlib_logger_registry(self) -> None:
+    def test_the_demo_handler_does_not_leak_past_the_context(self) -> None:
+        """``narrated_run`` attaches its handler to the shared bridge logger and detaches it again
+        — the bridge logger itself stays registered (it is the same ``narrativetrace`` logger
+        documentation/guides/logging.md names), but nothing it added should outlive the ``with``.
+        """
+        bridge = logging.getLogger(BRIDGE_LOGGER_NAME)
+        before = list(bridge.handlers)
         with narrated_run(io.StringIO()) as context:
             trace_object(_Greeter(), context).greet("world")
-        assert LIVE_LOGGER_NAME not in logging.Logger.manager.loggerDict
+            assert len(bridge.handlers) == len(before) + 1
+        assert bridge.handlers == before
+
+    def test_the_same_trace_also_reaches_the_realistically_configured_logger(self) -> None:
+        """The live console stream and the ``logging.basicConfig`` bridge share one consumer, so
+        the exact same enter/return events reach both — the "send it to your logger" wiring."""
+        bridge = logging.getLogger(BRIDGE_LOGGER_NAME)
+        probe = _RecordingHandler()
+        bridge.addHandler(probe)
+        try:
+            with narrated_run(io.StringIO()) as context:
+                trace_object(_Greeter(), context).greet("world")
+        finally:
+            bridge.removeHandler(probe)
+        messages = [record.getMessage() for record in probe.records]
+        assert messages == ['→ _Greeter.greet(name: "world")', '← returned: "hello world"']

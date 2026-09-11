@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/pytest.md blob 633109ebae77 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/pytest.md blob 26839cac598b | translated: 2026-09-11 | reviewed: - -->
 
 # pytest 插件
 
@@ -18,10 +18,11 @@ def test_place_order(narrative_trace):
 - **失败叙事** —— 失败的测试会打印一个带边框的 `Scenario: …` 区块,附带缩进的执行追踪,让调用路径
   本身*就是*诊断结果。
 - **模板警告** —— 未解析的 `@narrated`/`@on_error` 占位符每次运行只报告一次。
-- **产物文件** —— 设置 `NARRATIVETRACE_OUTPUT=1`(或在配置文件中设置 `output = true`,见
-  [配置指南](配置指南.md))后,每个非空测试都会在 `NARRATIVETRACE_OUTPUT_DIR` 下写出一个追踪文件——
+- **产物文件** —— 默认开启:每个非空测试都会在 `NARRATIVETRACE_OUTPUT_DIR` 下写出一个追踪文件
+  (默认为 `narrative-traces`;请将它加入 `.gitignore`,见 [应提交的内容](应提交的内容.md))——
   对于 markdown 格式,还会附带一个 `.json` 场景文档以及 `diagrams/<Class>/<slug>.mmd`。场景结果为
-  `PASSED` 或 `FAILED`。
+  `PASSED` 或 `FAILED`。可通过 `NARRATIVETRACE_OUTPUT=false`(或在配置文件中设置
+  `output = false`,见 [配置指南](配置指南.md))关闭。
 - **清晰度页脚** —— 套件页脚会打印 `Clarity: X% high | Y% moderate | Z% low` 的分布,并且(启用输出
   时)为每个被追踪的测试写出一条记录到 `clarity-results.json` + `clarity-report.md`。
 

@@ -83,6 +83,150 @@ def test_output_writes_artifact(pytester: pytest.Pytester, monkeypatch: pytest.M
     result.stdout.fnmatch_lines(["*Trace written:*"])
 
 
+def test_output_is_on_by_default_with_no_configuration_at_all(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ruling this default flip exists for: wrapping a call with the fixture must produce a
+    trace artifact without an adopter also having to discover and set an enable flag."""
+    for name in ("NARRATIVETRACE_OUTPUT", "NARRATIVETRACE_OUTPUT_DIR"):
+        monkeypatch.delenv(name, raising=False)
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=1)
+    trace_files = list((pytester.path / "narrative-traces").rglob("test_place_order.md"))
+    assert len(trace_files) == 1
+
+
+def test_output_false_writes_nothing(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "false")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    assert not out_dir.exists() or list(out_dir.rglob("*")) == []
+
+
+def test_output_zero_writes_nothing(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "0")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    assert not out_dir.exists() or list(out_dir.rglob("*")) == []
+
+
+@pytest.mark.parametrize("spelling", ["no", "off", "FALSE", "OFF", "No"])
+def test_output_opt_out_accepts_case_insensitive_falsy_spellings(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, spelling: str
+) -> None:
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", spelling)
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    assert not out_dir.exists() or list(out_dir.rglob("*")) == []
+
+
+def test_output_explicit_true_still_writes_artifacts(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "true")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    assert list(out_dir.rglob("test_place_order.md"))
+
+
+def test_config_file_output_false_opts_out_without_any_environment_variable(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The config-file spelling of the same opt-out, exercised the way an adopter without env
+    control (e.g. a shared CI config) would use it."""
+    for name in ("NARRATIVETRACE_OUTPUT", "NARRATIVETRACE_OUTPUT_DIR"):
+        monkeypatch.delenv(name, raising=False)
+    (pytester.path / "narrativetrace.toml").write_text("output = false\n", encoding="utf-8")
+    pytester.makepyfile(
+        """
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def run(self, x): return x * 2
+
+        def test_place_order(narrative_trace):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.run(3)
+        """
+    )
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+    out_dir = pytester.path / "narrative-traces"
+    assert not out_dir.exists() or list(out_dir.rglob("*")) == []
+
+
 def test_output_matches_the_documented_first_10_minutes_recipe(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -50,14 +50,17 @@ optional `prefix` and `suffix` bracket it. `prefix + unit x count + suffix`:
 { "id": "long-1mib", "description": "one mebibyte in one value", "repeat": { "unit": "x", "count": 1048576 } }
 ```
 
-**Redaction case** (`redaction.json`) — either a `name` with the `canary`
-planted behind it, or a `value` that is its own canary because the shape *is*
-the secret. `expect` says which way the assertion runs:
+**Redaction case** (`redaction.json`) — a `name` with the `canary` planted
+behind it, a `value` that is its own canary because the shape *is* the
+secret, or (added 2026-09-11) a `kind` naming a live composite the
+per-runtime builder constructs, with `canary` planted inside it. `expect`
+says which way the assertion runs:
 
 ```json
 { "id": "es-clave", "description": "a short word that must match as a token", "name": "claveAcceso", "canary": "canary-es-clave", "expect": "redacted" }
 { "id": "fp-circuit", "description": "cuit inside circuit", "name": "circuitBreaker", "canary": "canary-fp-circuit", "expect": "visible" }
 { "id": "shape-cpf-bare", "description": "a Brazilian CPF as eleven bare digits", "value": "52998224725", "expect": "redacted" }
+{ "id": "curated-tostring-top-level", "description": "a composite carrying a deny-listed field whose native __str__/toString interpolates it directly", "kind": "curatedToString", "canary": "canary-curated-tostring-top-level", "expect": "redacted" }
 ```
 
 Canaries are unique per row rather than a single shared string, so one row's
@@ -65,6 +68,21 @@ passing output cannot clear another's. The `visible` rows are not decoration:
 a deny-list is only as good as the field it does *not* blank, and a default
 that hides `circuitBreaker` is one teams switch off entirely — which leaks
 every field rather than one.
+
+The four `kind` rows exist because a `name`/`value` pair can only plant a
+canary directly under a field name or as a bare scalar — none of them can
+express "a composite whose OWN `__str__`/`toString` interpolates its
+sensitive field", "a sensitive field used as a map KEY", or "a
+summary/curated-toString that raises". Each names a shape the per-runtime
+builder (this repository: `hostile_redaction_kinds.py`, the counterpart to
+`graphs.json`'s own `kind` builder below) realises into a live object graph:
+
+| `kind` | Built as |
+|---|---|
+| `curatedToString` | a composite carrying the sensitive field, interpolated directly by a hand-written `__str__`/`toString` |
+| `curatedToStringNested` | a composite with no sensitive field of its own, whose `__str__`/`toString` interpolates a nested composite that carries one |
+| `mapKey` | the same curated-`__str__`/`toString` shape, planted as a dict/map KEY rather than a value |
+| `throwingSummary` | a narrative-summary/curated-toString marker that raises, the secret folded into the exception's own MESSAGE (never the field name), so a fix that ever surfaced `str(exc)` would still leak it |
 
 **Declarative graph** (`graphs.json`) — either `layers`, a stack of wrappers
 built outward around `payload` (index 0 is innermost, so

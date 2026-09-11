@@ -72,20 +72,38 @@ What is invoked, and what is not:
 
 - **Introspection enumerates stored data, not code.** Field names come from
   `dataclasses.fields()`, attrs metadata, a `NamedTuple`'s `_fields`, or the instance
-  `__dict__` — so a computed `@property` (whose getter might count accesses or lazily load)
-  is never enumerated and never runs during introspection. A `NamedTuple` is introspected by
-  field name rather than rendered as an anonymous list of positional values, so a redacted
-  field stays hidden the same way a dataclass field does.
-- **What NarrativeTrace does invoke:** a custom `__str__`, a `@narrative_summary` method,
-  and any property path you name in a `@narrated`/`@on_error` template — `{order.total}`
-  resolves via `getattr`, so a `@property` named there *will* run its getter.
+  `__dict__`/`__slots__` — so a computed `@property` (whose getter might count accesses or
+  lazily load) is never enumerated and never runs during introspection. A `NamedTuple` is
+  introspected by field name rather than rendered as an anonymous list of positional values,
+  so a redacted field stays hidden the same way a dataclass field does.
+- **A custom `__str__` is trusted only for a genuine leaf.** As of 2026-09-11, any object
+  carrying instance state — a dataclass, an attrs class, a `NamedTuple`, or a plain object
+  with a populated `__dict__`/`__slots__` — is introspected field-by-field regardless of
+  whether it also defines `__str__`/`__repr__`; that hand-written method is never consulted,
+  the same way one on a dataclass never was. Only a value with no instance state at all (a
+  number, a string, a stateless helper class, a payload-free `Enum` member) still renders
+  through its own `str()`. Before this fix, a plain class's custom `__str__` took precedence
+  over introspection outright, so a hand-written `__str__` that interpolated a sensitive
+  field — directly, or transitively through a nested object's own `__str__` — bypassed
+  redaction entirely; a dict/map KEY had the identical gap (a bare, unmediated `str(key)`),
+  now closed the same way: a key is introspected and redaction-checked exactly like a value.
+  Give a composite a `@narrative_summary` method when you want a curated one-line rendering
+  instead of the field-by-field default — that mechanism is unaffected and still the
+  supported way to control exactly what is shown.
+- **A raising summary, `__str__`, or getter renders a typed error marker, never its own
+  message.** `<error: ValueError>`, `<error: RecursionError>` and so on — the failing part's
+  own exception TYPE name, substituted for that one part only (never the whole trace, never a
+  bare `<error>`). The exception's *message* is deliberately never rendered: a message can
+  carry the very value that failed to render (`"summary failed for {token}"` would otherwise
+  leak `token`), so only the type name — never `str(exc)` — reaches output.
 - **Invocation is bounded and isolated.** Output is capped (string length, collection
-  items, depth); a raising `__str__` or getter can never fail the traced business call
-  (templates fall back to the literal `{placeholder}`); values are rendered eagerly at the
-  call site, so any side effect happens once, at a deterministic point. Futures and
+  items, depth); a raising `__str__`, summary, or getter can never fail the traced business
+  call (templates fall back to the literal `{placeholder}`); values are rendered eagerly at
+  the call site, so any side effect happens once, at a deterministic point. Futures and
   awaitables are never forced.
 
 If a member cannot be pure, mark it `@not_traced` / `not_traced_field(...)` — a redacted
-member's value is never read at all — or give the type a curated `__str__` /
-`@narrative_summary` so you control exactly what is accessed. At `NARRATIVETRACE_LEVEL=OFF`
-(and for parameter values at `SUMMARY`), no argument rendering happens at all.
+member's value is never read at all — or give the type a `@narrative_summary` so you control
+exactly what is accessed (a curated `__str__` no longer opts a composite out of introspection,
+see above). At `NARRATIVETRACE_LEVEL=OFF` (and for parameter values at `SUMMARY`), no argument
+rendering happens at all.

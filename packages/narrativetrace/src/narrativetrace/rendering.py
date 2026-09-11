@@ -9,9 +9,22 @@ and exporters never inspect live objects, plus a type-preserving companion (``re
 → :class:`RenderedValue`) for typed OTel export.
 
 Handled: truncation, collections, dicts, dataclass/attrs/plain-object/``NamedTuple`` introspection
-with redact-by-default field-name hiding, custom ``__str__`` precedence, ``concurrent.futures`` /
-``asyncio`` future state markers, awaitable ``<pending>``, cycle markers, depth limiting, and the
-``@narrative_summary`` method hook. Every string leaf is control-sanitised.
+with redact-by-default field-name hiding, ``concurrent.futures`` / ``asyncio`` future state
+markers, awaitable ``<pending>``, cycle markers, depth limiting, and the ``@narrative_summary``
+method hook. Every string leaf is control-sanitised.
+
+**Native stringification is never trusted for a composite** (family-wide fix, 2026-09-11): a
+plain object exposing instance state (``__dict__`` or ``__slots__``) is introspected field-by-field
+regardless of a custom ``__str__``/``__repr__`` override -- only a genuine leaf (no instance state
+at all: a number, a string, a payload-free enum, ...) still trusts ``str()``. Before this fix,
+``_introspectable`` asked only "does this type override ``__str__``", so a hand-written
+``__str__`` that interpolated a sensitive field (or a nested object's own hostile ``__str__``) ran
+completely unmediated -- past redact-by-name, the deny-list, depth caps, everything. Dict KEYS are
+rendered through this same pipeline (redaction-by-name and introspection both apply to a key, not
+just its value), rather than a bare ``str(key)`` that bypassed every guard unconditionally. When a
+``@narrative_summary`` method, a custom ``__str__``, or an object's own field getter raises, that
+one part renders ``<error: <TypeName>>`` -- the exception's own type name, never ``str(exc)``
+(a message can carry the very value that failed to render).
 
 Depth limiting (a security fuzz suite finding, mirrors Java's ``RenderWalk``): an identity-based
 cycle guard answers "have I been here before", never "how deep am I" -- a linear chain of distinct
@@ -266,16 +279,23 @@ class ValueRenderer:
         return f"{{{joined}}}"
 
     def _render_map_entry(self, key: object, item: object, walk: _RenderWalk) -> str:
-        try:
-            raw_key = str(key)
-        except Exception:  # a rogue key toString must not break capture
-            raw_key = f"<{type(key).__name__}>"
+        rendered_key = self._render_map_key(key, walk)
         rendered = (
             REDACTED_MARKER
-            if self.redaction_policy.should_redact(raw_key)
+            if self.redaction_policy.should_redact(rendered_key)
             else self._render_element(item, walk)
         )
-        return f"{control_sanitize(raw_key)}={rendered}"
+        return f"{rendered_key}={rendered}"
+
+    def _render_map_key(self, key: object, walk: _RenderWalk) -> str:
+        """Renders a dict KEY through the same pipeline as a value -- introspection and
+        redaction-by-name both apply to a key, not just a bare, unmediated ``str(key)`` (a
+        family-wide fix, 2026-09-11: a sensitive object used as a key used to leak
+        unconditionally, since a raw ``str()`` never asked the deny-list anything)."""
+        try:
+            return self._render(key, walk)
+        except Exception as exc:  # a rogue key must not break capture
+            return _error_marker(exc)
 
     def _render_introspected(self, value: object, walk: _RenderWalk) -> str:
         if walk.seen(value):
@@ -297,14 +317,14 @@ class ValueRenderer:
             return f"{name}={REDACTED_MARKER}"
         try:
             return f"{name}={self._render(getattr(value, name), walk)}"
-        except Exception:  # a rogue property must not break capture
-            return f"{name}=<error>"
+        except Exception as exc:  # a rogue getter must not break capture
+            return f"{name}={_error_marker(exc)}"
 
     def _render_with_str(self, value: object) -> str:
         try:
             safe = control_sanitize(str(value))
-        except Exception:  # a rogue __str__ may raise anything
-            return f"<{type(value).__name__}>"
+        except Exception as exc:  # a rogue __str__ may raise anything
+            return _error_marker(exc)
         if len(safe) > self.max_string_length:
             return f"{safe[: self.max_string_length]}…"
         return safe
@@ -334,8 +354,8 @@ class ValueRenderer:
             return None
         try:
             return str(method(value))
-        except Exception:  # a broken summary falls through to normal rendering
-            return None
+        except Exception as exc:  # a broken summary is an error, not a silent fallback
+            return _error_marker(exc)
 
     # ------------------------------------------------------------------ #
     # Structured rendering                                                #
@@ -470,10 +490,11 @@ class ValueRenderer:
     def _render_structured_map_entry(
         self, key: object, item: object, walk: _RenderWalk
     ) -> tuple[str, RenderedValue]:
-        try:
-            key_name = str(key)
-        except Exception:  # a rogue key toString must not break capture
-            key_name = f"<{type(key).__name__}>"
+        """The structured twin of :meth:`_render_map_entry`: ``ObjectVal`` needs a ``str`` field
+        name, so the key is rendered through the flat pipeline (:meth:`_render_map_key`) -- the
+        same rendered key text drives both the field name here and the redaction-by-name check,
+        rather than each channel re-deriving (and potentially disagreeing on) its own key text."""
+        key_name = self._render_map_key(key, walk)
         rendered = (
             StringVal(REDACTED_MARKER)
             if self.redaction_policy.should_redact(key_name)
@@ -502,8 +523,8 @@ class ValueRenderer:
             return StringVal(REDACTED_MARKER)
         try:
             return self._render_structured(getattr(value, name), walk)
-        except Exception:  # a rogue property must not break capture
-            return StringVal("<error>")
+        except Exception as exc:  # a rogue getter must not break capture
+            return StringVal(_error_marker(exc))
 
     # ------------------------------------------------------------------ #
     # Shared helpers                                                      #
@@ -539,9 +560,7 @@ class ValueRenderer:
             return True
         if _is_named_tuple(value):
             return True
-        if type(value).__str__ is object.__str__:
-            return True
-        return False
+        return _has_instance_state(value)
 
 
 def _is_trusted_numeric(value: int | float) -> bool:
@@ -578,7 +597,50 @@ def _field_names(value: object) -> list[str]:
     fields = getattr(type(value), "_fields", None)
     if fields is not None:
         return list(fields)
-    return list(vars(value)) if hasattr(value, "__dict__") else []
+    if hasattr(value, "__dict__"):
+        return list(vars(value))
+    return [name for name in _slot_names(type(value)) if hasattr(value, name)]
+
+
+def _slot_names(cls: type) -> list[str]:
+    """Every ``__slots__`` name declared anywhere in ``cls``'s MRO, own class first, with
+    ``__dict__``/``__weakref__`` (slot pseudo-entries, never real fields) and duplicates dropped."""
+    names: list[str] = []
+    for klass in cls.__mro__:
+        slots = klass.__dict__.get("__slots__", ())
+        if isinstance(slots, str):
+            slots = (slots,)
+        for slot in slots:
+            if slot in ("__dict__", "__weakref__") or slot in names:
+                continue
+            names.append(slot)
+    return names
+
+
+def _has_instance_state(value: object) -> bool:
+    """Whether ``value`` actually carries at least one populated instance attribute -- a
+    non-empty ``__dict__``, or a set ``__slots__`` slot, own or inherited.
+
+    Deliberately about POPULATED state, not merely the storage mechanism's existence: every plain
+    Python object without ``__slots__`` carries a ``__dict__`` whether or not anything is ever
+    assigned to it, so gating on ``hasattr(value, "__dict__")`` alone would also flag a genuinely
+    stateless class -- a null object, a singleton, a hand-authored formatter with nothing to leak
+    -- whose curated ``__str__`` is not a security concern because there is no field behind it to
+    bypass. A leaf like a plain ``int``, ``str``, or a payload-free ``Enum`` member has no instance
+    state either way; anything that DOES carry a field is introspected field-by-field even when it
+    also overrides ``__str__``/``__repr__`` -- the family invariant that a composite's native
+    stringification is never trusted (2026-09-11)."""
+    if hasattr(value, "__dict__"):
+        return bool(vars(value))
+    return any(hasattr(value, name) for name in _slot_names(type(value)))
+
+
+def _error_marker(exc: BaseException) -> str:
+    """The typed error marker for a part that failed to render: the exception's own TYPE name,
+    never ``str(exc)`` -- a message can carry the very value that failed to render (owner ruling,
+    2026-09-11). Used wherever a ``@narrative_summary`` method, a custom ``__str__``, or a field
+    getter raises."""
+    return f"<error: {type(exc).__name__}>"
 
 
 def _identity_marker(value: object) -> str:

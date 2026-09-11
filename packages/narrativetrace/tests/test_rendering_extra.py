@@ -33,11 +33,14 @@ class LongStr:
 
 
 class TestFlatFallbacks:
-    def test_rogue_str_falls_back_to_type_name(self) -> None:
-        assert ValueRenderer().render(RogueStr()) == "<RogueStr>"
+    def test_rogue_str_degrades_to_the_typed_error_marker(self) -> None:
+        assert ValueRenderer().render(RogueStr()) == "<error: RuntimeError>"
 
-    def test_raising_summary_falls_through_to_introspection(self) -> None:
-        assert ValueRenderer().render(RaisingSummary()) == "RaisingSummary(field=1)"
+    def test_raising_summary_renders_the_typed_error_marker(self) -> None:
+        """A raising ``@narrative_summary`` never falls through to a different rendering (owner
+        ruling, 2026-09-11): it renders ``<error: TypeName>`` outright, even though
+        ``RaisingSummary`` also carries a plain field that introspection could otherwise show."""
+        assert ValueRenderer().render(RaisingSummary()) == "<error: RuntimeError>"
 
     def test_custom_str_truncated(self) -> None:
         assert ValueRenderer(max_string_length=5).render(LongStr()) == "yyyyy…"
@@ -50,7 +53,7 @@ class TestStructuredEdges:
 
     def test_map_key_redaction(self) -> None:
         result = ValueRenderer().render_structured({"token": "x"})
-        assert result == ObjectVal("Map", {"token": StringVal("[REDACTED]")})
+        assert result == ObjectVal("Map", {'"token"': StringVal("[REDACTED]")})
 
     def test_cycle_identity_marker(self) -> None:
         cyclic: list[object] = [1]

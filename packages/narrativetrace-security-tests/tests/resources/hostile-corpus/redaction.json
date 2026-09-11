@@ -88,6 +88,10 @@
     { "id": "fp-order-eleven-digit", "description": "an eleven-digit order reference that is not a CPF", "value": "12345678901", "expect": "visible" },
     { "id": "fp-invoice-nine-digit", "description": "an ordinary nine-digit invoice number", "value": "987654321", "expect": "visible" },
     { "id": "fp-iso-date", "description": "a date: digits and a separator, like every shape above", "value": "2026-09-02", "expect": "visible" },
-    { "id": "fp-key-value", "description": "a cookie-shaped string with no RFC 6265 attribute", "value": "name=Ada; age=36", "expect": "visible" }
+    { "id": "fp-key-value", "description": "a cookie-shaped string with no RFC 6265 attribute", "value": "name=Ada; age=36", "expect": "visible" },
+    { "id": "curated-tostring-top-level", "description": "a composite carrying a deny-listed field whose native __str__/toString interpolates it directly, added 2026-09-11 (native stringification must never be trusted for a composite)", "kind": "curatedToString", "canary": "canary-curated-tostring-top-level", "expect": "redacted" },
+    { "id": "curated-tostring-nested", "description": "a composite with no sensitive field of its own whose native __str__/toString interpolates a nested composite carrying one, added 2026-09-11", "kind": "curatedToStringNested", "canary": "canary-curated-tostring-nested", "expect": "redacted" },
+    { "id": "sensitive-map-key", "description": "a composite carrying a deny-listed field used as a dict/map KEY, whose native __str__/toString would otherwise leak it via a bare, unmediated key rendering, added 2026-09-11", "kind": "mapKey", "canary": "canary-sensitive-map-key", "expect": "redacted" },
+    { "id": "throwing-summary", "description": "a composite whose narrative-summary marker raises; the call must still succeed and the part renders the typed error marker (the exception's type name only), never falling through to another rendering of the object and never the exception's own message, added 2026-09-11", "kind": "throwingSummary", "canary": "canary-throwing-summary", "expect": "redacted" }
   ]
 }

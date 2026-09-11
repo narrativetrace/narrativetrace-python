@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob 28814dbf375e | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/logging.md blob e987a2d7cfb1 | translated: 2026-09-11 | reviewed: - -->
 
 # Logging & structlog
 
@@ -46,3 +46,11 @@ structlog.configure(
 
 Os dois front-ends compartilham `narrativetrace.current_scope_keys()` como a única fonte de
 vocabulário, então seus conjuntos de chaves nunca podem divergir.
+
+## Onde isso está conectado nos exemplos
+
+Todo exemplo executável em `examples/` envia seu trace para um logger configurado de forma
+realista, ao lado da sua narração de console — `logging.basicConfig` na raiz de composição mais
+`LoggingTraceConsumer`/`NarrativeContextFilter` desta guia, não um trecho copiado num README. Veja
+[`examples/README.md`](../../examples/README.md#where-the-logger-is-configured) para saber qual
+arquivo configura qual exemplo.

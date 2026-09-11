@@ -2,14 +2,23 @@
 
 **English** | [Español](LEAME.md) | [Português](LEIAME.md) | [简体中文](自述文件.md)
 
-> Code is the log.
+## Start here
+
+[See a trace in 60 seconds](documentation/first-10-minutes.md) — a plain script, one run, and the trace is in your terminal.
+
+## Demo
+
+Clone the repository and run `./demo.sh`.
+
+## Examples
+
+See [the examples](examples/README.md) — NarrativeTrace in realistic applications.
+
+## Code is the log
 
 NarrativeTrace turns running Python code into a readable execution narrative, built from the
 method, class and parameter names you already wrote. No `logger.info(...)` lines. If the trace is
 unreadable, your code needs better names — not more log statements.
-
-In a hurry: [try it locally](#try-it-locally) → [add it to one test](#add-it-to-one-test) →
-[pick your integration](#choose-your-integration).
 
 ## The problem
 
@@ -139,65 +148,6 @@ unmodified:
 A hand-written `logger.info(...)` next to a traced call intermixes freely — same logger, same
 stream, same handlers. NarrativeTrace only adds to what is already there.
 
-## Try it locally
-
-No project, no wiring — from a clone of this repository, run the flagship example live:
-
-```bash
-./demo.sh --list                                   # ecommerce, hotel_booking, minecraft, library
-./demo.sh --example ecommerce --no-pause           # the flagship: fork-join, redaction, failures
-./demo.sh --example ecommerce --classic            # the same run as ordinary timestamped logs
-./demo.sh --example ecommerce --lang es            # the same trace, narrated in Spanish (zh-CN too)
-```
-
-`./demo.sh` installs the workspace on its first run (`uv sync --all-packages`, frozen lockfile)
-and is silent on every run after — no separate setup step.
-
-Without `--no-pause` the demo stops after each scenario — `[Enter]` continues, `q` quits — and
-each scenario opens with a note on how *that* trace is wired. A slice of the real output:
-
-```
-→ OrderService.place_order(customer_id: "C-1234", product_id: "SKU-MECHANICAL-KB", quantity: 2)
-  → CustomerService.find_customer(customer_id: "C-1234")
-  ← CustomerService.find_customer → Customer(id="C-1234", name="Alice Johnson", tier=CustomerTier.GOLD)
-⑂ fork group created [groupId: fork-1]
-→ DiscountService.calculate_discount(customer_id: "C-1234", product_id: "SKU-MECHANICAL-KB")
-← DiscountService.calculate_discount → Discount(percent=10)
-⑃ fork joined [groupId: fork-1, members: 2]
-  → PaymentService.charge(customer_id: "C-1234", amount: 166.97, card_token: [REDACTED])
-  ← PaymentService.charge → PaymentConfirmation(transaction_id="TXN-00001", amount=166.97)
-```
-
-Outside this repository, the same shape needs no project at all — install and run:
-
-```bash
-uv add narrativetrace
-```
-
-`narrativetrace` — the package this snippet needs — is live on PyPI; the optional integration
-packages are rolling out one at a time (see the [Packages](#packages) table below). Until the one
-you need is on the index, work from a checkout of this repository (`uv sync --all-packages`).
-
-```python
-from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_object
-
-
-class OrderService:
-    def place_order(self, customer_id, product_id, quantity):
-        return f"ORD-{customer_id}-{product_id}-{quantity}"
-
-
-context = ContextVarNarrativeContext()
-service = trace_object(OrderService(), context)
-service.place_order("cust-1", "prod-42", 3)
-
-print(MarkdownRenderer().render(context.capture_trace()))
-```
-
-See [examples/README.md](examples/README.md) for what each of the four demo examples teaches, and
-the [`fastapi_service`](examples/fastapi_service) example for the ASGI slice (not in the demo
-launcher — it needs a running server).
-
 ## Add it to one test
 
 The shortest path from "interesting library" to "I saw a useful trace of my own code" is the
@@ -220,10 +170,10 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Turn on artifact output and run the suite:**
+**3. Run the suite — artifacts are written by default:**
 
 ```bash
-NARRATIVETRACE_OUTPUT=1 uv run pytest
+uv run pytest
 ```
 
 **4. Open the narrative** — the test class became the directory, the test method became the file:
@@ -268,9 +218,13 @@ narrative-traces/
 └── clarity-report.md                    naming feedback for the whole suite
 ```
 
-Want to keep going — rename the method and watch the clarity score drop, add `@not_traced` and
-see a value redacted? → [First 10 Minutes](documentation/first-10-minutes.md) walks both with real
-output.
+Gitignore `narrative-traces/` — it's regenerated every run (see
+[what-to-commit.md](documentation/what-to-commit.md)). Don't want it? Set
+`NARRATIVETRACE_OUTPUT=false`.
+
+Want to keep going — rename the method and watch the clarity score drop, or add `@not_traced` and
+see a value redacted? The [Clarity Guide](documentation/guides/clarity.md) and
+[Privacy and Redaction](documentation/privacy-and-redaction.md) walk both with real output.
 
 ## Choose your integration
 
@@ -331,9 +285,14 @@ see [Privacy and Redaction](documentation/privacy-and-redaction.md) for the exac
   default) that sheds rather than blocks under load — and says so: a run that lost events prints
   the count in its own suite footer instead of silently under-reporting.
 - **Introspection reads stored data, not code.** A computed `@property` getter never runs; the
-  only members NarrativeTrace invokes are a custom `__str__`, a `@narrative_summary` method, and
-  property paths named in a `@narrated`/`@on_error` template — keep those pure, as you would for a
-  debugger.
+  only members NarrativeTrace invokes are a curated `@narrative_summary` method, a custom
+  `__str__` when the type carries no fields at all, and property paths named in a
+  `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A composite's
+  own `__str__` is otherwise never trusted (2026-09-11): any object carrying instance state is
+  introspected field-by-field regardless of a custom `__str__`, so a hand-written one cannot
+  bypass redaction, directly or via a nested object — a dict/map key goes through the same check.
+  A raising summary/`__str__`/getter renders `<error: TypeName>` for that one part, never the
+  exception's own message.
 
 → [Privacy and Redaction](documentation/privacy-and-redaction.md) for the row-by-row contract
 verified against the code.
@@ -396,7 +355,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 
 Start here:
 
-- [First 10 Minutes](documentation/first-10-minutes.md) — one tiny service, real output, from install to a redacted value
+- [See a trace in 60 seconds](documentation/first-10-minutes.md) — a plain script, one run, a real trace in your terminal
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which package you need, as a decision diagram
 - [Installation Guide](documentation/guides/installation.md) — every package, what it adds
 - [Configuration Guide](documentation/guides/configuration.md) — tracing levels, output settings, precedence chain
@@ -439,14 +398,6 @@ There is also no configurable path-based redaction rule set — no "always redac
 Yes — through W3C `traceparent`, the same mechanism OpenTelemetry uses, and both directions ship. **Inbound:** the ASGI middleware (`NarrativeTraceMiddleware`, `adopt_traceparent=True` by default) parses an inbound `traceparent` header and calls `context.adopt_trace_id(...)` — NarrativeTrace's own `trace_id` **becomes** that header's trace id directly, not a separate identifier merely shaped to match. **Outbound:** `attach_traceparent`/`attach_traceparent_async` are `httpx` event hooks that stamp the current context's trace id onto every outgoing request (`packages/narrativetrace-asgi`) — an outbound mechanism the Java runtime doesn't have a counterpart for. Where no header is present, a fresh id is generated in the same W3C 32-lowercase-hex-character shape (`TraceId` is typed as exactly that format). The `narrativetrace-otel` package additionally exports NarrativeTrace spans (`OtelTraceEventListener`, live; `TraceSpanExporter`, batch) with typed `narrative.*` attributes and orphan eviction, so your existing OTel collector, Jaeger, or correlation-id middleware understands the id with nothing to reconcile.
 
 What stays local: the narrative tree itself — the nested method calls, arguments, narration — is captured per process and never shipped to another service; only the trace id crosses the boundary. A downstream service produces its own narrative tree correlated to that same id, not one merged cross-service tree. (There is no worked multi-service example in `examples/` yet exercising this end to end — the mechanism is unit-tested, in `packages/narrativetrace-asgi/tests/test_outbound.py` and the middleware's own tests, not demoed as a running distributed scenario.)
-
-## Examples and demo
-
-Runnable, tested tutorials live under [`examples/`](examples) — see
-[`examples/README.md`](examples/README.md) for the map: `ecommerce` (the flagship: decorators,
-failure scenarios, thread-pool fork-join and fire-and-forget), `hotel_booking` (clarity scoring
-across naming tiers), `minecraft` (refactored vs. unrefactored, side by side), `library`
-(dataclasses that narrate themselves), and `fastapi_service` (the ASGI slice).
 
 ## License
 

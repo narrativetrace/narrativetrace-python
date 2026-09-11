@@ -122,7 +122,7 @@ def _print_sections(scenario: Scenario, tree: TraceTree, out: TextIO) -> None:
 # --------------------------------------------------------------------------- #
 # The live stream: → ← !! lines as the code runs                              #
 # --------------------------------------------------------------------------- #
-LIVE_LOGGER_NAME = "narrativetrace.examples"
+BRIDGE_LOGGER_NAME = "narrativetrace"  # the bridge's own logger — narrativetrace.logging_bridge
 CLASSIC_FORMAT = "%(asctime)s %(levelname)s [%(threadName)s] %(name)s - %(message)s"
 _RETURN_PREFIX = "← returned: "
 _EXCEPTION_PREFIX = "!! "
@@ -226,16 +226,37 @@ def _entry_key(event: EnterEvent) -> tuple[str, str, int]:
     return (sig.class_name, sig.method_name, event.timestamp_nanos)
 
 
+def _configure_realistic_logger() -> None:
+    """Wires the stdlib logging bridge the way a real project would — see
+    documentation/guides/logging.md: ``logging.basicConfig`` in the entry point (a project's
+    ``logback.xml``/``dictConfig`` equivalent) plus :class:`~narrativetrace.NarrativeContextFilter`
+    stamping the current span's keys onto every record. A no-op once the root logger already has a
+    handler (a second example run in this process, or pytest's own log capture), so it never fights
+    another realistic configuration or a test session's log fixtures.
+    """
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s"))
+    handler.addFilter(NarrativeContextFilter())
+    logging.basicConfig(level=logging.DEBUG, handlers=[handler])
+
+
 @contextmanager
 def narrated_run(out: TextIO, *, classic: bool = False) -> Iterator[ContextVarNarrativeContext]:
-    """A context whose events stream to ``out`` as they happen — the live ``→ ← !!`` lines.
+    """A context whose events stream to ``out`` as they happen — the live ``→ ← !!`` lines —
+    AND to the example's realistically configured logger.
 
-    The stream is :class:`~narrativetrace.LoggingTraceConsumer` on a standalone logger: with
-    ``classic`` it wears the traditional timestamped format (level, thread, logger — the shape
-    every log tool ingests) and :class:`~narrativetrace.NarrativeContextFilter` stamps the span
-    keys; otherwise :class:`DemoFormatter` prints bare narration indented by depth.
+    Both views come from ONE :class:`~narrativetrace.LoggingTraceConsumer`, bound to
+    ``logging.getLogger("narrativetrace")`` — the same bridge logger documentation/guides/logging.md
+    names. A dedicated handler on that logger renders the demo shape to ``out`` (``classic`` wears
+    the traditional timestamped format with :class:`~narrativetrace.NarrativeContextFilter`
+    stamping span keys; otherwise :class:`DemoFormatter` prints bare narration indented by depth),
+    and — because loggers propagate by default — the same record also reaches whatever
+    :func:`_configure_realistic_logger` attached to the root logger: a real project's
+    ``logging.basicConfig``. Two consumers on the same event stream would double the bridge's MDC
+    depth-tracking (a bug found writing this); one consumer with two handlers avoids it.
     """
-    logger = logging.Logger(LIVE_LOGGER_NAME)  # standalone: never registered, never propagates
+    _configure_realistic_logger()
+    logger = logging.getLogger(BRIDGE_LOGGER_NAME)
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(out)
     if classic:

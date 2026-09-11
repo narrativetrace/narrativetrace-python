@@ -387,7 +387,7 @@ class TestRun:
         assert run(["--example", "minecraft", "--classic"], forced, out, io.StringIO()) == 0
         lines = out.getvalue().splitlines()
         assert lines[0].startswith("Classic log format:")
-        assert any(" DEBUG [MainThread] narrativetrace.examples - → " in line for line in lines)
+        assert any(" DEBUG [MainThread] narrativetrace - → " in line for line in lines)
         assert "\033[" not in out.getvalue()
 
     def test_forced_color_on_a_pipe_gets_legend_notes_and_colors_without_pauses(self) -> None:
@@ -399,7 +399,8 @@ class TestRun:
         assert "\033[36m→ WorldServer.player_joined" in text
         assert "    Wiring: no container" in text
         assert "[Enter]" not in text
-        assert text.rstrip().endswith("--classic replays this as timestamped logs.")
+        assert "--classic replays this as timestamped logs." in text
+        assert text.rstrip().endswith("see that line on your terminal instead.")
 
     def test_no_color_on_a_terminal_keeps_the_structure_and_drops_the_colors(self) -> None:
         out = io.StringIO()

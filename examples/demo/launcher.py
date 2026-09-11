@@ -34,10 +34,12 @@ from __future__ import annotations
 import argparse
 import importlib
 import io
+import logging
 import os
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from examples.demo.translate import (
@@ -64,6 +66,14 @@ EXAMPLES: dict[str, str] = {
 TREE_MARKER = "--- Trace tree ---"
 RULE = "─" * 60
 QUIT = "q"
+
+# Every example also sends its trace to a realistically configured `logging.basicConfig` —
+# see examples/tour.py::_configure_realistic_logger and documentation/guides/logging.md. Run
+# directly (`python -m examples.<name>`) that lands on the terminal; here it would drown the
+# colorized walk this launcher paces, so the launcher claims `basicConfig` first and points it at
+# this file instead — same `narrative-traces/` convention `narrativetrace-pytest` already writes
+# under.
+DEMO_LOG_PATH = Path("narrative-traces") / "demo.log"
 
 RENDERER_NOTE = (
     "Renderers are not configured: there is no default, no registry, no setting. Capture\n"
@@ -459,6 +469,21 @@ def _resolve_lang(
     return "en"
 
 
+def _route_realistic_logger_to_a_file() -> None:
+    """Claims ``logging.basicConfig`` before any example does, pointed at :data:`DEMO_LOG_PATH`
+    instead of the terminal. A no-op once the root logger already has a handler (a test session's
+    own log capture, or a second call in this process), same guard as
+    ``examples.tour._configure_realistic_logger`` — the two never fight over which one wins.
+    """
+    DEMO_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filename=str(DEMO_LOG_PATH),
+        filemode="w",
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+
+
 def run(argv: Sequence[str], terminal: Terminal, out: TextIO, err: TextIO) -> int:
     """The launcher proper; ``main`` binds it to the real terminal."""
     args = parse_args(argv)
@@ -551,6 +576,11 @@ def _present_styled(
     out.write(f"\nTip: {command} --classic replays this as timestamped logs.\n")
     if pausing:
         out.write(f"     {command} --no-pause plays it straight through.\n")
+    out.write(
+        f"     The same trace also reached your logger — see {DEMO_LOG_PATH} "
+        "(examples/tour.py::_configure_realistic_logger); run the example directly "
+        f"(python -m examples.{name}) to see that line on your terminal instead.\n"
+    )
 
 
 def _translated_note(locale: str, name: str, palette: Palette) -> str:
@@ -595,5 +625,6 @@ def _present_translated(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    _route_realistic_logger_to_a_file()
     args = sys.argv[1:] if argv is None else list(argv)
     return run(args, Terminal.detect(os.environ), sys.stdout, sys.stderr)

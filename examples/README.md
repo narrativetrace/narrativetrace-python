@@ -35,6 +35,23 @@ uv run python -m examples.ecommerce --classic   # the same run as ordinary times
 Each example exposes `scenarios() -> list[Scenario]` and `run_example(out, *, classic=False)`;
 the tests under each directory assert that every scenario carries a wiring note and runs.
 
+## Where the logger is configured
+
+"Send it to your logger" ([documentation/guides/logging.md](../documentation/guides/logging.md))
+is not a snippet you have to add yourself — every example already ships it, in the idiomatic
+place a real project would put it, alongside the console narration:
+
+| Example(s) | Where | What |
+|---|---|---|
+| `ecommerce`, `hotel_booking`, `library`, `minecraft` | [`examples/tour.py`](tour.py) — `narrated_run` / `_configure_realistic_logger` | `logging.basicConfig` plus `NarrativeContextFilter`, shared by every console example so there is one pattern, not four; `LoggingTraceConsumer` on the `narrativetrace` logger reaches it by propagation |
+| `fastapi_service` | [`examples/fastapi_service/fastapi_service.py`](fastapi_service/fastapi_service.py) — `build_app` / `_configure_realistic_logger` | the same `logging.basicConfig` + `NarrativeContextFilter` recipe, wired at the ASGI composition root; `NarrativeContextFilter` also stamps `httpMethod`/`httpRoute`/`clientIp` from the middleware's `request_log_scope` |
+| `./demo.sh` (any example) | [`examples/demo/launcher.py`](demo/launcher.py) — `_route_realistic_logger_to_a_file` | claims `logging.basicConfig` first and points it at `narrative-traces/demo.log` instead of the terminal, so the raw DEBUG lines don't drown the colorized, paced walk; run the example directly (`python -m examples.<name>`) to see the same line on your terminal instead |
+
+Run any console example with `2>&1 1>/dev/null` (or just watch stderr) to see it: the enter/return
+lines you already saw on stdout as `→`/`←` narration also print through the stdlib `logging`
+module, timestamped, at `DEBUG`, from the `narrativetrace` logger — exactly what
+`logging.basicConfig` in a real entry point, plus the bridge the repo ships, gets you.
+
 ## Demo launcher
 
 `./demo.sh` (repository root) is the fastest way to watch the examples from a fresh clone — it

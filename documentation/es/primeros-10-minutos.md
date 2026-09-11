@@ -1,205 +1,127 @@
-<!-- source: documentation/first-10-minutes.md blob 5d7e0ca81bf6 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
+<!-- source: documentation/first-10-minutes.md blob 6d22fc886713 | translated: 2026-09-11 | reviewed: - -->
 
-# Primeros 10 minutos
+# Ve una traza en 60 segundos
 
-Un servicio diminuto, una prueba de pytest, siete pasos. Cada comando de abajo se ejecutó de verdad contra esta
-versión del repositorio — las rutas de archivo, las puntuaciones de claridad y el marcador `[REDACTED]` son
-salida real, no ilustraciones. Lo único que va a diferir en tu máquina es la
-duración (`ms`), el `trace_id` hexadecimal aleatorio y el `trace_name` de tres palabras — los tres
-generados de nuevo en cada ejecución.
+Sin líneas `logger.info(...)`, sin framework de pruebas, nada que abrir después — un script sencillo,
+una ejecución, y la traza se imprime directamente en tu terminal. Todo lo de abajo se ejecutó de
+verdad contra el paquete publicado en PyPI (`narrativetrace` 0.1.1) — la salida está pegada, no
+imaginada.
 
-Python ≥ 3.12. Si aún no ejecutaste la demo, `uv run poe demo --example ecommerce --no-pause`
-desde la raíz del repositorio es aún más rápido — esta página es para cuando quieres verlo contra *tu
-propio* código.
-
-## 1. Instala el plugin de pytest
+## 1. Proyecto nuevo, instala el paquete
 
 ```bash
-uv add --dev narrativetrace-pytest
+uv init myproject && cd myproject
+uv add narrativetrace
 ```
 
-Eso es toda la configuración de dependencias: el plugin trae consigo el core, `narrativetrace-diagrams` y
-`narrativetrace-clarity` (el paso 6 de abajo usa su script de consola), y se registra con pytest
-automáticamente mediante un punto de entrada — no hay que añadir nada a `conftest.py`.
-
-## 2. Añade un servicio
+## 2. El programa
 
 ```python
-# order_service.py
+# main.py
+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
+
+
 class OrderService:
     def place_order(self, customer_id, product_id, quantity):
         return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+context = ContextVarNarrativeContext()
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+print(IndentedTextRenderer().render(context.capture_trace()))
 ```
 
-Sin interfaz, sin clase base, sin registro. `trace_object` envuelve directamente cualquier objeto concreto.
-
-## 3. Añade una prueba
-
-```python
-# test_order_service.py
-from narrativetrace import trace_object
-
-from order_service import OrderService
-
-
-class TestOrderService:
-    def test_customer_places_order(self, narrative_trace):
-        service = trace_object(OrderService(), narrative_trace)
-        service.place_order("C-1234", "SKU-KB", 2)
-```
-
-`narrative_trace` es un fixture — solicítalo y obtienes un contexto de captura nuevo, que se destruye (y,
-con la salida habilitada, se escribe en disco) al final de la prueba.
-
-## 4. Ejecuta la suite
+## 3. Ejecútalo
 
 ```bash
-NARRATIVETRACE_OUTPUT=1 uv run pytest -s
+uv run main.py
 ```
 
 ```text
-.Scenario: Test customer places order
-
-Execution trace:
-OrderService.place_order(customer_id: "C-1234", product_id: "SKU-KB", quantity: 2) → "ORD-C-1234-SKU-KB-2" — 0ms
-Trace written: narrative-traces/traces/TestOrderService/test_customer_places_order.md
-
-
-NarrativeTrace — Suite complete
-  1 scenarios recorded
-  Clarity: 100% high | 0% moderate | 0% low
-  Reports: narrative-traces
-1 passed in 1.00s
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
 ```
 
-> El eco "Execution trace" por prueba es salida estándar normal, así que la captura por defecto de pytest
-> lo oculta a menos que pases `-s` (o que la prueba falle). El resumen final de la suite siempre se imprime — pasa
-> por el hook terminal-summary de pytest, que evita la captura. Consulta
-> [Solución de Problemas](solucion-de-problemas.md).
+`0ms` también es real — esta llamada corrió en menos de un milisegundo. Una máquina más lenta o un
+método más pesado muestran un número mayor; lo importante es que siempre se mide, nunca se inventa.
 
-## 5. Abre la narrativa
+No escribiste ni una sola sentencia de log. Esa línea vino del nombre del método (`place_order`), los
+nombres de los parámetros (`customer_id`, `product_id`, `quantity`) y el valor de retorno real — la
+información que tu código ya tenía.
 
-`narrative-traces/traces/TestOrderService/test_customer_places_order.md`:
+## Qué acaba de pasar
 
-```markdown
----
-type: trace
-scenario: Test customer places order
-entry_point: OrderService.place_order
-duration_ms: 0
-trace_id: aa4ae2eaa56e7e49b7aa42aece5999f0
-trace_name: muted stone tests
-method_count: 1
-error_count: 0
----
+- **`ContextVarNarrativeContext()`** es el contexto de captura — donde caen los eventos de
+  entrada/retorno/excepción mientras se ejecuta tu código. Se propaga a través de `contextvars`, así
+  que sigue a las tareas async y al trabajo de thread-pool sin que tengas que pasarlo tú mismo.
+- **`trace_object(OrderService(), context)`** envuelve una instancia real. Cada llamada a un método
+  público del wrapper se captura; el objeto de debajo queda intacto — sin clase base, sin decorador en
+  `place_order` mismo, sin registro.
+- **`context.capture_trace()` más un renderizador** convierte los eventos capturados en texto.
+  `IndentedTextRenderer` es lo que acabas de ver; `MarkdownRenderer` renderiza la misma llamada como
+  una viñeta de Markdown — la forma que `narrativetrace-pytest` escribe a disco por defecto — y
+  `ProseRenderer` se lee como una frase. Misma traza, tres formas.
 
-## Trace: OrderService.place_order
+## Envíala a tu logger
 
-**Scenario:** Test customer places order
-**Duration:** 0ms | **Result:** PASSED
+La línea en la consola está bien para un script; en producción quieres la traza en el flujo de
+logs que ya tienes. Enrútala a través de `LoggingTraceConsumer` — el puente hacia el `logging` de
+la librería estándar que NarrativeTrace incluye — dándole al contexto un `EventStore` que puedas
+volver a leer:
 
-### Call Flow
+```diff
+ # main.py
+-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
++import logging
++import sys
++
++from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, LoggingTraceConsumer, trace_object
++from narrativetrace.pipeline.event_store import EventStore
+ 
 
-- **OrderService.place_order**(customer_id: `"C-1234"`, product_id: `"SKU-KB"`, quantity: `2`) → `"ORD-C-1234-SKU-KB-2"` — 0ms
+ class OrderService:
+     def place_order(self, customer_id, product_id, quantity):
+         return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+-context = ContextVarNarrativeContext()
++logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
++
++store = EventStore()
++context = ContextVarNarrativeContext(store=store)
+ service = trace_object(OrderService(), context)
+ service.place_order("cust-1", "prod-42", 3)
+
+ print(IndentedTextRenderer().render(context.capture_trace()))
++
++consumer = LoggingTraceConsumer()
++for event in store.events():
++    consumer.accept(event)
 ```
-
-Cada valor en el flujo de llamadas — los valores de los parámetros, el valor de retorno — proviene de la llamada que
-realmente hiciste. Nada se escribió a mano. `duration_ms: 0` también es real: esta llamada se ejecutó en menos de un
-milisegundo, y se muestra como un número entero, no se oculta.
-
-## 6. Renombra `place_order` a `process` y observa cómo cae la claridad
-
-La calidad de los nombres se mide, no se afirma. El escáner independiente (el mismo que `poe check` conecta
-a la puerta de este propio repositorio) lee el código fuente directamente, sin necesidad de ejecutar pruebas:
 
 ```bash
-uv run narrativetrace-clarity order_service.py --min-score 0.5 --max-high-issues 0 --output-dir clarity-out
+uv run main.py
 ```
 
 ```text
-Clarity analysis complete: 1 classes scanned
-Output: clarity-out
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+→ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+← returned: "ORD-cust-1-prod-42-3"
 ```
 
-`clarity-out/clarity-report.md`:
+(el tiempo varía — el `0ms` es lo que haya medido tu máquina, igual que arriba). La misma traza
+ahora llega al destino de logs que ya tenías; la línea de consola queda intacta. Quien use
+`structlog` obtiene el mismo conjunto de claves desde `narrativetrace-structlog` — consulta la
+[Guía de logging](guia-de-logging.md) completa para `NarrativeContextFilter`, las claves MDC y la
+correlación a nivel de request.
 
-```markdown
-| Scenario | Score |
-|----------|-------|
-| OrderService | 0.89 |
-```
-
-Renombra el método (la definición y el sitio de la llamada) a `process` y ejecuta el escáner de nuevo con un
-umbral que bloquearía un job real de CI:
-
-```bash
-uv run narrativetrace-clarity order_service.py --min-score 0.8 --max-high-issues 0 --output-dir clarity-out
-```
-
-```text
-OrderService: overall 0.68 below --min-score 0.80
-1 HIGH-severity issues exceed --max-high-issues 0
-Clarity analysis complete: 1 classes scanned
-Output: clarity-out
-```
-
-El comando ahora sale con `1`. `clarity-out/clarity-report.md` muestra exactamente por qué:
-
-```markdown
-### OrderService
-
-## Scores
-
-| Category | Score | Weight | Weighted |
-|----------|-------|--------|----------|
-| Method Names | 0.10 | 0.30 | 0.03 |
-| Class Names | 0.91 | 0.20 | 0.18 |
-| Parameter Names | 0.92 | 0.25 | 0.23 |
-| Structural | 1.00 | 0.15 | 0.15 |
-| Cohesion | 0.90 | 0.10 | 0.09 |
-| **Overall** | **0.68** | | |
-
-| Severity | Category | Element | Suggestion |
-|----------|----------|---------|------------|
-| HIGH | method-name | `OrderService.process` | Use a domain-specific verb+noun (e.g., calculateTotal, reserveInventory) |
-```
-
-Misma llamada, mismos valores, todo igual salvo el nombre — la puntuación global cayó de 0.89 a 0.68,
-solo la dimensión de nombres de método cayó de 0.81 a 0.10, y apareció una incidencia de severidad HIGH con una
-sugerencia concreta. Consulta la [Guía de Claridad](guia-de-claridad.md) para ver el modelo de puntuación completo. Vuelve a
-renombrarlo a `place_order` (o a algo todavía más específico) antes de continuar.
-
-## 7. Añade `@not_traced` y observa la ocultación
-
-```python
-from narrativetrace import not_traced, trace_object
-
-
-class OrderService:
-    @not_traced("payment_token")
-    def place_order(self, customer_id, product_id, quantity, payment_token):
-        return f"ORD-{customer_id}-{product_id}-{quantity}"
-```
-
-Pasa un token en la prueba (`service.place_order("C-1234", "SKU-KB", 2, "tok_live_51H8x9J")`) y ejecuta
-de nuevo. La traza:
-
-```text
-- **OrderService.place_order**(customer_id: `"C-1234"`, product_id: `"SKU-KB"`, quantity: `2`, payment_token: `[REDACTED]`) → `"ORD-C-1234-SKU-KB-2"` — 0ms
-```
-
-El nombre del parámetro todavía aparece — puedes ver que *sí* se pasó un token — pero su valor nunca llega
-al disco. Consulta [Privacidad y Ocultación](privacidad-y-ocultacion.md) para ver qué más cubre la ocultación y la
-única forma documentada de acotarla.
-
-## Adónde ir a continuación
+## A continuación
 
 | Quieres | Ve a |
 |---|---|
-| Un camino de integración distinto al fixture de pytest de arriba | [Eligiendo una Integración](eligiendo-una-integracion.md) |
-| El contrato de privacidad fila por fila | [Privacidad y Ocultación](privacidad-y-ocultacion.md) |
-| Qué archivos generados commitear | [Qué Commitear](que-commitear.md) |
-| Algo de lo anterior no funcionó como se muestra | [Solución de Problemas](solucion-de-problemas.md) |
-| Cada opción de configuración | [Guía de Configuración](guia-de-configuracion.md) |
-</content>
-</invoke>
+| Trazas desde tu suite de pruebas en vez de un script | [Guía de pytest](guia-de-pytest.md) |
+| Mantener un valor fuera de la traza | [Privacidad y ocultación](privacidad-y-ocultacion.md) |
+| Una puntuación de claridad de nombres para este código | [Guía de claridad](guia-de-claridad.md) |
+| Niveles de tracing, configuración de la salida, precedencia | [Guía de configuración](guia-de-configuracion.md) |
+| Algo de lo anterior no funcionó como se muestra | [Solución de problemas](solucion-de-problemas.md) |

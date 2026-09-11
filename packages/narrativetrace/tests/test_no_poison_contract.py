@@ -95,17 +95,17 @@ class TestMapTotality:
 class TestNumberTotality:
     def test_flat_render_survives_a_throwing_number_str(self) -> None:
         rendered = ValueRenderer().render(_ThrowingNumber(5))
-        assert "_ThrowingNumber" in rendered
+        assert rendered == "<error: AssertionError>"
 
 
 class TestEnumTotality:
     def test_flat_render_survives_a_throwing_enum_str(self) -> None:
         rendered = ValueRenderer().render(_ThrowingEnum.OK)
-        assert "_ThrowingEnum" in rendered
+        assert rendered == "<error: AssertionError>"
 
     def test_structured_render_survives_a_throwing_enum_str(self) -> None:
         rendered = ValueRenderer().render_structured(_ThrowingEnum.OK)
-        assert rendered == StringVal("<_ThrowingEnum>")
+        assert rendered == StringVal("<error: AssertionError>")
 
 
 class TestFutureTotality:

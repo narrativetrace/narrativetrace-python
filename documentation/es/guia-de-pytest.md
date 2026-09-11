@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/pytest.md blob 633109ebae77 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/pytest.md blob 26839cac598b | translated: 2026-09-11 | reviewed: - -->
 
 # Guía de pytest
 
@@ -19,11 +19,12 @@ def test_place_order(narrative_trace):
   traza de ejecución indentada, de modo que la ruta de llamadas *es* el diagnóstico.
 - **Advertencias de plantilla** — los tokens `@narrated`/`@on_error` sin resolver se reportan una
   vez por ejecución.
-- **Artefactos** — con `NARRATIVETRACE_OUTPUT=1` (o `output = true` en un archivo de configuración,
-  ver [guia-de-configuracion.md](guia-de-configuracion.md)), cada prueba no vacía escribe un
-  archivo de traza — y, para markdown, un documento de escenario `.json` más
-  `diagrams/<Clase>/<slug>.mmd` — bajo `NARRATIVETRACE_OUTPUT_DIR`. El resultado del escenario es
-  `PASSED` o `FAILED`.
+- **Artefactos** — activados por defecto: cada prueba no vacía escribe un archivo de traza — y,
+  para markdown, un documento de escenario `.json` más `diagrams/<Clase>/<slug>.mmd` — bajo
+  `NARRATIVETRACE_OUTPUT_DIR` (por defecto `narrative-traces`; añádelo a tu `.gitignore`, ver
+  [que-commitear.md](que-commitear.md)). El resultado del escenario es `PASSED` o `FAILED`.
+  Desactívalo con `NARRATIVETRACE_OUTPUT=false` (o `output = false` en un archivo de configuración,
+  ver [guia-de-configuracion.md](guia-de-configuracion.md)).
 - **Pie de claridad** — el pie de la suite imprime una división `Clarity: X% high | Y% moderate |
   Z% low`, y (cuando la salida está habilitada) escribe `clarity-results.json` +
   `clarity-report.md` con una entrada por cada prueba trazada.

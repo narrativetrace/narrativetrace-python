@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob 9efb34f63ba8 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob 29594b4fda69 | translated: 2026-09-11 | reviewed: - -->
 
 # Decoradores
 
@@ -77,23 +77,42 @@ faria para um depurador ou um serializador.
 O que é invocado, e o que não é:
 
 - **A introspecção enumera dados armazenados, não código.** Nomes de campo vêm de
-  `dataclasses.fields()`, metadados do attrs, o `_fields` de um `NamedTuple`, ou o `__dict__` da
-  instância — então uma `@property` calculada (cujo getter poderia contar acessos ou carregar de
-  forma preguiçosa) nunca é enumerada nem executada durante a introspecção. Um `NamedTuple` é
-  introspectado pelo nome do campo em vez de renderizado como uma lista anônima de valores
-  posicionais, então um campo oculto permanece oculto da mesma forma que um campo de dataclass.
-- **O que o NarrativeTrace de fato invoca:** um `__str__` personalizado, um método
-  `@narrative_summary`, e qualquer caminho de propriedade que você nomeie em um template
-  `@narrated`/`@on_error` — `{order.total}` resolve via `getattr`, então uma `@property` nomeada ali
-  *vai* executar seu getter.
+  `dataclasses.fields()`, metadados do attrs, o `_fields` de um `NamedTuple`, ou o
+  `__dict__`/`__slots__` da instância — então uma `@property` calculada (cujo getter poderia contar
+  acessos ou carregar de forma preguiçosa) nunca é enumerada nem executada durante a introspecção.
+  Um `NamedTuple` é introspectado pelo nome do campo em vez de renderizado como uma lista anônima de
+  valores posicionais, então um campo oculto permanece oculto da mesma forma que um campo de
+  dataclass.
+- **Um `__str__` personalizado só é confiável para uma folha genuína.** A partir de 2026-09-11,
+  qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um
+  `NamedTuple`, ou um objeto simples com `__dict__`/`__slots__` preenchido — é introspectado campo
+  a campo independente de também definir `__str__`/`__repr__`; esse método escrito à mão nunca é
+  consultado, do mesmo jeito que nunca era consultado numa dataclass. Só um valor sem nenhum estado
+  de instância (um número, uma string, uma classe auxiliar sem estado, um membro de `Enum` sem
+  payload) ainda é renderizado pelo seu próprio `str()`. Antes dessa correção, o `__str__`
+  personalizado de uma classe simples prevalecia sobre a introspecção assim que era definido, então
+  um `__str__` escrito à mão que interpolasse um campo sensível — diretamente, ou transitivamente
+  através do `__str__` de um objeto aninhado — driblava a ocultação por completo; uma chave de
+  dict/map tinha exatamente a mesma brecha (um `str(key)` nu e sem mediação), agora fechada da mesma
+  forma: uma chave é introspectada e verificada contra a ocultação exatamente como um valor. Dê a um
+  composto um método `@narrative_summary` quando você quiser um resumo curado de uma linha em vez do
+  padrão campo a campo — esse mecanismo não é afetado e continua sendo a forma suportada de
+  controlar exatamente o que é mostrado.
+- **Um resumo, `__str__` ou getter que lança exceção renderiza um marcador de erro tipado, nunca
+  sua própria mensagem.** `<error: ValueError>`, `<error: RecursionError>`, e assim por diante — o
+  nome do próprio TIPO da exceção da parte que falha, substituído só para aquela parte (nunca o
+  trace inteiro, nunca um `<error>` nu). A *mensagem* da exceção deliberadamente nunca é
+  renderizada: uma mensagem pode carregar o próprio valor que falhou ao renderizar
+  (`"summary failed for {token}"` vazaria `token` de outra forma), então só o nome do tipo — nunca
+  `str(exc)` — chega à saída.
 - **A invocação é limitada e isolada.** A saída tem limite (tamanho de string, itens de coleção,
-  profundidade); um `__str__` ou getter que lança exceção nunca consegue falhar a chamada de negócio
-  traçada (templates recorrem ao marcador literal `{placeholder}`); os valores são renderizados de
-  forma antecipada no ponto da chamada, então qualquer efeito colateral acontece uma única vez, em um
-  ponto determinístico. Futures e awaitables nunca são forçados.
+  profundidade); um `__str__`, resumo ou getter que lança exceção nunca consegue falhar a chamada de
+  negócio traçada (templates recorrem ao marcador literal `{placeholder}`); os valores são
+  renderizados de forma antecipada no ponto da chamada, então qualquer efeito colateral acontece uma
+  única vez, em um ponto determinístico. Futures e awaitables nunca são forçados.
 
 Se um membro não pode ser puro, marque-o com `@not_traced` / `not_traced_field(...)` — o valor de um
-membro oculto nunca é lido de forma alguma — ou dê ao tipo um `__str__` / `@narrative_summary`
-cuidadosamente escrito para que você controle exatamente o que é acessado. Em
-`NARRATIVETRACE_LEVEL=OFF` (e para valores de parâmetro em `SUMMARY`), nenhuma renderização de
-argumentos acontece.
+membro oculto nunca é lido de forma alguma — ou dê ao tipo um `@narrative_summary` para que você
+controle exatamente o que é acessado (um `__str__` cuidadosamente escrito não tira mais um composto
+da introspecção, veja acima). Em `NARRATIVETRACE_LEVEL=OFF` (e para valores de parâmetro em
+`SUMMARY`), nenhuma renderização de argumentos acontece.

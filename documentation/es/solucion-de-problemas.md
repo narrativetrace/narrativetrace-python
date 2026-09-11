@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 88e701685127 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-11 | reviewed: - -->
 
 # Solución de problemas
 
@@ -8,10 +8,13 @@ en lugar de repetirla aquí — un único lugar por cada hecho.
 
 ## No se generan archivos de salida de trazas
 
-**Causa:** la salida de artefactos está desactivada de forma predeterminada.
+**Causa:** la salida de artefactos está activada de forma predeterminada, así que algo la
+desactivó — un `NARRATIVETRACE_OUTPUT=false` en el entorno o en CI, o `output = false` en
+`narrativetrace.toml` / en la tabla `[tool.narrativetrace]` de `pyproject.toml` — o los archivos
+están en un directorio distinto del que estás mirando.
 
-**Solución:** define `NARRATIVETRACE_OUTPUT=1` (o `output = true` en `narrativetrace.toml` / en la
-tabla `[tool.narrativetrace]` de `pyproject.toml`) — consulta la [Guía de
+**Solución:** elimina la desactivación y revisa `NARRATIVETRACE_OUTPUT_DIR` (predeterminado:
+`narrative-traces/` bajo el rootdir de pytest) — consulta la [Guía de
 configuración](guia-de-configuracion.md). Una traza vacía (un objeto envuelto cuyos métodos nunca
 se llamaron) no escribe nada aunque la salida esté habilitada; no hay ningún archivo vacío que
 encontrar.

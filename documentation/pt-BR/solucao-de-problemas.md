@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 88e701685127 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-11 | reviewed: - -->
 
 # Solução de problemas
 
@@ -8,10 +8,13 @@ repeti-lo aqui — um único lugar por fato.
 
 ## Nenhum arquivo de saída de trace
 
-**Causa:** a saída de artefatos vem desligada por padrão.
+**Causa:** a saída de artefatos vem ligada por padrão, então algo a desligou — um
+`NARRATIVETRACE_OUTPUT=false` no ambiente ou na CI, ou `output = false` em `narrativetrace.toml` /
+na tabela `[tool.narrativetrace]` do `pyproject.toml` — ou os arquivos estão em um diretório
+diferente do que você está olhando.
 
-**Correção:** defina `NARRATIVETRACE_OUTPUT=1` (ou `output = true` em `narrativetrace.toml` / na
-tabela `[tool.narrativetrace]` do `pyproject.toml`) — veja o [Guia de configuração](guia-de-configuracao.md).
+**Correção:** remova a desativação e confira `NARRATIVETRACE_OUTPUT_DIR` (padrão:
+`narrative-traces/` sob o rootdir do pytest) — veja o [Guia de configuração](guia-de-configuracao.md).
 Um trace vazio (um objeto envolvido cujos métodos nunca foram chamados) não grava nada mesmo com a
 saída habilitada; não há arquivo vazio para encontrar.
 

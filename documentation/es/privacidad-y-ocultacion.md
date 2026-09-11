@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 883ec1c76e66 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 2d39adf125dc | translated: 2026-09-11 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -55,6 +55,29 @@ dataclass — la ocultación sobrevive ese nivel de contenedor. Y gana sobre una
 que lo nombra: `{param.property}` en `@narrated`/`@on_error` resuelve una ruta hacia un miembro
 oculto como `[REDACTED]`, en cada nivel de la ruta, nunca con el valor literal.
 
+**El propio `__str__`/`__repr__` de un tipo compuesto nunca es de confianza (2026-09-11).**
+Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`, o
+un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin importar
+si además define un `__str__`/`__repr__` personalizado; ese método escrito a mano nunca se consulta
+para él. Antes de esta corrección, `ValueRenderer` confiaba en el `__str__` propio de una clase
+plana en cuanto sobrescribía el predeterminado, así que un `__str__` escrito a mano que interpolara
+un campo sensible — directamente, o de forma transitiva a través del `__str__` de un objeto anidado
+— llegaba a la salida completamente sin mediación, superando la lista de denegación, los límites de
+profundidad, todo. Una clave de dict/map tenía el mismo hueco: solía ser un `str(key)` desnudo y sin
+mediar, así que un objeto sensible usado como clave se filtraba incondicionalmente sin importar lo
+que contuviera su valor. Ambos casos ahora se introspeccionan y se comprueban contra la ocultación
+exactamente igual que un valor ordinario — solo un valor genuinamente hoja (sin ningún estado de
+instancia: un número, una cadena, una clase auxiliar sin estado, un miembro de `Enum` sin carga)
+sigue confiando en su propio `str()`. `@narrative_summary` no se ve afectado y sigue siendo la forma
+admitida de darle a un compuesto un resumen curado de una línea en vez del predeterminado campo por
+campo.
+
+Cuando un método `@narrative_summary`, un `__str__` personalizado, o el propio getter de un campo
+lanza una excepción, esa parte se renderiza como `<error: <TypeName>>` — el nombre del TIPO de la
+excepción (`<error: ValueError>`, `<error: RecursionError>`) sustituido solo para esa parte. El
+*mensaje* de la excepción deliberadamente nunca se renderiza, porque un mensaje puede llevar el
+mismo valor que falló al renderizarse; solo el nombre del tipo llega a la salida, nunca `str(exc)`.
+
 **Una limitación documentada, registrada en lugar de corregida.** La resolución de marcadores de
 posición de plantilla (`{param}`, `{param.property}`) siempre comprueba los valores contra
 `RedactionPolicy.DEFAULT` — la política no se propaga desde un `ValueRenderer` personalizado que
@@ -82,9 +105,9 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
   que perdió eventos imprime el recuento en su propia línea de pie de página `Incomplete:` de la suite
   en lugar de subinformar en silencio.
 - **La introspección lee datos almacenados, no código.** Los nombres de campo provienen de
-  `dataclasses.fields()`, los metadatos de attrs, el `_fields` de un `NamedTuple`, o el `__dict__` de
-  la instancia — un getter `@property` calculado nunca se enumera ni se ejecuta durante la
-  introspección.
+  `dataclasses.fields()`, los metadatos de attrs, el `_fields` de un `NamedTuple`, o el
+  `__dict__`/`__slots__` de la instancia — un getter `@property` calculado nunca se enumera ni se
+  ejecuta durante la introspección.
 
 ## No garantías
 

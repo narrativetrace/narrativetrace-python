@@ -161,10 +161,10 @@ class TestHostileScalarSubclasses:
     def test_a_trusted_int_is_not_run_through_the_sanitiser(self, renderer: ValueRenderer) -> None:
         assert renderer.render(42) == "42"
 
-    def test_a_numeric_subclass_whose_str_throws_degrades_to_the_type_marker(
+    def test_a_numeric_subclass_whose_str_throws_degrades_to_the_typed_error_marker(
         self, renderer: ValueRenderer
     ) -> None:
-        assert renderer.render(_ThrowingInt(1)) == "<_ThrowingInt>"
+        assert renderer.render(_ThrowingInt(1)) == "<error: RuntimeError>"
 
     def test_structured_hostile_int_subclass_becomes_a_sanitised_string_val(
         self, renderer: ValueRenderer
@@ -202,14 +202,29 @@ class TestCollections:
 
 class TestMaps:
     def test_entries_rendered_with_equals(self, renderer: ValueRenderer) -> None:
-        assert renderer.render({"a": 1}) == "{a=1}"
+        assert renderer.render({"a": 1}) == '{"a"=1}'
 
     def test_key_name_redaction(self, renderer: ValueRenderer) -> None:
-        assert renderer.render({"password": "hunter2"}) == "{password=[REDACTED]}"
+        assert renderer.render({"password": "hunter2"}) == '{"password"=[REDACTED]}'
 
     def test_over_cap_truncation_marker(self) -> None:
         r = ValueRenderer(max_collection_items=1)
-        assert r.render({"a": 1, "b": 2}) == "{a=1, …}"
+        assert r.render({"a": 1, "b": 2}) == '{"a"=1, …}'
+
+    def test_key_itself_is_introspected_and_redacted(self, renderer: ValueRenderer) -> None:
+        """The 2026-09-11 family fix: a dict key goes through the same pipeline as a value, so
+        a composite key carrying a deny-listed field is redacted there too, not just str()'d."""
+
+        class KeyHolder:
+            def __init__(self, password: str) -> None:
+                self.password = password
+
+            def __str__(self) -> str:
+                return f"KeyHolder(password={self.password})"
+
+        rendered = renderer.render({KeyHolder("hunter2"): "v"})
+        assert "hunter2" not in rendered
+        assert "[REDACTED]" in rendered
 
 
 class TestObjects:
@@ -223,7 +238,10 @@ class TestObjects:
     def test_plain_object_introspected(self, renderer: ValueRenderer) -> None:
         assert renderer.render(Plain()) == "Plain(a=1, token=[REDACTED])"
 
-    def test_custom_str_takes_precedence(self, renderer: ValueRenderer) -> None:
+    def test_custom_str_takes_precedence_for_a_genuine_leaf(self, renderer: ValueRenderer) -> None:
+        """``WithStr`` carries no instance state at all (an empty ``__dict__``), so it is a leaf
+        under the 2026-09-11 family invariant and still trusts its own ``__str__`` -- unlike
+        ``Plain``/``Account`` above, which DO carry fields and are introspected regardless."""
         assert renderer.render(WithStr()) == "custom-repr"
 
     def test_object_default_str_does_not_count_as_custom(self, renderer: ValueRenderer) -> None:
@@ -235,6 +253,159 @@ class TestObjects:
 
     def test_narrative_summary_hook(self, renderer: ValueRenderer) -> None:
         assert renderer.render(Summarised()) == "concise"
+
+
+class _CuratedTopLevel:
+    """A plain class carrying a deny-listed field, interpolated directly by a hand-written
+    ``__str__`` -- the exact shape of the confirmed 2026-09-11 defect against published 0.1.1."""
+
+    def __init__(self, password: str) -> None:
+        self.password = password
+
+    def __str__(self) -> str:
+        return f"CuratedTopLevel(password={self.password})"
+
+
+class _CuratedNestedInner:
+    def __init__(self, password: str) -> None:
+        self.password = password
+
+    def __str__(self) -> str:
+        return f"Inner(password={self.password})"
+
+
+class _CuratedNestedOuter:
+    """No sensitive field of its own; its ``__str__`` interpolates ``detail``, whose own
+    ``__str__`` is what actually carries the secret."""
+
+    def __init__(self, detail: _CuratedNestedInner) -> None:
+        self.detail = detail
+
+    def __str__(self) -> str:
+        return f"Outer(detail={self.detail})"
+
+
+class _RaisingSummaryWithMessageSecret:
+    """A ``@narrative_summary`` that raises with the secret in the exception MESSAGE, under a
+    field name (``payload``) the deny-list does not recognise -- only the typed error marker,
+    never ``str(exc)`` and never a fallback rendering of the object, keeps it from leaking."""
+
+    def __init__(self, payload: str) -> None:
+        self.payload = payload
+
+    @narrative_summary
+    def summary(self) -> str:
+        raise RuntimeError(f"summary failed for {self.payload}")
+
+
+class TestNativeStringificationNeverTrustedForComposites:
+    """Unit tests for the 2026-09-11 family fix, on both rendering channels: a composite exposing
+    instance state is introspected field-by-field regardless of a custom ``__str__``/``__repr__``
+    override; only a genuine leaf (no instance state at all) still trusts ``str()``; a dict KEY
+    goes through the same pipeline as a value; and a raising ``@narrative_summary``/``__str__``/
+    getter renders the typed ``<error: TypeName>`` marker, never the exception's own message.
+    """
+
+    def test_a_plain_class_with_a_curated_str_is_introspected_not_trusted(
+        self, renderer: ValueRenderer
+    ) -> None:
+        rendered = renderer.render(_CuratedTopLevel("hunter2"))
+        assert rendered == "_CuratedTopLevel(password=[REDACTED])"
+        assert "hunter2" not in rendered
+
+    def test_structured_channel_agrees(self, renderer: ValueRenderer) -> None:
+        result = renderer.render_structured(_CuratedTopLevel("hunter2"))
+        assert result == ObjectVal("_CuratedTopLevel", {"password": StringVal("[REDACTED]")})
+
+    def test_a_nested_curated_str_is_safe_too(self, renderer: ValueRenderer) -> None:
+        """The outer composite has no sensitive field of its own; its ``__str__`` interpolates
+        ``detail`` via an ordinary f-string, which calls ``str()`` on the inner object too -- the
+        same bug class a wrapper toString() leak always is, one container deep."""
+        outer = _CuratedNestedOuter(_CuratedNestedInner("hunter2"))
+        rendered = renderer.render(outer)
+        assert rendered == "_CuratedNestedOuter(detail=_CuratedNestedInner(password=[REDACTED]))"
+        assert "hunter2" not in rendered
+
+    def test_structured_nested_channel_agrees(self, renderer: ValueRenderer) -> None:
+        outer = _CuratedNestedOuter(_CuratedNestedInner("hunter2"))
+        result = renderer.render_structured(outer)
+        assert result == ObjectVal(
+            "_CuratedNestedOuter",
+            {"detail": ObjectVal("_CuratedNestedInner", {"password": StringVal("[REDACTED]")})},
+        )
+
+    def test_a_composite_dict_key_is_introspected_and_redacted(
+        self, renderer: ValueRenderer
+    ) -> None:
+        rendered = renderer.render({_CuratedTopLevel("hunter2"): "v"})
+        assert "hunter2" not in rendered
+        assert "[REDACTED]" in rendered
+
+    def test_a_leaf_with_no_instance_state_still_trusts_its_own_str(
+        self, renderer: ValueRenderer
+    ) -> None:
+        assert renderer.render(WithStr()) == "custom-repr"
+        assert renderer.render_structured(WithStr()) == StringVal("custom-repr")
+
+    def test_a_successful_summary_is_still_honored(self, renderer: ValueRenderer) -> None:
+        """The fix does not touch the success path: a summary that returns normally is used
+        exactly as before, even though ``Summarised`` also carries a field."""
+        assert renderer.render(Summarised()) == "concise"
+        assert renderer.render_structured(Summarised()) == StringVal("concise")
+
+    def test_a_raising_summary_renders_the_typed_error_marker(
+        self, renderer: ValueRenderer
+    ) -> None:
+        secret = _RaisingSummaryWithMessageSecret("hunter2")
+        flat = renderer.render(secret)
+        structured = renderer.render_structured(secret)
+        assert flat == "<error: RuntimeError>"
+        assert structured == StringVal("<error: RuntimeError>")
+
+    def test_a_raising_summary_never_leaks_the_exception_message(
+        self, renderer: ValueRenderer
+    ) -> None:
+        """The secret sits in the exception's own MESSAGE (``summary failed for hunter2``), not
+        under a deny-listed field name -- so only never rendering ``str(exc)`` keeps it hidden;
+        falling through to introspection (the pre-2026-09-11 behavior) would have shown the
+        ``payload`` field in the clear, since ``payload`` is not on the deny-list."""
+        secret = _RaisingSummaryWithMessageSecret("hunter2")
+        assert "hunter2" not in renderer.render(secret)
+        assert "hunter2" not in repr(renderer.render_structured(secret))
+
+    def test_a_raising_str_on_a_leaf_also_renders_the_typed_error_marker(
+        self, renderer: ValueRenderer
+    ) -> None:
+        class RaisingLeaf:
+            __slots__ = ()
+
+            def __str__(self) -> str:
+                raise ValueError("no instance state, still hostile")
+
+        assert renderer.render(RaisingLeaf()) == "<error: ValueError>"
+
+    def test_a_raising_getter_on_a_field_renders_the_typed_error_marker(
+        self, renderer: ValueRenderer
+    ) -> None:
+        class RaisingGetter:
+            """``bad`` is inserted straight into ``__dict__`` (rather than through ordinary
+            attribute assignment, which the property below would reject) so it is a real
+            introspected field name -- ``getattr`` still resolves it through the property
+            descriptor, which is what raises."""
+
+            def __init__(self) -> None:
+                self.__dict__["bad"] = None
+
+            @property
+            def bad(self) -> str:
+                raise ValueError("getter exploded")
+
+        class Holder:
+            def __init__(self, inner: object) -> None:
+                self.inner = inner
+
+        rendered = renderer.render(Holder(RaisingGetter()))
+        assert rendered == "Holder(inner=RaisingGetter(bad=<error: ValueError>))"
 
 
 class TestNamedTuples:
@@ -341,7 +512,7 @@ class TestDisabledPolicy:
 
     def test_name_redaction_off_under_disabled(self) -> None:
         r = ValueRenderer(redaction_policy=RedactionPolicy.DISABLED)
-        assert r.render({"password": "hunter2"}) == '{password="hunter2"}'
+        assert r.render({"password": "hunter2"}) == '{"password"="hunter2"}'
 
 
 class TestStructured:
@@ -367,7 +538,9 @@ class TestStructured:
         )
 
     def test_map(self, renderer: ValueRenderer) -> None:
-        assert renderer.render_structured({"a": 1}) == ObjectVal("Map", {"a": IntVal(1)})
+        # The key is rendered through the same pipeline as a value (2026-09-11 family fix), so a
+        # plain string key carries the same quoting a string value would.
+        assert renderer.render_structured({"a": 1}) == ObjectVal("Map", {'"a"': IntVal(1)})
 
     def test_named_tuple_redacts_a_marked_field(self, renderer: ValueRenderer) -> None:
         result = renderer.render_structured(CardTuple("4111", "123"))
@@ -386,13 +559,13 @@ class TestValueShapeMaskingParity:
     def test_flat_path_masks_a_pan_shaped_value_under_an_ordinary_field_name(
         self, renderer: ValueRenderer
     ) -> None:
-        assert renderer.render({"orderNumber": self._PAN}) == "{orderNumber=[REDACTED]}"
+        assert renderer.render({"orderNumber": self._PAN}) == '{"orderNumber"=[REDACTED]}'
 
     def test_structured_path_masks_a_pan_shaped_value_under_an_ordinary_field_name(
         self, renderer: ValueRenderer
     ) -> None:
         result = renderer.render_structured({"orderNumber": self._PAN})
-        assert result == ObjectVal("Map", {"orderNumber": StringVal("[REDACTED]")})
+        assert result == ObjectVal("Map", {'"orderNumber"': StringVal("[REDACTED]")})
 
     def test_flat_path_leaves_a_luhn_invalid_order_number_visible(
         self, renderer: ValueRenderer

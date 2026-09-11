@@ -1,17 +1,26 @@
-<!-- source: README.md blob 5b66bb122548 | translated: 2026-09-10 | reviewed: - -->
+<!-- source: README.md blob 73e62c6597e5 | translated: 2026-09-11 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
 [English](README.md) | **Español** | [Português](LEIAME.md) | [简体中文](自述文件.md)
 
-> El código es el log.
+## Empieza aquí
+
+[Ve una traza en 60 segundos](documentation/es/primeros-10-minutos.md) — un script sencillo, una ejecución, y la traza aparece en tu terminal.
+
+## Demo
+
+Clona el repositorio y ejecuta `./demo.sh`.
+
+## Ejemplos
+
+Consulta [los ejemplos](examples/README.md) — NarrativeTrace en aplicaciones reales.
+
+## El código es el log
 
 NarrativeTrace convierte el código Python en ejecución en una narrativa legible, construida a
 partir de los nombres de método, clase y parámetro que ya escribiste. Sin líneas `logger.info(...)`.
 Si la traza es ilegible, tu código necesita mejores nombres — no más sentencias de log.
-
-Con prisa: [pruébalo localmente](#pruébalo-localmente) → [añádelo a una sola
-prueba](#añádelo-a-una-sola-prueba) → [elige tu integración](#elige-tu-integración).
 
 ## El problema
 
@@ -146,66 +155,6 @@ existente, sin modificarlo:
 Una sentencia `logger.info(...)` escrita a mano junto a una llamada trazada se mezcla libremente
 — mismo logger, mismo stream, mismos handlers. NarrativeTrace solo añade a lo que ya existe.
 
-## Pruébalo localmente
-
-Sin proyecto, sin cableado — desde un clon de este repositorio, ejecuta en vivo el ejemplo insignia:
-
-```bash
-./demo.sh --list                                   # ecommerce, hotel_booking, minecraft, library
-./demo.sh --example ecommerce --no-pause           # el ejemplo insignia: fork-join, ocultación, fallos
-./demo.sh --example ecommerce --classic            # la misma ejecución como logs clásicos con marca de tiempo
-./demo.sh --example ecommerce --lang es            # la misma traza, narrada en español (también zh-CN)
-```
-
-`./demo.sh` instala el workspace en su primera ejecución (`uv sync --all-packages`, lockfile
-congelado) y es silencioso en cada ejecución posterior — sin un paso de configuración aparte.
-
-Sin `--no-pause` la demo se detiene tras cada escenario — `[Enter]` continúa, `q` sale — y cada
-escenario se abre con una nota sobre cómo está cableada *esa* traza. Un fragmento de la salida real:
-
-```
-→ OrderService.place_order(customer_id: "C-1234", product_id: "SKU-MECHANICAL-KB", quantity: 2)
-  → CustomerService.find_customer(customer_id: "C-1234")
-  ← CustomerService.find_customer → Customer(id="C-1234", name="Alice Johnson", tier=CustomerTier.GOLD)
-⑂ fork group created [groupId: fork-1]
-→ DiscountService.calculate_discount(customer_id: "C-1234", product_id: "SKU-MECHANICAL-KB")
-← DiscountService.calculate_discount → Discount(percent=10)
-⑃ fork joined [groupId: fork-1, members: 2]
-  → PaymentService.charge(customer_id: "C-1234", amount: 166.97, card_token: [REDACTED])
-  ← PaymentService.charge → PaymentConfirmation(transaction_id="TXN-00001", amount=166.97)
-```
-
-Fuera de este repositorio, lo mismo no requiere ningún proyecto en absoluto — instala y ejecuta:
-
-```bash
-uv add narrativetrace
-```
-
-`narrativetrace` — el paquete que necesita este fragmento — ya está publicado en PyPI; los
-paquetes de integración opcionales se están publicando uno por uno (ver la tabla de
-[Paquetes](#paquetes) más abajo). Hasta que el que necesites esté en el índice, trabaja desde una
-copia de este repositorio (`uv sync --all-packages`).
-
-```python
-from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_object
-
-
-class OrderService:
-    def place_order(self, customer_id, product_id, quantity):
-        return f"ORD-{customer_id}-{product_id}-{quantity}"
-
-
-context = ContextVarNarrativeContext()
-service = trace_object(OrderService(), context)
-service.place_order("cust-1", "prod-42", 3)
-
-print(MarkdownRenderer().render(context.capture_trace()))
-```
-
-Consulta [examples/README.md](examples/README.md) para ver qué enseña cada uno de los cuatro
-ejemplos de la demo, y el ejemplo [`fastapi_service`](examples/fastapi_service) para la porción de
-ASGI (no está en el lanzador de la demo — necesita un servidor en ejecución).
-
 ## Añádelo a una sola prueba
 
 El camino más corto desde «librería interesante» hasta «vi una traza útil de mi propio código» es
@@ -228,10 +177,10 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Activa la salida de artefactos y ejecuta la suite:**
+**3. Ejecuta la suite — los artefactos se escriben por defecto:**
 
 ```bash
-NARRATIVETRACE_OUTPUT=1 uv run pytest
+uv run pytest
 ```
 
 **4. Abre la narrativa** — la clase de prueba se convirtió en el directorio, el método de prueba se
@@ -278,9 +227,14 @@ narrative-traces/
 └── clarity-report.md                    feedback de nombres para toda la suite
 ```
 
-¿Quieres seguir? Renombra el método y mira caer la puntuación de claridad, añade `@not_traced` y
-observa un valor oculto → [Primeros 10 minutos](documentation/es/primeros-10-minutos.md) recorre
-ambos con salida real.
+Añade `narrative-traces/` a tu `.gitignore` — se regenera en cada ejecución (ver
+[que-commitear.md](documentation/es/que-commitear.md)). ¿No lo quieres? Establece
+`NARRATIVETRACE_OUTPUT=false`.
+
+¿Quieres seguir? Renombra el método y mira caer la puntuación de claridad, o añade `@not_traced` y
+observa un valor oculto. La [Guía de claridad](documentation/es/guia-de-claridad.md) y
+[Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md) recorren ambos con salida
+real.
 
 ## Elige tu integración
 
@@ -346,9 +300,15 @@ ocultación](documentation/es/privacidad-y-ocultacion.md) para conocer el alcanc
   ejecución que perdió eventos imprime el recuento en su propio pie de suite en lugar de
   subreportar en silencio.
 - **La introspección lee datos almacenados, no código.** Un getter `@property` calculado nunca se
-  ejecuta; los únicos miembros que NarrativeTrace invoca son un `__str__` personalizado, un método
-  `@narrative_summary`, y las rutas de propiedades nombradas en una plantilla
-  `@narrated`/`@on_error` — mantenlos puros, como lo harías para un depurador.
+  ejecuta; los únicos miembros que NarrativeTrace invoca son un método `@narrative_summary`
+  curado, un `__str__` personalizado cuando el tipo no porta ningún campo, y las rutas de
+  propiedades nombradas en una plantilla `@narrated`/`@on_error` — mantenlos puros, como lo
+  harías para un depurador. El propio `__str__` de un compuesto de otro modo nunca es de
+  confianza (2026-09-11): cualquier objeto que porte estado de instancia se introspecciona campo
+  por campo sin importar si define un `__str__` personalizado, así que uno escrito a mano no
+  puede sortear la ocultación, ni directamente ni a través de un objeto anidado — una clave de
+  dict/map pasa por la misma comprobación. Un resumen/`__str__`/getter que lanza excepción
+  renderiza `<error: TypeName>` para esa parte, nunca el propio mensaje de la excepción.
 
 → [Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md) para el contrato fila por
 fila verificado contra el código.
@@ -417,7 +377,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 
 Empieza aquí:
 
-- [Primeros 10 minutos](documentation/es/primeros-10-minutos.md) — un servicio diminuto, salida real, desde la instalación hasta un valor ocultado
+- [Ve una traza en 60 segundos](documentation/es/primeros-10-minutos.md) — un script sencillo, una ejecución, una traza real en tu terminal
 - [Eligiendo una integración](documentation/es/eligiendo-una-integracion.md) — qué paquete necesitas, como diagrama de decisión
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — todos los paquetes, qué añade cada uno
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de la salida, cadena de precedencia
@@ -460,15 +420,6 @@ Tampoco hay un conjunto de reglas de ocultación configurable por ruta — nada 
 Sí — mediante W3C `traceparent`, el mismo mecanismo que usa OpenTelemetry, y ambas direcciones están distribuidas. **Entrante:** el middleware ASGI (`NarrativeTraceMiddleware`, `adopt_traceparent=True` por defecto) analiza una cabecera `traceparent` entrante y llama a `context.adopt_trace_id(...)` — el propio `trace_id` de NarrativeTrace **se convierte** directamente en el ID de traza de esa cabecera, no es un identificador aparte con una forma simplemente parecida. **Saliente:** `attach_traceparent`/`attach_traceparent_async` son hooks de evento de `httpx` que estampan el ID de traza del contexto actual en cada petición saliente (`packages/narrativetrace-asgi`) — un mecanismo saliente para el que la implementación de Java no tiene equivalente. Cuando no hay cabecera presente, se genera un ID nuevo con la misma forma W3C de 32 caracteres hexadecimales en minúscula (`TraceId` está tipado exactamente con ese formato). El paquete `narrativetrace-otel` además exporta los spans de NarrativeTrace (`OtelTraceEventListener`, en vivo; `TraceSpanExporter`, por lotes) con atributos tipados `narrative.*` y desalojo de huérfanos, así que tu collector de OTel, Jaeger o middleware de ID de correlación ya existentes entienden el ID sin nada que reconciliar.
 
 Lo que queda local: el árbol narrativo en sí — las llamadas a métodos anidadas, los argumentos, la narración — se captura por proceso y nunca se envía a otro servicio; solo el ID de traza cruza la frontera. Un servicio downstream produce su propio árbol narrativo correlacionado con ese mismo ID, no un único árbol combinado entre servicios. (Todavía no hay un ejemplo multi-servicio elaborado en `examples/` que ejercite esto de punta a punta — el mecanismo está probado a nivel de unidad, en `packages/narrativetrace-asgi/tests/test_outbound.py` y en los propios tests del middleware, no como un escenario distribuido en ejecución.)
-
-## Ejemplos y demo
-
-Tutoriales ejecutables y probados viven bajo [`examples/`](examples) — consulta
-[`examples/README.md`](examples/README.md) para el mapa: `ecommerce` (el ejemplo insignia:
-decoradores, escenarios de fallo, fork-join y fire-and-forget con pool de hilos), `hotel_booking`
-(puntuación de claridad a través de niveles de nombres), `minecraft` (refactorizado frente a sin
-refactorizar, uno junto al otro), `library` (dataclasses que narran su propia historia), y
-`fastapi_service` (la porción de ASGI).
 
 ## Licencia
 

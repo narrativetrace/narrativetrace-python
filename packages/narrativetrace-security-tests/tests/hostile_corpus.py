@@ -18,6 +18,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from hostile_redaction_kinds import build as _build_kind_payload
+
 _CORPUS_DIR = Path(__file__).parent / "resources" / "hostile-corpus"
 
 
@@ -102,11 +104,15 @@ class GraphCase:
 
 @dataclass(frozen=True, slots=True)
 class RedactionCase:
-    """One row of ``redaction.json``: a sensitive field name, or a sensitive value shape.
+    """One row of ``redaction.json``: a sensitive field name, a sensitive value shape, or (added
+    2026-09-11, the family-wide ``__str__``-trust fix) a named ``kind`` -- a live composite
+    ``hostile_redaction_kinds`` builds, the redaction-corpus counterpart to ``graphs.json``'s
+    ``kind`` mechanism for object-graph shapes.
 
-    A row names either a field (``name`` plus the ``canary`` planted behind it) or a value
-    (``value``, which is its own canary because the shape *is* the secret), never both or
-    neither; ``expect`` says which way the assertion runs.
+    A row names exactly one of a field (``name`` plus the ``canary`` planted behind it), a value
+    (``value``, which is its own canary because the shape *is* the secret), or a ``kind`` (plus
+    the ``canary`` the named builder plants somewhere in the composite it returns) -- never more
+    than one, never none; ``expect`` says which way the assertion runs.
     """
 
     id: str
@@ -115,6 +121,7 @@ class RedactionCase:
     value: str | None
     canary: str | None
     expect: str
+    kind: str | None = None
 
     @property
     def expects_redaction(self) -> bool:
@@ -122,19 +129,30 @@ class RedactionCase:
 
     @property
     def is_name(self) -> bool:
-        """Whether this row names a field rather than carrying a bare value."""
+        """Whether this row names a field rather than carrying a bare value or a ``kind``."""
         return self.name is not None
 
     @property
+    def is_kind(self) -> bool:
+        """Whether this row names a live composite ``hostile_redaction_kinds`` builds."""
+        return self.kind is not None
+
+    @property
     def secret(self) -> str:
-        """The string the oracle looks for: the canary for a name case, the value itself
-        for a value case."""
-        return (self.canary or "") if self.is_name else (self.value or "")
+        """The string the oracle looks for: the canary for a name or ``kind`` case, the value
+        itself for a value case."""
+        if self.is_name or self.is_kind:
+            return self.canary or ""
+        return self.value or ""
 
     @property
     def payload(self) -> object:
-        """The object to render: the value alone, or a one-entry mapping under the sensitive
-        field name."""
+        """The object to render: the value alone, a one-entry mapping under the sensitive field
+        name, or (for a ``kind`` row) the live composite ``hostile_redaction_kinds.build``
+        returns."""
+        if self.is_kind:
+            assert self.kind is not None  # narrows for mypy; is_kind already guarantees this
+            return _build_kind_payload(self.kind, self.canary or "")
         return {self.name: self.canary} if self.is_name else self.value
 
     def __str__(self) -> str:
@@ -186,6 +204,7 @@ def _redaction_case(node: dict[str, Any]) -> RedactionCase:
         node.get("value"),
         node.get("canary"),
         node["expect"],
+        node.get("kind"),
     )
 
 

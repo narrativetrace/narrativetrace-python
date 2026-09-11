@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob b1ef96ea88a5 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob f45d36689e76 | translated: 2026-09-11 | reviewed: - -->
 
 # Configuração
 
@@ -79,12 +79,18 @@ Os nomes de nível não diferenciam maiúsculas de minúsculas.
 
 | Chave | Variável de ambiente | Significado | Padrão |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → grava artefatos por teste | desligado |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → grava artefatos por teste | ligado |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | diretório de artefatos | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | nível de captura para o contexto da fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | diretório com o `glossary.json` commitado, lido como o vocabulário para a pontuação de clareza (ver [guia-de-clareza.md](guia-de-clareza.md)) | diretório de trabalho |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | também grava o array de entradas `<test>.canonical.json` por teste | `false` |
+
+`output` vem ligado por padrão: a fixture `narrative_trace` grava os artefatos de cada teste não
+vazio sob `narrative-traces/` sem nenhuma configuração. Desative com `NARRATIVETRACE_OUTPUT=false`
+(`0`/`no`/`off` também funcionam, sem diferenciar maiúsculas de minúsculas) ou `output = false` em
+um arquivo de configuração — veja [o-que-commitar.md](o-que-commitar.md) para colocar o diretório
+no seu `.gitignore`.
 
 `glossary_dir` é lido exista ou não um glossário: ler não muda nada em
 disco, então não precisa de opt-in, e um repositório sem o arquivo pontua

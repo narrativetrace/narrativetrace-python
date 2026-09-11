@@ -49,6 +49,27 @@ survives that one container deep. And it wins over a narration template that nam
 `{param.property}` in `@narrated`/`@on_error` resolves a path to a redacted member as
 `[REDACTED]`, at every depth along the path, never the literal value.
 
+**A composite's own stringification is never trusted (2026-09-11).** Any object carrying instance
+state — a dataclass, an attrs class, a `NamedTuple`, or a plain object with a populated
+`__dict__`/`__slots__` — is introspected field-by-field regardless of whether it also defines a
+custom `__str__`/`__repr__`; that hand-written method is never consulted for it. Before this fix,
+`ValueRenderer` trusted a plain class's own `__str__` outright the moment it overrode the default,
+so a hand-written `__str__` that interpolated a sensitive field — directly, or transitively
+through a nested object's own `__str__` — reached output completely unmediated, past the
+deny-list, depth caps, everything. A dict/map **key** had the identical gap: it used to be a bare,
+unmediated `str(key)`, so a sensitive object used as a key leaked unconditionally regardless of
+what its value held. Both are now introspected and redaction-checked exactly like an ordinary
+value — only a genuine leaf (no instance state at all: a number, a string, a stateless helper
+class, a payload-free `Enum` member) still trusts its own `str()`. `@narrative_summary` is
+unaffected and remains the supported way to give a composite a curated one-line rendering instead
+of the field-by-field default.
+
+When a `@narrative_summary` method, a custom `__str__`, or a field's own getter raises, that one
+part renders `<error: <TypeName>>` — the exception's own type name (`<error: ValueError>`,
+`<error: RecursionError>`) substituted for that part only. The exception's *message* is
+deliberately never rendered, because a message can carry the very value that failed to render;
+only the type name reaches output, never `str(exc)`.
+
 **One documented narrowness, recorded rather than fixed.** Template placeholder resolution
 (`{param}`, `{param.property}`) always checks values against `RedactionPolicy.DEFAULT` — the
 policy is not threaded through from a custom `ValueRenderer` you pass to `trace_object`. In

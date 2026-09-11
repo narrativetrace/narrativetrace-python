@@ -16,7 +16,8 @@ platforms: the ``.json`` companion is the full ``export_document`` envelope (``v
 artifact, ``PASSED``/``FAILED`` in the Markdown caption.
 
 Environment channels: ``NARRATIVETRACE_LEVEL`` (garbage → DETAIL), ``NARRATIVETRACE_OUTPUT``
-(truthy → write files), ``NARRATIVETRACE_OUTPUT_DIR`` (default ``narrative-traces``),
+(on by default; ``false``/``0``/``no``/``off``, case-insensitively, opt out — anything else
+truthy), ``NARRATIVETRACE_OUTPUT_DIR`` (default ``narrative-traces``),
 ``NARRATIVETRACE_FORMAT`` (default ``markdown``; ``text``/``mermaid``/``plantuml`` replace the
 Markdown trace, and only ``markdown`` carries the ``.json`` + ``.mmd`` companions),
 ``NARRATIVETRACE_CANONICAL`` (truthy → also write the per-test ``.canonical.json`` entry array,
@@ -86,13 +87,19 @@ class _OutputSettings:
     canonical: bool = False
 
 
-def _truthy(resolver: ConfigResolver, key: str) -> bool:
-    return (resolver.resolve(key, "") or "").strip().lower() in _TRUTHY
+def _truthy(resolver: ConfigResolver, key: str, default: str = "") -> bool:
+    return (resolver.resolve(key, default) or "").strip().lower() in _TRUTHY
 
 
 def _output_settings(resolver: ConfigResolver) -> _OutputSettings:
-    """Reads the output keys through the shared precedence chain (env → config file → default)."""
-    enabled = _truthy(resolver, "output")
+    """Reads the output keys through the shared precedence chain (env → config file → default).
+
+    ``output`` defaults to on: an adopter who wraps a call with the fixture gets trace artifacts
+    without also having to discover and set an enable flag. ``NARRATIVETRACE_OUTPUT=false`` (also
+    ``0``/``no``/``off``, case-insensitively — anything outside ``_TRUTHY`` opts out) or
+    ``output = false`` in a config file turns it back off.
+    """
+    enabled = _truthy(resolver, "output", "true")
     base_dir = Path((resolver.resolve("output_dir", "") or "").strip() or "narrative-traces")
     fmt = (resolver.resolve("format", "") or "").strip() or "markdown"
     return _OutputSettings(enabled, base_dir, fmt, _truthy(resolver, "canonical"))

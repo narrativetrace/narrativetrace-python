@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob 28814dbf375e | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/logging.md blob e987a2d7cfb1 | translated: 2026-09-11 | reviewed: - -->
 
 # 日志与 structlog
 
@@ -42,3 +42,11 @@ structlog.configure(
 
 两个前端共享 `narrativetrace.current_scope_keys()` 作为唯一的词汇来源,因此它们的键集合永远不会
 出现分歧。
+
+## 这在示例中是如何接入的
+
+`examples/` 下的每个可运行示例都会把它的追踪连同控制台叙述一起发送到一个按真实项目方式配置的
+logger——即本指南中的组合根处的 `logging.basicConfig`,加上 `LoggingTraceConsumer`/
+`NarrativeContextFilter`,而不是抄进 README 里的一段代码片段。参见
+[`examples/README.md`](../../examples/README.md#where-the-logger-is-configured)
+了解具体是哪个文件配置了哪个示例。

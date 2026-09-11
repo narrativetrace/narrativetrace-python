@@ -6,12 +6,14 @@ repeating it here — one home per fact.
 
 ## No trace output files
 
-**Cause:** artifact output is off by default.
+**Cause:** artifact output is on by default, so something turned it off — an
+`NARRATIVETRACE_OUTPUT=false` in the environment or CI, or `output = false` in `narrativetrace.toml` /
+`pyproject.toml`'s `[tool.narrativetrace]` — or the files are in a directory you are not looking in.
 
-**Fix:** set `NARRATIVETRACE_OUTPUT=1` (or `output = true` in `narrativetrace.toml` /
-`pyproject.toml`'s `[tool.narrativetrace]`) — see the [Configuration Guide](guides/configuration.md).
-An empty trace (a wrapped object whose methods were never called) writes nothing even with output
-enabled; there is no empty file to find.
+**Fix:** remove the opt-out, and check `NARRATIVETRACE_OUTPUT_DIR` (default `narrative-traces/` under
+the pytest rootdir) — see the [Configuration Guide](guides/configuration.md). An empty trace (a
+wrapped object whose methods were never called) writes nothing even with output enabled; there is
+no empty file to find.
 
 ## I don't see the per-test trace in my terminal
 

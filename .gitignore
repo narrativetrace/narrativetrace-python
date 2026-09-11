@@ -23,3 +23,7 @@ build/
 # Local tooling state (contains credentials — never commit)
 
 # Local tooling state (holds host-absolute paths)
+
+# narrativetrace-pytest's default per-test artifact directory -- on by default, opt out with
+# NARRATIVETRACE_OUTPUT=false (see documentation/what-to-commit.md)
+narrative-traces/

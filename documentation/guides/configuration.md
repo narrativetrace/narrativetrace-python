@@ -75,12 +75,17 @@ case-insensitive.
 
 | Key | Environment variable | Meaning | Default |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → write per-test artifacts | off |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → write per-test artifacts | on |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | artifact directory | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | capture level for the fixture's context | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directory holding the committed `glossary.json`, read as the vocabulary clarity scores with ([guides/clarity.md](clarity.md)) | working directory |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | also write the per-test `<test>.canonical.json` entry array | `false` |
+
+`output` is on by default: the `narrative_trace` fixture writes every non-empty test's artifacts
+under `narrative-traces/` without any configuration at all. Opt out with
+`NARRATIVETRACE_OUTPUT=false` (`0`/`no`/`off` all work too, case-insensitively) or `output = false`
+in a config file — see [what-to-commit.md](../what-to-commit.md) for gitignoring the directory.
 
 `glossary_dir` is read whether or not a glossary exists: reading changes
 nothing on disk, so it needs no opt-in, and a repository without the file

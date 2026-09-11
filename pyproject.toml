@@ -278,6 +278,20 @@ cmd = "python scripts/translation_status.py"
 help = """Prints the full translation coverage and review-field matrix (not part of check, like \
 Java's ./gradlew translationStatus)"""
 
+[tool.poe.tasks.snippet-check]
+cmd = "python scripts/snippet_check.py"
+help = """Docs-as-tests gate (rule 8): every '<!-- snippet: ... -->' block in an English \
+documentation page still matches what its source renders (masked per its options) — no network, \
+reads files only. Depends on 'coverage' having just run: that is what produces \
+examples/sixty_seconds/build/*.txt, the tutorial page's embedded output blocks."""
+
+[tool.poe.tasks.snippet-sync]
+cmd = "python scripts/snippet_sync.py"
+help = """Rewrites every drifted '<!-- snippet: ... -->' block in place, English pages only \
+(translated mirrors are never touched — see scripts/snippet_check.py). Run this, then \
+'poe snippet-check', after touching a snippeted source; a page that changes is a finding, not \
+routine maintenance (rule 8)."""
+
 [tool.poe.tasks.legal-check]
 cmd = "scripts/legal-check.sh"
 help = """Legal reference-copy consistency gate: legal:* marker well-formedness, packages/*/LICENSE \
@@ -287,7 +301,8 @@ on the same findings — see legal.properties."""
 
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
-metrics + clarity + no-license-headers + translation-check + legal-check + bandit"""
+metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
+bandit"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -299,6 +314,7 @@ sequence = [
     { ref = "clarity" },
     { ref = "no-license-headers" },
     { ref = "translation-check" },
+    { ref = "snippet-check" },
     { ref = "legal-check" },
     { ref = "bandit" },
 ]
@@ -396,7 +412,12 @@ files = [
     "examples",
 ]
 mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src"
-exclude = ['(^|/)conftest\.py$']
+# examples/sixty_seconds/main*.py are excluded, not silenced: they are the "See a trace in 60
+# seconds" page's code blocks (documentation/first-10-minutes.md), byte-identical on purpose
+# (rule 8, docs as tests) -- a beginner's untyped script, not this repo's
+# own typed example style every other examples/* module follows. test_sixty_seconds.py stays
+# checked like any other test module.
+exclude = ['(^|/)conftest\.py$', 'examples/sixty_seconds/main(_with_logger)?\.py$']
 
 # atheris is platform-conditional (see the `security` dependency group below and
 # documentation/security-testing.md) and ships no type stubs of its own; not installed in most

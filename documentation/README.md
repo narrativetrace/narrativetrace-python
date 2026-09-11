@@ -12,7 +12,7 @@ design notes) are English-only by convention and stay off every language's trans
 
 | Document | What it covers |
 |---|---|
-| [First 10 Minutes](first-10-minutes.md) | One tiny service, real output, from install to a redacted value |
+| [See a trace in 60 seconds](first-10-minutes.md) | A plain script, one run, a real trace in your terminal |
 | [Choosing an Integration](choosing-an-integration.md) | Which package you need, as a decision diagram |
 | [Installation Guide](guides/installation.md) | Every package, what it adds |
 | [Configuration Guide](guides/configuration.md) | Tracing levels, output settings, precedence chain |

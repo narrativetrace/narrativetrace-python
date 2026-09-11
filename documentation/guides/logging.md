@@ -42,3 +42,11 @@ structlog.configure(
 
 Both front-ends share `narrativetrace.current_scope_keys()` as the single source of vocabulary, so
 their key sets can never drift.
+
+## Where this is wired in the examples
+
+Every runnable example under `examples/` sends its trace to a realistically configured logger
+alongside its console narration — `logging.basicConfig` in the composition root plus
+`LoggingTraceConsumer`/`NarrativeContextFilter` from this guide, not a snippet copied into a
+README. See [`examples/README.md`](../../examples/README.md#where-the-logger-is-configured) for
+which file configures which example.

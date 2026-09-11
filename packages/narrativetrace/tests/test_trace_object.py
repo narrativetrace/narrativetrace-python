@@ -283,17 +283,19 @@ class TestRogueStr:
         assert svc.process(Rogue()) == "ok"
         assert ctx.capture_trace().roots[0].signature.method_name == "process"
 
-    def test_narration_degrades_to_a_type_marker(self, ctx: ContextVarNarrativeContext) -> None:
+    def test_narration_degrades_to_a_typed_error_marker(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
         svc = trace_object(RogueService(), ctx)
         svc.process(Rogue())
-        assert ctx.capture_trace().roots[0].signature.narration == "Processing <Rogue>"
+        assert ctx.capture_trace().roots[0].signature.narration == "Processing <error: ValueError>"
 
     def test_rogue_behind_a_property_placeholder_still_narrates(
         self, ctx: ContextVarNarrativeContext
     ) -> None:
         svc = trace_object(RogueService(), ctx)
         assert svc.process_property(Wrapper(Rogue())) == "ok"
-        assert ctx.capture_trace().roots[0].signature.narration == "Processing <Rogue>"
+        assert ctx.capture_trace().roots[0].signature.narration == "Processing <error: ValueError>"
 
     def test_on_error_template_does_not_mask_the_real_exception(
         self, ctx: ContextVarNarrativeContext
@@ -310,7 +312,7 @@ class TestRogueStr:
             svc.fail(Rogue())
         node = ctx.capture_trace().roots[0]
         assert isinstance(node.outcome, Threw)
-        assert node.signature.error_context == "Failed while processing <Rogue>"
+        assert node.signature.error_context == "Failed while processing <error: ValueError>"
 
 
 class TestFastPath:
