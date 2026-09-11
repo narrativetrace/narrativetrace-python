@@ -354,7 +354,7 @@ class TestWriter:
         assert len(result.files) == 1
         path = result.files[0]
         assert path == tmp_path / "traces" / "T" / "run_it.md"
-        assert path.read_text().startswith("---\ntype: trace")
+        assert path.read_text(encoding="utf-8").startswith("---\ntype: trace")
         assert "Trace written:" in result.console_echo
 
     def test_text_format_framed(self, tmp_path: Path) -> None:
@@ -363,7 +363,7 @@ class TestWriter:
             TraceMetadata("myScenario", ScenarioResult.SUCCESS),
             TraceArtifact(tmp_path, "T", "m", fmt="text"),
         )
-        content = result.files[0].read_text()
+        content = result.files[0].read_text(encoding="utf-8")
         assert result.files[0].suffix == ".txt"
         assert content.startswith("Scenario: My scenario")
 
@@ -375,7 +375,7 @@ class TestWriter:
             plantuml_renderer=lambda _t: "@startuml\n@enduml",
         )
         assert result.files[0].suffix == ".puml"
-        assert result.files[0].read_text() == "@startuml\n@enduml\n"
+        assert result.files[0].read_text(encoding="utf-8") == "@startuml\n@enduml\n"
 
     def test_format_selection_ignores_case(self, tmp_path: Path) -> None:
         result = write_trace(
@@ -384,7 +384,7 @@ class TestWriter:
             TraceArtifact(tmp_path, "T", "m", fmt="TEXT"),
         )
         assert result.files[0].suffix == ".txt"
-        assert result.files[0].read_text().startswith("Scenario: My scenario")
+        assert result.files[0].read_text(encoding="utf-8").startswith("Scenario: My scenario")
 
     def test_markdown_extras_written_for_mixed_case_format(self, tmp_path: Path) -> None:
         result = write_trace(
@@ -433,4 +433,4 @@ class TestErrorCounts:
         result = write_trace(
             tree, TraceMetadata("s", ScenarioResult.ERROR), TraceArtifact(tmp_path, "T", "m")
         )
-        assert "error_count: 1" in result.files[0].read_text()
+        assert "error_count: 1" in result.files[0].read_text(encoding="utf-8")

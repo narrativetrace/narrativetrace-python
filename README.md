@@ -174,11 +174,18 @@ Outside this repository, the same shape needs no project at all — install and 
 uv add narrativetrace
 ```
 
-PyPI publication is not done yet — until the packages are on the index, work from a checkout of
-this repository (`uv sync --all-packages`).
+`narrativetrace` — the package this snippet needs — is live on PyPI; the optional integration
+packages are rolling out one at a time (see the [Packages](#packages) table below). Until the one
+you need is on the index, work from a checkout of this repository (`uv sync --all-packages`).
 
 ```python
 from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_object
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
 
 context = ContextVarNarrativeContext()
 service = trace_object(OrderService(), context)
@@ -403,6 +410,35 @@ Going deeper:
 - [pytest Guide](documentation/guides/pytest.md) · [FastAPI/ASGI Guide](documentation/guides/fastapi-asgi.md) · [OpenTelemetry Guide](documentation/guides/opentelemetry.md) · [Logging Guide](documentation/guides/logging.md) · [Clarity Guide](documentation/guides/clarity.md)
 - [Feature Guide](documentation/feature-guide.md) — every feature this runtime ships, with tier and status
 - [Complete Reference (`llms-full.md`)](documentation/llms-full.md) — every guide, one file; [`llms.txt`](documentation/llms.txt) is the machine-readable index for AI agents
+
+## FAQ
+
+### How much overhead does this add, and what happens under high concurrency?
+
+We will not claim "zero overhead" — and unlike some other runtimes in this family, we do not yet have dated, published numbers to cite for this one. A starter benchmark suite exists (`packages/narrativetrace/tests/test_bench_*.py`, run with `uv run poe bench`) covering capture overhead per tracing level, a call through `trace_object` against a direct call, rendering to each format, and the redaction check on a hot path — but `uv run poe bench-gate` only compares a run against the previous run on the *same* machine (host-baseline numbers are not comparable across machines), so this is a nightly regression habit, not a public number yet. Do not assume the Java or TypeScript numbers transfer to this runtime: what a line of tracing code costs is different per runtime. Run `uv run poe bench` yourself against your own hardware if you need a number today — we would rather say nothing here than say something we can't stand behind.
+
+What we can say with confidence is the mechanism. Capture is gated by a tracing level checked *before* any rendering happens: set `NARRATIVETRACE_LEVEL=OFF` and `enter_method` returns `None` immediately — no reflection, no string work, before your arguments are even touched. For hot loops, narrow the traced scope or drop the level rather than tracing everything.
+
+Under concurrency, the two paths of the default `DualPathPipeline` carry different guarantees. A synchronous listener — `LoggingTraceConsumer`, the stdlib-`logging` bridge (this runtime's analog of Java's `Slf4jTraceEventListener`) — runs inline if you attach one, so it is exactly as durable, and costs exactly what, a log call already does. The buffered, best-effort path is a fixed-size ring (65,536 events, never grows) that sheds under load rather than blocking the caller, and every loss is **counted**, never silent — `dropped_count()` sums subscriber backpressure, buffer overwrites, and shedding together, and a run that lost events prints the count on its own `Incomplete:` suite-footer line.
+
+**The honest gap:** there is no sampling in this runtime, or in any NarrativeTrace runtime, today — every traced call is captured in full at its configured level. A percentage- or rate-based sampler is on the roadmap, not shipped. If you need to cap capture volume now, use `NARRATIVETRACE_LEVEL=OFF` or narrow the traced scope to the boundary that matters.
+
+### How do I know a parameter with PII or credentials won't leak into a trace?
+
+Four independent layers, not one blanket promise — the row-by-row contract, verified against the code, is [Privacy and Redaction](documentation/privacy-and-redaction.md):
+
+1. **`@not_traced("password", "cvv")` on named parameters**, and **`not_traced_field(...)`/`__nt_not_traced__` on a class's fields** — explicit redaction you control.
+2. **An always-on, multilingual name deny-list** — matches field and parameter names against English, Spanish, Portuguese, French, German and Chinese patterns for passwords, tokens, national IDs and the like, with no locale to select and nothing to opt into.
+3. **Value-shape matching, independent of the field name** — a JWT-shaped string, a Luhn-valid card number, a `Set-Cookie`-shaped value, or a national-ID checksum or structural rule (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident ID, US SSN) is redacted even under an innocuous name like `data` or `value` — combined in `is_secret_shaped`.
+4. **No value-free structural mode yet in this runtime.** The Java sibling's `.nt`/`.approved.nt` format — the categorical guarantee for a context where no value may ever leave the process — is planned here, not shipped (see the [Feature Guide](documentation/feature-guide.md)). Don't confuse this with `TraceTranslationView`: that's a real, shipped feature, but it re-glosses identifier *names* into another language via a glossary — values still pass through byte-identical and untouched, so it is not a value-free mode.
+
+There is also no configurable path-based redaction rule set — no "always redact `user.creditCard`" JSONPath-style policy. Redaction is name- and shape-based, and it is applied at every segment when a `{param.property}` narration template resolves a path, not a data-flow analysis. Be precise about the boundary: layers 1–3 are heuristic and extensible — they can always miss a shape or name nobody has thought to add yet. None of them is *categorical* the way the (not-yet-shipped) structural mode would be. If your threat model requires "no value can possibly leave the process," that guarantee does not exist in this runtime today.
+
+### Can trace IDs correlate with a standard correlation ID across services, or is tracing local only?
+
+Yes — through W3C `traceparent`, the same mechanism OpenTelemetry uses, and both directions ship. **Inbound:** the ASGI middleware (`NarrativeTraceMiddleware`, `adopt_traceparent=True` by default) parses an inbound `traceparent` header and calls `context.adopt_trace_id(...)` — NarrativeTrace's own `trace_id` **becomes** that header's trace id directly, not a separate identifier merely shaped to match. **Outbound:** `attach_traceparent`/`attach_traceparent_async` are `httpx` event hooks that stamp the current context's trace id onto every outgoing request (`packages/narrativetrace-asgi`) — an outbound mechanism the Java runtime doesn't have a counterpart for. Where no header is present, a fresh id is generated in the same W3C 32-lowercase-hex-character shape (`TraceId` is typed as exactly that format). The `narrativetrace-otel` package additionally exports NarrativeTrace spans (`OtelTraceEventListener`, live; `TraceSpanExporter`, batch) with typed `narrative.*` attributes and orphan eviction, so your existing OTel collector, Jaeger, or correlation-id middleware understands the id with nothing to reconcile.
+
+What stays local: the narrative tree itself — the nested method calls, arguments, narration — is captured per process and never shipped to another service; only the trace id crosses the boundary. A downstream service produces its own narrative tree correlated to that same id, not one merged cross-service tree. (There is no worked multi-service example in `examples/` yet exercising this end to end — the mechanism is unit-tested, in `packages/narrativetrace-asgi/tests/test_outbound.py` and the middleware's own tests, not demoed as a running distributed scenario.)
 
 ## Examples and demo
 

@@ -7,7 +7,11 @@
 from __future__ import annotations
 
 import io
+import os
+import subprocess  # nosec B404 - fixed argv below, used only to run the real demo entry point
+import sys
 from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +37,7 @@ from examples.demo.launcher import (
     wiring_table,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ANSI = Palette.ansi()
 PLAIN = Palette.plain()
 PIPE = Terminal(stdout_tty=False, stdin_tty=False, no_color=None, force_color=None)
@@ -507,3 +512,59 @@ class TestRunLangMenu:
         assert "Which example?" in text
         assert "Which language?" not in text
         assert "Classic log format:" in text
+
+
+class TestMainEntryPoint:
+    """`python -m examples.demo` — the real, documented entry point (README's "Try it locally",
+    `demo.sh`, and the `poe demo` task all resolve to this exact invocation, per `__main__.py`
+    and `pyproject.toml`'s `[tool.poe.tasks.demo]`) — run as a genuine subprocess. Every test
+    above this class calls `run()` in-process with a fake `Terminal`/`io.StringIO()`, so none of
+    them exercises `main()`, `Terminal.detect(os.environ)`, or this module's own `sys.exit`/argv
+    wiring — exactly the "internals only, never the documented incantation itself" gap this
+    class closes, the same way `test_add_middleware_matches_the_documented_fastapi_recipe`
+    (`packages/narrativetrace-asgi/tests/test_documented_recipes.py`) and
+    `test_output_matches_the_documented_first_10_minutes_recipe`
+    (`packages/narrativetrace-pytest/tests/test_plugin.py`) close it for their own paths.
+
+    A subprocess with its stdout piped (never a TTY) takes `run()`'s plain, unstyled branch —
+    no pacing sleep, no `input()` — so these run in well under a second despite being real
+    process launches.
+    """
+
+    @staticmethod
+    def _run_demo(*args: str, timeout: float = 60.0) -> subprocess.CompletedProcess[str]:
+        """Runs the real entry point with an explicit UTF-8 encoding for the captured pipes —
+        the demo's output uses non-ASCII glyphs (→, ⑂, —), and `subprocess.run(text=True)`
+        otherwise decodes with `locale.getpreferredencoding()`, which reads as plain ASCII in a
+        minimal/POSIX-locale CI environment and raises `UnicodeDecodeError` on the first such
+        byte — the environment-dependence class of trap the family's release retrospective
+        warns about, not a real crash in the demo itself. `PYTHONIOENCODING` pins the child
+        process's own stdout encoding for the same reason, independent of its ambient locale."""
+        return subprocess.run(  # nosec B603 - fixed argv, no shell, no untrusted input
+            [sys.executable, "-m", "examples.demo", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            timeout=timeout,
+            check=False,
+        )
+
+    def test_runs_the_ecommerce_example_end_to_end(self) -> None:
+        result = self._run_demo("--example", "ecommerce", "--no-pause")
+
+        assert result.returncode == 0, result.stderr
+        assert "OrderService.place_order" in result.stdout
+        assert "card_token: [REDACTED]" in result.stdout
+
+    def test_list_prints_every_example_name(self) -> None:
+        result = self._run_demo("--list", timeout=30.0)
+
+        assert result.returncode == 0
+        assert set(result.stdout.split()) == set(EXAMPLES)
+
+    def test_an_unknown_example_name_is_refused_before_anything_runs(self) -> None:
+        result = self._run_demo("--example", "not-a-real-example", timeout=30.0)
+
+        assert result.returncode != 0
+        assert "OrderService" not in result.stdout

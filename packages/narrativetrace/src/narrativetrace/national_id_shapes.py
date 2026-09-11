@@ -12,12 +12,22 @@ data whose *name* is most often in a language the deny-list is read in but not w
 field name is in, which is why these shapes are language-neutral and on by default for everyone
 (family standard, ported from the Java runtime's ``NationalIdShapes``).
 
-Every matcher here is a checksum, never a length-and-digits guess, and every one is gated by a
-cheap regex before any arithmetic runs -- the same discipline the Luhn PAN matcher
-(:mod:`~narrativetrace.secret_value_shapes`) uses. A scheme without a check digit (the pre-1999
-15-digit Chinese id, a bare Spanish DNI with the letter dropped) is deliberately absent: it would
-be indistinguishable from an order number, and a security default that blanks ordinary business
-fields is one teams switch off entirely.
+Every matcher here is a checksum -- or, for the one scheme that has none, the issuing authority's
+own structural rule standing in for it -- never a length-and-digits guess, and every one is gated
+by a cheap regex before any arithmetic runs -- the same discipline the Luhn PAN matcher
+(:mod:`~narrativetrace.secret_value_shapes`) uses. A scheme without a check digit *and* without a
+structural rule to fall back on (the pre-1999 15-digit Chinese id, a bare Spanish DNI with the
+letter dropped) is deliberately absent: it would be indistinguishable from an order number, and a
+security default that blanks ordinary business fields is one teams switch off entirely.
+
+**The US Social Security Number has no check digit at all**, so only the punctuated
+``AAA-GG-SSSS`` form is recognised -- nine bare digits are indistinguishable from an order number
+or an unpunctuated phone number, and the dash is the only evidence the writer meant an SSN (the
+same reasoning as the Chilean RUT's required separator, below). In place of a checksum, the SSA's
+own never-issued area/group/serial values do the rejecting: area ``000``, ``666``, or ``900``-
+``999``; group ``00``; serial ``0000``. Rejecting those also keeps ``000-00-0000`` -- the
+placeholder that fills test fixtures and redacted forms everywhere -- visible rather than blanked
+as noise.
 
 **The Chilean RUT requires its verifier separator.** Chile writes a RUT as ``12.345.678-5`` or
 ``12345678-5``, and the dash is what distinguishes it from any other eight-digit number;
@@ -53,6 +63,13 @@ non-numeric, and only as Corsica's ``2A``/``2B``."""
 _CHINESE_ID = re.compile(r"\d{17}[0-9Xx]")
 """China: the post-1999 resident identity card, 17 digits and a check character."""
 
+_US_SSN = re.compile(r"\d{3}-\d{2}-\d{4}")
+"""United States: area-group-serial, dashes required -- see the module docstring for why bare
+digits are never accepted and why the reserved area/group/serial values below stand in for the
+checksum this scheme does not have."""
+
+_US_SSN_NEVER_ISSUED_AREAS = frozenset({"000", "666"})
+
 _PUNCTUATION = re.compile(r"[.\-/]")
 _SPACE = re.compile(" ")
 
@@ -72,10 +89,11 @@ _LATEST_BIRTH_YEAR = 2100
 
 
 def is_national_id(value: str) -> bool:
-    """Whether ``value`` is a national identity number that passes its own checksum.
+    """Whether ``value`` is a national identity number that passes its own checksum -- or, for
+    the US Social Security Number, the structural rule that stands in for one.
 
     ``value`` is a trimmed rendered value. Returns ``True`` for a valid Chilean RUT, Brazilian
-    CPF or CNPJ, Spanish DNI or NIE, French NIR, or Chinese resident identity card.
+    CPF or CNPJ, Spanish DNI or NIE, French NIR, Chinese resident identity card, or US SSN.
     """
     return (
         _is_rut(value)
@@ -84,6 +102,7 @@ def is_national_id(value: str) -> bool:
         or _is_spanish_id(value)
         or _is_french_nir(value)
         or _is_chinese_resident_id(value)
+        or _is_us_ssn(value)
     )
 
 
@@ -192,3 +211,15 @@ def _has_plausible_birth_date(value: str) -> bool:
     return (
         _EARLIEST_BIRTH_YEAR <= year <= _LATEST_BIRTH_YEAR and 1 <= month <= 12 and 1 <= day <= 31
     )
+
+
+def _is_us_ssn(value: str) -> bool:
+    """United States: ``AAA-GG-SSSS``, rejected by the SSA's own never-issued values rather than
+    a checksum -- see the module docstring for why the dash is required and why this matcher
+    exists at all."""
+    if not _US_SSN.fullmatch(value):
+        return False
+    area, group, serial = value[:3], value[4:6], value[7:]
+    if area in _US_SSN_NEVER_ISSUED_AREAS or area[0] == "9":
+        return False
+    return group != "00" and serial != "0000"

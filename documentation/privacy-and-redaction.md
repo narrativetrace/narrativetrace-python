@@ -32,14 +32,16 @@ Two independent redaction mechanisms apply to every reflectively-rendered value:
 2. **The name-based deny-list** (`RedactionPolicy.DEFAULT`) — a case- and accent-insensitive
    substring match against field/parameter names, **multilingual and always on, with no locale to
    select**: English (`password`, `secret`, `token`, `cvv`, `ssn`, `apikey`, `cardnumber`,
-   `sessionid`, and more) sits beside Spanish, Portuguese, French and Chinese words (`contraseña`,
-   `senha`, `motDePasse`, `密码`, and more) — `pan`/`iban` and eight non-English words match on
-   identifier-token boundaries instead of as raw substrings, specifically so `companyName` or
+   `sessionid`, `passphrase`, `otp`, `bearer`, and more) sits beside Spanish, Portuguese, French,
+   German and Chinese words (`contraseña`, `senha`, `motDePasse`, `passwort`, `密码`, and more) —
+   `pan`/`iban` and eight non-English words match on identifier-token boundaries instead of as
+   raw substrings, specifically so `companyName` or
    `japaneseAddress` are not swept in — plus a second, independent check on the *shape* of the
    value itself: a JWT, a `Set-Cookie` string, a card-number-shaped digit run, or a national
    identity number (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident
-   id) that passes its own checksum — so a bearer token or an id number passed under an
-   unrecognized name is still caught.
+   id, US SSN) that passes its own checksum or structural rule — a US SSN carries no check digit,
+   so the SSA's own never-issued area/group/serial values do that job instead — so a bearer token
+   or an id number passed under an unrecognized name is still caught.
 
 A `NamedTuple` is introspected by field name rather than rendered as an anonymous positional
 tuple, so a redacted field inside one stays hidden the same way a dataclass field does — redaction

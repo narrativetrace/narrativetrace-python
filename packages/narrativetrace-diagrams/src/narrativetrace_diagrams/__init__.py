@@ -8,7 +8,7 @@ from narrativetrace_diagrams.mermaid import MermaidSequenceDiagramRenderer
 from narrativetrace_diagrams.plantuml import PlantUmlSequenceDiagramRenderer
 from narrativetrace_diagrams.text import diagram_message, quote_if_needed
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "MermaidSequenceDiagramRenderer",

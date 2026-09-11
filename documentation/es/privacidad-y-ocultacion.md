@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 595bbfcedfbf | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 883ec1c76e66 | translated: 2026-09-10 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -35,16 +35,19 @@ Dos mecanismos de ocultación independientes se aplican a cada valor renderizado
 2. **La lista de denegación basada en nombre** (`RedactionPolicy.DEFAULT`) — una coincidencia de
    subcadena sin distinguir mayúsculas/minúsculas ni acentos contra nombres de campo/parámetro,
    **multilingüe y siempre activa, sin configuración regional que elegir**: el inglés (`password`,
-   `secret`, `token`, `cvv`, `ssn`, `apikey`, `cardnumber`, `sessionid`, y más) convive con
-   palabras en español, portugués, francés y chino (`contraseña`, `senha`, `motDePasse`, `密码`, y
-   más) — `pan`/`iban` y ocho palabras no inglesas coinciden en los límites del token del
+   `secret`, `token`, `cvv`, `ssn`, `apikey`, `cardnumber`, `sessionid`, `passphrase`, `otp`,
+   `bearer`, y más) convive con palabras en español, portugués, francés, alemán y chino
+   (`contraseña`, `senha`, `motDePasse`, `passwort`, `密码`, y más) — `pan`/`iban` y ocho palabras
+   no inglesas coinciden en los límites del token del
    identificador en lugar de como subcadenas sin más, específicamente para que `companyName` o
    `japaneseAddress` no queden atrapados sin querer — más una segunda comprobación independiente
    sobre la *forma* del propio valor: un JWT, una cadena `Set-Cookie`, una secuencia de dígitos
    con forma de número de tarjeta, o un número de identidad nacional (RUT chileno, CPF/CNPJ
-   brasileño, DNI/NIE español, NIR francés, cédula de identidad china) que supera su propia suma
-   de verificación — de modo que un token bearer o un número de identidad pasado bajo un nombre no
-   reconocido se sigue atrapando.
+   brasileño, DNI/NIE español, NIR francés, cédula de identidad china, SSN estadounidense) que
+   supera su propia suma de verificación o regla estructural — un SSN estadounidense no tiene
+   dígito verificador, así que los valores de área/grupo/serie nunca emitidos por la SSA hacen ese
+   trabajo en su lugar — de modo que un token bearer o un número de identidad pasado bajo un
+   nombre no reconocido se sigue atrapando.
 
 Un `NamedTuple` se introspecciona por nombre de campo en lugar de renderizarse como una tupla
 posicional anónima, así que un campo oculto dentro de uno permanece oculto igual que un campo de

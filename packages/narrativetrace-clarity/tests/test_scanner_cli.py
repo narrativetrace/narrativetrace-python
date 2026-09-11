@@ -73,8 +73,8 @@ class TestCli:
         src.write_text(_SAMPLE)
         out = tmp_path / "out"
         assert main([str(src), "--output-dir", str(out)]) == 0
-        report = (out / "clarity-report.md").read_text()
-        data = json.loads((out / "clarity-results.json").read_text())
+        report = (out / "clarity-report.md").read_text(encoding="utf-8")
+        data = json.loads((out / "clarity-results.json").read_text(encoding="utf-8"))
         assert report.startswith("# Clarity Suite Report")
         assert data["version"] == "1.0"
         assert {s["name"] for s in data["scenarios"]} == {"OrderService", "Mgr"}

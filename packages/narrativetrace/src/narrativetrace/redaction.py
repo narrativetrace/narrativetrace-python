@@ -11,7 +11,7 @@ field value into traces, logs, and exports. This policy redacts values whose *fi
 matches a known-sensitive pattern (case-insensitive substring — deliberately erring toward
 over-redaction), so secrets nested inside DTOs are hidden without a per-field annotation.
 
-**The default vocabulary is multilingual and always on** — Spanish, Portuguese, French and
+**The default vocabulary is multilingual and always on** — Spanish, Portuguese, French, German and
 Chinese words sit in :data:`_DEFAULT_PATTERNS`/:data:`_TOKEN_BOUNDARY_PATTERNS` beside the
 English ones, with no locale to select and nothing to opt into (the family standard, shared
 by every NarrativeTrace runtime). A deny-list that only reads English hides a ``password``
@@ -84,6 +84,17 @@ _DEFAULT_PATTERNS = frozenset(
         "account_number",
         "routingnumber",
         "routing_number",
+        # Added 2026-09-10, family-wide audit (found absent from all five runtimes' deny-lists):
+        "passphrase",
+        "otp",
+        "bearer",
+        "accesskey",
+        "access_key",
+        "socialsecurity",
+        "social_security",
+        "socialsecuritynumber",
+        "taxid",
+        "tax_id",
         # ("pan", "iban" live in _TOKEN_BOUNDARY_PATTERNS below, not here -- see that set's
         # docstring for why they, and the eight non-English words beside them, are matched as a
         # whole identifier token instead of a substring.)
@@ -117,6 +128,9 @@ _DEFAULT_PATTERNS = frozenset(
         "密码",
         "身份证",
         "shenfenzheng",
+        # German: Passwort/Kennwort ("password"), added 2026-09-10, family-wide audit
+        "passwort",
+        "kennwort",
     }
 )
 

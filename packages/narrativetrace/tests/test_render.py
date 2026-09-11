@@ -449,17 +449,39 @@ class TestDepthAndCycleBounds:
             assert CYCLE_MARKER in out, name
 
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
+        """Same mutmut-headroom trap as ``test_a_chain_at_the_depth_cap_survives_a_constrained_
+        call_stack`` below: the guard still recurses natively up to ``MAX_DEPTH`` frames before
+        truncating (the chain being 10,000 nodes long, not just ``MAX_DEPTH``, doesn't change
+        that), so this test needs the identical headroom, and for the identical reason
+        (`poe mutate-gate`'s 2026-09-09 nightly finding) -- one sibling test being fixed and this
+        one left on the ambient default limit was itself the incomplete half of that fix."""
         chain = self._chain(10_000)
-        for name, renderer in self._RENDERERS:
-            out = renderer.render(_tree(chain))  # must not raise RecursionError
-            assert DEPTH_LIMIT_MARKER in out, name
+        headroom = 1600
+        original_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(self._frame_depth() + headroom)
+        try:
+            for name, renderer in self._RENDERERS:
+                out = renderer.render(_tree(chain))  # must not raise RecursionError
+                assert DEPTH_LIMIT_MARKER in out, name
+        finally:
+            sys.setrecursionlimit(original_limit)
 
     def test_a_chain_within_the_depth_cap_carries_no_marker(self) -> None:
+        """Same mutmut-headroom trap as the two tests above: a chain *within* the cap gets no
+        early bail at all, so every one of its ``MAX_DEPTH - 1`` levels recurses natively --
+        at least as much native depth as either fixed sibling, needing the identical
+        headroom for the identical reason (`poe mutate-gate`'s 2026-09-09 nightly finding)."""
         chain = self._chain(MAX_DEPTH - 1)
-        for name, renderer in self._RENDERERS:
-            out = renderer.render(_tree(chain))
-            assert DEPTH_LIMIT_MARKER not in out, name
-            assert CYCLE_MARKER not in out, name
+        headroom = 1600
+        original_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(self._frame_depth() + headroom)
+        try:
+            for name, renderer in self._RENDERERS:
+                out = renderer.render(_tree(chain))
+                assert DEPTH_LIMIT_MARKER not in out, name
+                assert CYCLE_MARKER not in out, name
+        finally:
+            sys.setrecursionlimit(original_limit)
 
     @staticmethod
     def _frame_depth() -> int:

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 595bbfcedfbf | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 883ec1c76e66 | translated: 2026-09-10 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -36,14 +36,17 @@ Dois mecanismos de ocultação independentes se aplicam a todo valor renderizado
 2. **A lista de negação baseada em nome** (`RedactionPolicy.DEFAULT`) — uma correspondência de
    substring sem diferenciar maiúsculas de minúsculas nem acentos contra nomes de campo/parâmetro,
    **multilíngue e sempre ativa, sem localidade para selecionar**: o inglês (`password`, `secret`,
-   `token`, `cvv`, `ssn`, `apikey`, `cardnumber`, `sessionid`, e mais) convive com palavras em
-   espanhol, português, francês e chinês (`contraseña`, `senha`, `motDePasse`, `密码`, e mais) —
-   `pan`/`iban` e oito palavras não inglesas correspondem em limites de token do identificador em
+   `token`, `cvv`, `ssn`, `apikey`, `cardnumber`, `sessionid`, `passphrase`, `otp`, `bearer`, e
+   mais) convive com palavras em espanhol, português, francês, alemão e chinês (`contraseña`,
+   `senha`, `motDePasse`, `passwort`, `密码`, e mais) — `pan`/`iban` e oito palavras não inglesas
+   correspondem em limites de token do identificador em
    vez de como substrings soltas, especificamente para que `companyName` ou `japaneseAddress` não
    sejam pegos por engano — mais uma segunda verificação independente sobre a *forma* do próprio
    valor: um JWT, uma string `Set-Cookie`, uma sequência de dígitos com forma de número de cartão,
    ou um número de identidade nacional (RUT chileno, CPF/CNPJ brasileiro, DNI/NIE espanhol, NIR
-   francês, identidade de residente chinesa) que passa em seu próprio dígito verificador — então
+   francês, identidade de residente chinesa, SSN americano) que passa em seu próprio dígito
+   verificador ou regra estrutural — um SSN americano não tem dígito verificador, então os
+   valores de área/grupo/série nunca emitidos pela SSA fazem esse trabalho em seu lugar — então
    um token bearer ou um número de identidade passado sob um nome não reconhecido ainda assim é
    pego.
 

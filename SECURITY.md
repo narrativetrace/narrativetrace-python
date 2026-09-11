@@ -16,8 +16,9 @@ before any public disclosure.
 
 ## Supported Versions
 
-No version of NarrativeTrace for Python has been released yet. This policy
-applies from the first release onward.
+| Version | Supported |
+| --- | --- |
+| 0.1.x | Yes |
 
 ## Scope
 

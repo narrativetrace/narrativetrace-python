@@ -1,11 +1,12 @@
-<!-- source: documentation/first-10-minutes.md blob 461cb9d3e2b7 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/first-10-minutes.md blob 5d7e0ca81bf6 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
 
 # Primeros 10 minutos
 
 Un servicio diminuto, una prueba de pytest, siete pasos. Cada comando de abajo se ejecutó de verdad contra esta
 versión del repositorio — las rutas de archivo, las puntuaciones de claridad y el marcador `[REDACTED]` son
 salida real, no ilustraciones. Lo único que va a diferir en tu máquina es la
-duración (`ms`) y el `trace_name` de dos palabras, generados de nuevo en cada ejecución.
+duración (`ms`), el `trace_id` hexadecimal aleatorio y el `trace_name` de tres palabras — los tres
+generados de nuevo en cada ejecución.
 
 Python ≥ 3.12. Si aún no ejecutaste la demo, `uv run poe demo --example ecommerce --no-pause`
 desde la raíz del repositorio es aún más rápido — esta página es para cuando quieres verlo contra *tu

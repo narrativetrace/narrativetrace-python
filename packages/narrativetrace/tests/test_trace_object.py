@@ -159,6 +159,23 @@ class TestRedaction:
         assert params["password"].structured_value is None
         assert params["user"].rendered_value == '"bob"'
 
+    def test_a_shape_matched_value_is_redacted_even_under_an_innocuous_name(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        """The VALUE-SHAPE axis (owner ruling, 2026-09-10): a parameter caught by its OWN
+        shape (a JWT here) sets ``redacted`` exactly like the NAME axis case above, even
+        though ``who`` is nowhere near the deny-list -- confirmed defect, fixed here: this
+        used to substitute the marker into ``rendered_value`` while leaving ``redacted``
+        False. See ``ParameterCapture.redacted`` and
+        ``ValueRenderer.render_for_capture``."""
+        svc = trace_object(Service(), ctx)
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+        svc.greet(jwt)
+        param = ctx.capture_trace().roots[0].signature.parameters[0]
+        assert param.name == "who"
+        assert param.rendered_value == "[REDACTED]"
+        assert param.redacted is True
+
     def test_secret_never_reaches_renderer(self, ctx: ContextVarNarrativeContext) -> None:
         renderer = CountingRenderer()
         svc = trace_object(Service(), ctx, renderer=renderer)

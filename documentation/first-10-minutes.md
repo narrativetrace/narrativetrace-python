@@ -3,7 +3,8 @@
 One tiny service, one pytest test, seven steps. Every command below was run for real against this
 version of the repository — the file paths, the clarity scores, and the `[REDACTED]` marker are
 actual output, not illustrations. The only things that will differ on your machine are the
-duration (`ms`) and the two-word `trace_name`, both generated fresh on every run.
+duration (`ms`), the random hex `trace_id`, and the three-word `trace_name` — all three generated
+fresh on every run.
 
 Python ≥ 3.12. If you have not run the demo yet, `uv run poe demo --example ecommerce --no-pause`
 from the repository root is faster still — this page is for when you want to see it against *your

@@ -50,10 +50,31 @@ class TestDefaultPolicy:
     def test_default_patterns_redact(self, name: str) -> None:
         assert RedactionPolicy.DEFAULT.should_redact(name)
 
-    def test_default_has_fifty_one_patterns(self) -> None:
-        # 26 English + 17 non-English substring patterns + 8 non-English token-boundary
-        # patterns (pan/iban were already counted in the English 26).
-        assert len(RedactionPolicy.DEFAULT.patterns) == 51
+    def test_default_has_sixty_three_patterns(self) -> None:
+        # 36 English (26 original + 10 added 2026-09-10: passphrase, otp, bearer, accesskey,
+        # access_key, socialsecurity, social_security, socialsecuritynumber, taxid, tax_id) +
+        # 19 non-English substring patterns (17 original + German passwort, kennwort) + 8
+        # non-English token-boundary patterns (pan/iban were already counted in the English 36).
+        assert len(RedactionPolicy.DEFAULT.patterns) == 63
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "passphrase",
+            "otp",
+            "bearer",
+            "accesskey",
+            "access_key",
+            "socialsecurity",
+            "social_security",
+            "socialsecuritynumber",
+            "taxid",
+            "tax_id",
+        ],
+    )
+    def test_family_wide_audit_terms_redact(self, name: str) -> None:
+        """Family-wide audit (2026-09-10) found these absent from all five runtimes' deny-lists."""
+        assert RedactionPolicy.DEFAULT.should_redact(name)
 
     @pytest.mark.parametrize("name", ["userPassword", "cardCvv", "apiToken", "USER_SSN"])
     def test_case_insensitive_substring_match(self, name: str) -> None:
@@ -147,6 +168,13 @@ class TestMultilingualVocabulary:
 
     @pytest.mark.parametrize("name", ["motDePasse", "mot_de_passe", "nir"])
     def test_default_redacts_french_sensitive_names(self, name: str) -> None:
+        assert RedactionPolicy.DEFAULT.should_redact(name)
+
+    @pytest.mark.parametrize(
+        "name", ["passwort", "Passwort", "userPasswort", "kennwort", "Kennwort"]
+    )
+    def test_default_redacts_german_sensitive_names(self, name: str) -> None:
+        """Added 2026-09-10 (family-wide audit): German for password, both common spellings."""
         assert RedactionPolicy.DEFAULT.should_redact(name)
 
     @pytest.mark.parametrize("name", ["密码", "用户密码", "身份证", "mima", "shenfenzheng"])
@@ -266,8 +294,9 @@ class TestValueShapeMasking:
     _PAN = "4111111111111111"
     _SET_COOKIE = "sessionid=abc123; Path=/; HttpOnly"
     _CPF = "52998224725"
+    _SSN = "123-45-6789"
 
-    @pytest.mark.parametrize("value", [_JWT, _PAN, _SET_COOKIE, _CPF])
+    @pytest.mark.parametrize("value", [_JWT, _PAN, _SET_COOKIE, _CPF, _SSN])
     def test_default_policy_redacts_secret_shaped_values(self, value: str) -> None:
         assert RedactionPolicy.DEFAULT.should_redact_value(value)
 
@@ -300,3 +329,37 @@ class TestValueShapeMasking:
         assert self._CPF not in structured
         assert REDACTED_MARKER in structured
         assert "Recife" in flat, "an ordinary field beside it stays readable"
+
+    def test_a_us_ssn_is_hidden_through_the_renderer_under_an_innocuous_field_name(self) -> None:
+        """The entire point of the value axis over the name deny-list: ``taxpayer_ref`` matches
+        no name pattern at all, so only the value's own dashed-SSN shape can catch it."""
+
+        @dataclass
+        class Applicant:
+            taxpayer_ref: str
+            city: str
+
+        renderer = ValueRenderer()
+        flat = renderer.render(Applicant(self._SSN, "Reno"))
+        structured = repr(renderer.render_structured(Applicant(self._SSN, "Reno")))
+
+        assert self._SSN not in flat
+        assert REDACTED_MARKER in flat
+        assert self._SSN not in structured
+        assert REDACTED_MARKER in structured
+        assert "Reno" in flat, "an ordinary field beside it stays readable"
+
+    def test_an_ordinary_nine_digit_order_number_stays_visible_through_the_renderer(self) -> None:
+        """Guard against over-redaction: nine bare digits with no dashes must never be treated
+        as an SSN, whatever the field is called -- must pass both before and after the SSN
+        detector exists."""
+
+        @dataclass
+        class Order:
+            data: str
+
+        renderer = ValueRenderer()
+        flat = renderer.render(Order("123456789"))
+
+        assert "123456789" in flat
+        assert REDACTED_MARKER not in flat

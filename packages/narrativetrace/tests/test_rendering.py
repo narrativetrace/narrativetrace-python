@@ -410,6 +410,66 @@ class TestValueShapeMaskingParity:
         assert r.render_structured(self._PAN) == StringVal(self._PAN)
 
 
+class TestRenderForCapture:
+    """Unit tests for :meth:`ValueRenderer.render_for_capture`, the capture-oriented seam
+    ``trace_object._capture_one`` uses to set ``ParameterCapture.redacted`` truthfully for the
+    VALUE-SHAPE axis (confirmed defect, fixed 2026-09-10: a shape match substituted the marker
+    into the rendered text but never touched the flag -- see the docstring on
+    ``ParameterCapture.redacted`` and the corpus-level conformance suite in
+    ``narrativetrace-security-tests`` for the end-to-end replay)."""
+
+    _JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    def test_a_jwt_shaped_string_sets_the_shape_redacted_flag(
+        self, renderer: ValueRenderer
+    ) -> None:
+        rendered, structured, shape_redacted = renderer.render_for_capture(self._JWT)
+        assert rendered == "[REDACTED]"
+        assert structured == StringVal("[REDACTED]")
+        assert shape_redacted is True
+
+    def test_an_ordinary_string_does_not_set_the_flag(self, renderer: ValueRenderer) -> None:
+        rendered, structured, shape_redacted = renderer.render_for_capture("hello")
+        assert rendered == '"hello"'
+        assert structured == StringVal("hello")
+        assert shape_redacted is False
+
+    def test_a_jwt_nested_inside_an_object_masks_the_leaf_but_not_the_parameter_flag(
+        self, renderer: ValueRenderer
+    ) -> None:
+        """The documented boundary on ``ParameterCapture.redacted``: a shape match on a NESTED
+        leaf (here, one field of an otherwise-ordinary dataclass) still masks that leaf's text --
+        the object's own field-name axis is untouched, ``note`` is not on the deny-list, only the
+        JWT's own shape catches it -- but must not flag the whole parameter, since only one field
+        of it was withheld, not the value as a whole."""
+
+        @dataclasses.dataclass
+        class Session:
+            username: str
+            note: str
+
+        rendered, structured, shape_redacted = renderer.render_for_capture(
+            Session("ada", self._JWT)
+        )
+        assert "[REDACTED]" in rendered
+        assert self._JWT not in rendered
+        assert isinstance(structured, ObjectVal)
+        assert structured.fields["note"] == StringVal("[REDACTED]")
+        assert shape_redacted is False
+
+    def test_a_non_string_top_level_value_matches_render_and_render_structured(
+        self, renderer: ValueRenderer
+    ) -> None:
+        """No top-level shape check applies past a plain string, so a dict/collection/object
+        value delegates to the very same renderings :meth:`render`/:meth:`render_structured`
+        produce for any other caller -- the new seam adds a fact, it does not change output."""
+        value = {"orderNumber": "not-a-secret", "count": 3}
+        rendered, structured, shape_redacted = renderer.render_for_capture(value)
+        assert rendered == renderer.render(value)
+        assert structured == renderer.render_structured(value)
+        assert shape_redacted is False
+
+
 class TestLocaleInvariance:
     def test_numbers_never_use_grouping_separators(self) -> None:
         # f-strings / str() are locale-independent in Python (unlike the .NET runtime's culture

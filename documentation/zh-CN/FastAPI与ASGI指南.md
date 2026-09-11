@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/fastapi-asgi.md blob 3c67eb558256 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/fastapi-asgi.md blob 1ce7dac68ee1 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
 
 # FastAPI / ASGI
 
@@ -33,13 +33,20 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 ## W3C traceparent
 
 入站的 `traceparent` 会被采纳为该请求的追踪 id。对于服务间调用,可以在出站的 `httpx` 客户端上
-注入它:
+注入它 —— 异步客户端需要异步钩子 `attach_traceparent_async`(`httpx.AsyncClient` 会对每个请求钩子
+执行 `await`,而同步钩子返回的 `None` 无法被 await):
 
 ```python
 import httpx
-from narrativetrace_asgi import attach_traceparent
+from narrativetrace_asgi import attach_traceparent_async
 
-client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent]})
+client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent_async]})
+```
+
+同步的 `httpx.Client` 则应搭配同步的 `attach_traceparent`:
+
+```python
+client = httpx.Client(event_hooks={"request": [attach_traceparent]})
 ```
 
 参见可运行示例 [`examples/fastapi_service`](../../examples/fastapi_service)。

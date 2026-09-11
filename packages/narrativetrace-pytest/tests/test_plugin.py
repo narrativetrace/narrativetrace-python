@@ -83,6 +83,67 @@ def test_output_writes_artifact(pytester: pytest.Pytester, monkeypatch: pytest.M
     result.stdout.fnmatch_lines(["*Trace written:*"])
 
 
+def test_output_matches_the_documented_first_10_minutes_recipe(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`documentation/first-10-minutes.md` steps 1-5 / README "Add it to one test", run through
+    the real installed plugin (a `pytester_subprocess` run, so real pytest11 auto-registration —
+    never an in-process fixture call) and checked against the EXACT Markdown the docs promise —
+    entry_point, error_count, and the call-flow line — not just "a file exists" the way
+    `test_output_writes_artifact` above (deliberately, per its own docstring) only checks. The
+    other documented recipes (`trace_object`/`ContextVarNarrativeContext`/`MarkdownRenderer`
+    chained through the public API, `narrativetrace-asgi`'s `add_middleware`/`attach_traceparent`,
+    the `poe demo` entry point) each have their own dedicated real-path test — see
+    `packages/narrativetrace-asgi/tests/test_documented_recipes.py` and
+    `examples/demo/test_launcher.py::TestMainEntryPoint`.
+    """
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        order_service="""
+        class OrderService:
+            def place_order(self, customer_id, product_id, quantity):
+                return f"ORD-{customer_id}-{product_id}-{quantity}"
+        """
+    )
+    pytester.makepyfile(
+        test_order_service="""
+        from narrativetrace import trace_object
+
+        from order_service import OrderService
+
+
+        class TestOrderService:
+            def test_customer_places_order(self, narrative_trace):
+                service = trace_object(OrderService(), narrative_trace)
+                service.place_order("C-1234", "SKU-KB", 2)
+        """
+    )
+    result = pytester.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=1)
+
+    trace_file = out_dir / "traces" / "TestOrderService" / "test_customer_places_order.md"
+    content = trace_file.read_text(encoding="utf-8")
+    assert "type: trace" in content
+    assert "scenario: Test customer places order" in content
+    assert "entry_point: OrderService.place_order" in content
+    assert "method_count: 1" in content
+    assert "error_count: 0" in content
+    assert "**Duration:** " in content and "**Result:** PASSED" in content
+    assert (
+        '**OrderService.place_order**(customer_id: `"C-1234"`, product_id: `"SKU-KB"`, '
+        'quantity: `2`) → `"ORD-C-1234-SKU-KB-2"`'
+    ) in content
+    result.stdout.fnmatch_lines(
+        [
+            "*Scenario: Test customer places order*",
+            "*Execution trace:*",
+            "*Trace written:*",
+        ]
+    )
+
+
 def test_empty_trace_writes_no_files(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -26,6 +26,22 @@ class ParameterCapture:
     or when the parameter is redacted. ``type_name`` is the declared annotation (canonical schema
     1.2, ``nt.parameters[].type``), ``None`` for an unannotated parameter — it is what makes two
     same-named methods distinguishable to a cross-platform consumer.
+
+    ``redacted`` means the parameter's WHOLE value was withheld — by name (the deny-list or an
+    explicit ``@not_traced``), or because the top-level argument's own shape matched (a JWT, a
+    Luhn-valid PAN, a national-id checksum, ...) and the entire rendering IS the ``[REDACTED]``
+    marker (owner ruling, 2026-09-10). Both axes set this one flag; a consumer branching on it
+    never needs to know which axis fired.
+
+    **Documented boundary.** A shape match on a NESTED leaf — a JWT sitting inside one field of an
+    otherwise-ordinary dataclass argument — masks that leaf within ``rendered_value``/
+    ``structured_value`` (:mod:`~narrativetrace.rendering` redacts every string it touches,
+    top-level or nested, unconditionally) but does **not** set ``redacted`` here: the flag is
+    per-PARAMETER, the value-shape match is per-LEAF, and claiming the whole value was withheld
+    when only one field of it was would overstate what happened. (Confirmed defect, fixed here:
+    a value-shape match used to substitute the marker into the rendered text without ever
+    touching this flag, so the output was safe but the metadata was untrue — see
+    :meth:`~narrativetrace.rendering.ValueRenderer.render_for_capture`.)
     """
 
     name: str

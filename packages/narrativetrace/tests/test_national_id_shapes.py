@@ -96,3 +96,51 @@ class TestNationalIdentityNumbersByTheirOwnCheckDigits:
         document -- they are what a form writes when it has none. Rejecting them before the
         checksum is the difference between a matcher and a length test."""
         assert not is_national_id(value)
+
+
+class TestUsSocialSecurityNumbersByStructuralRule:
+    """A US SSN carries no check digit -- nine bare digits are arithmetically indistinguishable
+    from an order number, an account id, or an unpunctuated phone number, so only the dashed
+    ``AAA-GG-SSSS`` form is recognised; the punctuation is the only evidence the writer meant an
+    SSN. The SSA's own structural rules (area/group/serial values that have never been issued)
+    stand in for the missing checksum, and rejecting them costs nothing real -- they also keep
+    ``000-00-0000``, the placeholder that fills test fixtures and redacted forms everywhere,
+    visible rather than blanked as noise."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "123-45-6789",
+            "001-01-0001",
+            "899-99-9999",
+        ],
+    )
+    def test_a_dashed_ssn_is_masked_whatever_the_field_is_called(self, value: str) -> None:
+        assert is_national_id(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "123456789",  # bare, no dashes -- indistinguishable from an order number
+            "12-345-6789",  # mis-grouped: 2-3-4
+            "123-456-789",  # mis-grouped: 3-3-3
+            "123-45-678",  # serial one digit short
+            "123-45-67890",  # serial one digit long
+        ],
+    )
+    def test_a_wrong_shape_is_not_an_ssn(self, value: str) -> None:
+        assert not is_national_id(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "000-12-3456",  # area 000, never issued
+            "666-12-3456",  # area 666, never issued
+            "900-12-3456",  # area 900-999, reserved for ITINs
+            "123-00-4567",  # group 00, never issued
+            "123-45-0000",  # serial 0000, never issued
+            "000-00-0000",  # the placeholder every fixture and redacted form uses
+        ],
+    )
+    def test_a_never_issued_area_group_or_serial_stays_visible(self, value: str) -> None:
+        assert not is_national_id(value)

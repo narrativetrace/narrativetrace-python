@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-pytest"
-version = "0.1.0"
+version = "0.1.1"
 description = "pytest plugin for narrativetrace: per-test trace fixtures, artifacts, and reporting"
 readme = "README.md"
 requires-python = ">=3.12"

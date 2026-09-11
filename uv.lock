@@ -23,6 +23,15 @@ members = [
 ]
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/8e/38aa427ed5402449e226975b649c5dc73ccadfefeb95e6aecb8f8ea4b6b6/annotated_doc-0.0.5.tar.gz", hash = "sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb", size = 10758, upload-time = "2026-07-28T13:50:58.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl", hash = "sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101", size = 5302, upload-time = "2026-07-28T13:50:57.239Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -515,6 +524,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/53/fd/f84f0600bd72953d5a322f0dedbd4f900e2cedab718e6b6a093ae2d16aae/face-26.0.1.tar.gz", hash = "sha256:8183d94bc248baaea855a9f8445f97a22a9988908e60abddccc6e251da77c4c6", size = 51754, upload-time = "2026-06-17T23:14:39.938Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/24/0159c48d19c8b05e6969ee809bbbecc5a5c863f7e38c9327e2c63cb06f0f/face-26.0.1-py3-none-any.whl", hash = "sha256:ab0a83c37c9789dce658a67a9a80eafaa113c9ec37c5a9d950ff5480542a062d", size = 57572, upload-time = "2026-06-17T23:14:38.711Z" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.141.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/02/91e3416a8fdd715abb903a952a6bec7cdd8d14eed55d415fc8595524c319/fastapi-0.141.1.tar.gz", hash = "sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1", size = 425799, upload-time = "2026-07-29T17:18:05.568Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/03/10388a42375ee7e4ac9b94eb2c5c569c8b5795e377e701c9ac3ad63de890/fastapi-0.141.1-py3-none-any.whl", hash = "sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3", size = 131954, upload-time = "2026-07-29T17:18:04.364Z" },
 ]
 
 [[package]]
@@ -1143,12 +1168,12 @@ wheels = [
 
 [[package]]
 name = "narrativetrace"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace" }
 
 [[package]]
 name = "narrativetrace-asgi"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-asgi" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1161,6 +1186,7 @@ httpx = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "starlette" },
 ]
@@ -1174,13 +1200,14 @@ provides-extras = ["httpx"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "starlette", specifier = ">=0.37" },
 ]
 
 [[package]]
 name = "narrativetrace-clarity"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-clarity" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1191,7 +1218,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-diagrams"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-diagrams" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1202,7 +1229,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-glossary"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-glossary" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1217,7 +1244,7 @@ requires-dist = [
 
 [[package]]
 name = "narrativetrace-otel"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-otel" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1240,7 +1267,7 @@ dev = [{ name = "opentelemetry-sdk", specifier = ">=1.20" }]
 
 [[package]]
 name = "narrativetrace-pytest"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-pytest" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1286,7 +1313,7 @@ dev = [{ name = "pyyaml", specifier = ">=6" }]
 
 [[package]]
 name = "narrativetrace-structlog"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/narrativetrace-structlog" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1314,7 +1341,7 @@ dev = [{ name = "structlog", specifier = ">=24" }]
 
 [[package]]
 name = "narrativetrace-workspace"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 
 [package.dev-dependencies]

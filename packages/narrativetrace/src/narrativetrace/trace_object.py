@@ -31,7 +31,7 @@ from narrativetrace._boundary import PROPAGATED_EXCEPTIONS
 from narrativetrace.context import NarrativeContext
 from narrativetrace.decorators import MethodMetadata, read_method_metadata, resolve_error_context
 from narrativetrace.ids import SpanId
-from narrativetrace.redaction import REDACTED_MARKER
+from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
 from narrativetrace.rendering import ValueRenderer
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.template import resolve as _resolve_template
@@ -59,9 +59,10 @@ def trace_object[T](
 class _MethodSpec:
     """Per-method invariants computed once at wrap time.
 
-    ``package_name``, ``return_type`` and ``parameter_types`` are the canonical schema's identity
-    fields. They come from the declaration, not from the call, so they are read once per wrapped
-    method rather than on every invocation.
+    ``package_name``, ``return_type``, ``parameter_types`` and ``redacted_params`` are the
+    canonical schema's identity fields (the last one, redaction, security-critical rather than
+    identity). They come from the declaration, not from the call, so they are read once per
+    wrapped method rather than on every invocation -- see :data:`_MethodSpec.redacted_params`.
     """
 
     meta: MethodMetadata
@@ -72,6 +73,25 @@ class _MethodSpec:
     package_name: str | None = None
     return_type: str | None = None
     parameter_types: dict[str, str] = field(default_factory=dict)
+    redacted_params: frozenset[str] = field(default_factory=frozenset)
+    """Which declared parameter names redact, decided once here rather than once per call.
+
+    Confirmed defect (fixed here): :func:`_build_capture` used to ask only ``name in
+    meta.not_traced_params`` -- the explicit ``@not_traced`` decorator -- and never consulted
+    :class:`~narrativetrace.redaction.RedactionPolicy` at all, so a parameter named
+    ``payment_token`` with no annotation rendered in cleartext. Folded in here instead of
+    :class:`~narrativetrace.decorators.MethodMetadata` because the redaction decision needs two
+    things ``MethodMetadata`` alone does not carry: the full parameter-name vocabulary (from
+    ``sig``/``traced_names``) and the policy in force (``renderer.redaction_policy``, which a
+    caller can replace) -- both already live in ``_MethodSpec``, computed once when a method is
+    first wrapped (:meth:`_TracedProxy._wrap`) and reused for every subsequent call. Mirrors
+    Java's cached ``RedactionPolicy.DEFAULT.isRedacted(name, wasAnnotated)`` widening: the per-call
+    cost is one frozenset lookup, not a policy evaluation. Unlike the ``@narrated``/``@on_error``
+    template path (a documented narrowness -- see ``template.py``), this honours whichever policy
+    the caller's own ``ValueRenderer`` carries -- unioned with, never in place of, the built-in
+    ``RedactionPolicy.DEFAULT`` floor (see :func:`_redacted_params`, monotonicity: a mechanism may
+    only widen what redacts, never narrow it).
+    """
 
 
 class _TracedProxy:
@@ -117,8 +137,9 @@ class _TracedProxy:
             sig: Signature | None = inspect.signature(bound_method)
         except (ValueError, TypeError):
             sig = None
+        meta = read_method_metadata(func)
         return _MethodSpec(
-            read_method_metadata(func),
+            meta,
             sig,
             class_name,
             getattr(func, "__name__", "call"),
@@ -126,6 +147,7 @@ class _TracedProxy:
             package_name,
             _return_type_of(sig),
             _parameter_types_of(sig),
+            _redacted_params(sig, meta, renderer.redaction_policy),
         )
 
     def _wrap(self, bound_method: Callable[..., Any]) -> Callable[..., Any]:
@@ -195,6 +217,38 @@ def _parameter_types_of(sig: Signature | None) -> dict[str, str]:
     return {name: declared for name, declared in named if declared is not None}
 
 
+def _redacted_params(
+    sig: Signature | None, meta: MethodMetadata, redaction_policy: RedactionPolicy
+) -> frozenset[str]:
+    """Every declared parameter name that must redact: an explicit ``@not_traced`` annotation, or
+    the always-on name-based deny-list, decided once per method (see
+    :data:`_MethodSpec.redacted_params`).
+
+    The name vocabulary is ``traced_names`` (the ``@traced`` override for signatures ``inspect``
+    cannot bind, e.g. bare ``*args``) when supplied, otherwise every name ``inspect.signature``
+    reports -- which, for a bound method, already excludes ``self``, so ``self`` can never appear
+    in ``sig.parameters`` and never reaches ``redaction_policy`` here.
+
+    **Monotonicity floor (owner ruling).** ``RedactionPolicy.DEFAULT`` is unioned in
+    unconditionally alongside ``redaction_policy`` -- a caller's policy may only ADD to what
+    redacts here, never replace the built-in floor. ``RedactionPolicy.of_patterns(...)`` replaces
+    a policy's vocabulary entirely rather than extending it, and reaches this function directly
+    through the public ``ValueRenderer(redaction_policy=...)`` / ``trace_object(...,
+    renderer=...)`` seam; without this union, a caller who narrows their own vocabulary (drops
+    ``password``, say) would redact less at this axis than the built-in default -- a real,
+    reachable weakening, not a hypothetical one. Value-shape masking is a separate axis
+    (``should_redact_value``, checked later inside ``ValueRenderer`` when a value *is* rendered)
+    and is untouched here: this floor is about the name-based deny-list only.
+    """
+    names = meta.traced_names or (tuple(sig.parameters) if sig is not None else ())
+    return frozenset(
+        name
+        for name in names
+        if redaction_policy.is_redacted(name, annotated=name in meta.not_traced_params)
+        or RedactionPolicy.DEFAULT.should_redact(name)
+    )
+
+
 def _invoke(
     context: NarrativeContext,
     span_id: SpanId | None,
@@ -215,7 +269,7 @@ def _build_capture(
     captures: list[ParameterCapture] = []
     value_map: dict[str, object] = {}
     for name, value in items:
-        redacted = name in meta.not_traced_params
+        redacted = name in spec.redacted_params
         value_map[name] = REDACTED_MARKER if redacted else value
         declared = spec.parameter_types.get(name)
         captures.append(
@@ -247,17 +301,21 @@ def _capture_one(
     renderer: ValueRenderer,
     declared_type: str | None,
 ) -> ParameterCapture:
+    """Builds one parameter's capture. ``redacted`` here is the NAME axis only (the deny-list/
+    ``@not_traced`` decision already made in :data:`_MethodSpec.redacted_params`) -- when it
+    fires, ``value`` is never rendered at all, the short-circuit :func:`~narrativetrace.rendering.
+    ValueRenderer.render_for_capture` documents relying on. Otherwise the VALUE-SHAPE axis
+    (:meth:`~narrativetrace.rendering.ValueRenderer.render_for_capture`'s own boolean, decided at
+    the exact point a whole scalar value is replaced by the marker) becomes the capture's
+    ``redacted`` flag, so a shape-caught parameter (a JWT, a Luhn PAN, ...) is flagged the same as
+    a name-caught one -- see :data:`~narrativetrace.signature.ParameterCapture.redacted`.
+    """
     if redacted:
         return ParameterCapture(name, REDACTED_MARKER, True, None, declared_type)
     if not capture_values:
         return ParameterCapture(name, "", False, None, declared_type)
-    return ParameterCapture(
-        name,
-        renderer.render(value),
-        False,
-        renderer.render_structured(value),
-        declared_type,
-    )
+    rendered, structured, shape_redacted = renderer.render_for_capture(value)
+    return ParameterCapture(name, rendered, shape_redacted, structured, declared_type)
 
 
 def _bound_items(

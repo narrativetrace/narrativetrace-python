@@ -31,13 +31,20 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 ## W3C traceparent
 
 Inbound `traceparent` is adopted onto the request's trace id. For server-to-server calls, inject
-it outbound on an `httpx` client:
+it outbound on an `httpx` client — an async client needs the async hook, `attach_traceparent_async`
+(`httpx.AsyncClient` `await`s every request hook; the sync hook's `None` return cannot be awaited):
 
 ```python
 import httpx
-from narrativetrace_asgi import attach_traceparent
+from narrativetrace_asgi import attach_traceparent_async
 
-client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent]})
+client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent_async]})
+```
+
+A synchronous `httpx.Client` instead pairs with the synchronous `attach_traceparent`:
+
+```python
+client = httpx.Client(event_hooks={"request": [attach_traceparent]})
 ```
 
 See the runnable [`examples/fastapi_service`](../../examples/fastapi_service).

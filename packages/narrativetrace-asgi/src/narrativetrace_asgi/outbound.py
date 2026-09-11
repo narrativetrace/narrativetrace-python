@@ -11,12 +11,19 @@ across services (the client half of http-di report §TS-HTTP-5). Java has no cou
 Usage::
 
     import httpx
-    from narrativetrace_asgi import attach_traceparent
+    from narrativetrace_asgi import attach_traceparent, attach_traceparent_async
 
-    client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent]})
+    sync_client = httpx.Client(event_hooks={"request": [attach_traceparent]})
+    async_client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent_async]})
 
 Both a sync and an async hook are provided so the same helper works with ``httpx.Client`` and
-``httpx.AsyncClient``. ``httpx`` is an optional dependency and is never imported here.
+``httpx.AsyncClient`` — but each client needs the hook of its own kind: ``httpx.AsyncClient``
+awaits every request hook, and awaiting the sync hook's ``None`` return raises
+``TypeError: object NoneType can't be used in 'await' expression`` (confirmed by running the
+previously-documented ``httpx.AsyncClient(event_hooks={"request": [attach_traceparent]})`` for
+real — see ``test_attach_traceparent_async_is_required_for_an_async_client`` in
+``tests/test_outbound.py``, which pins the crash on the wrong pairing and the fix on the right
+one). ``httpx`` is an optional dependency and is never imported here.
 """
 
 from __future__ import annotations

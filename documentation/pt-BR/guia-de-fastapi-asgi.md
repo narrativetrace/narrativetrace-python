@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/fastapi-asgi.md blob 3c67eb558256 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/fastapi-asgi.md blob 1ce7dac68ee1 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
 
 # FastAPI / ASGI
 
@@ -34,13 +34,21 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 ## traceparent W3C
 
 O `traceparent` de entrada é adotado como o id de trace da requisição. Para chamadas
-servidor a servidor, injete-o na saída em um cliente `httpx`:
+servidor a servidor, injete-o na saída em um cliente `httpx` — um cliente assíncrono precisa do
+hook assíncrono, `attach_traceparent_async` (`httpx.AsyncClient` faz `await` em cada hook de
+requisição; o `None` retornado pelo hook síncrono não pode ser aguardado):
 
 ```python
 import httpx
-from narrativetrace_asgi import attach_traceparent
+from narrativetrace_asgi import attach_traceparent_async
 
-client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent]})
+client = httpx.AsyncClient(event_hooks={"request": [attach_traceparent_async]})
+```
+
+Já um `httpx.Client` síncrono combina com o `attach_traceparent` síncrono:
+
+```python
+client = httpx.Client(event_hooks={"request": [attach_traceparent]})
 ```
 
 Veja o exemplo executável [`examples/fastapi_service`](../../examples/fastapi_service).

@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Nightly consumer-truth canary — part of the released source (a product artifact), like ci.yml
+# and publish.yml, whose action-pinning and least-privilege rules this file follows: third-party
+# actions pinned to full commit SHAs, no job granted a token permission it has not asked for by
+# name.
+#
+# What it proves, every night, from a cold container: the latest released version's packages are
+# actually live on the real pypi.org (never a hand-kept list — see scripts/verify_publication_
+# packages.py), narrativetrace-security-tests (which must NEVER publish) still is not there, every
+# PRESENT package still carries a PyPI Integrity API PEP 740 attestation bound to its published
+# bytes (scripts/verify_publication_provenance.py — the exact gap that let the 0.1.0 release
+# report green while four of its eight packages shipped unattested), and this repository's own
+# documented quickstart still installs from PyPI and traces what the docs promise. In other
+# words: a first-time adopter's day one still works. scripts/verify_publication*.py hold all the
+# logic (poe verify-publication); this file only schedules it — the same thin-CI rule ci.yml's
+# own comments describe.
+#
+# Nightly rather than release-chained on purpose: PyPI's own propagation, while normally fast, is
+# not instant, and part of a release can legitimately stay NOT_YET_PUBLISHED for a while (PyPI
+# rate-limits NEW PROJECT creation, not new versions of an existing one). A nightly run is at most
+# one night behind a release and needs only a modest timeout. This is a canary, not a gate: a red
+# run means "investigate"
+# (PyPI weather, a real publication defect, or a genuinely broken documented path), never "the
+# build is broken", and no other job waits on it.
+name: Verify publication
+
+permissions: {}
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  # Manual runs for the publish checklist: after a release, trigger this with the new version
+  # instead of running the tool from a laptop.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to verify (default: the latest 'v*' git tag)"
+        required: false
+      packages:
+        description: >-
+          Comma/space-separated subset of publishable package names to check (default: every
+          publishable package the workspace declares). Use this while a release is only partly
+          out and the rest is still working through PyPI's new-project rate limit.
+        required: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    container: ghcr.io/astral-sh/uv:python3.12-bookworm
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The version under verification defaults to the latest release tag, and tags need
+          # history to be found.
+          fetch-depth: 0
+
+      - run: uv sync --all-packages
+
+      - name: Verify the latest release resolves and the documented quickstart traces
+        # Dispatch inputs reach the tool through argv/env, never by template interpolation into
+        # a shell string — no path where outside text becomes code.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -- --timeout 1800
+          [ -n "$INPUT_VERSION" ] && set -- "$@" "$INPUT_VERSION"
+          [ -n "$INPUT_PACKAGES" ] && set -- "$@" --packages "$INPUT_PACKAGES"
+          uv run python -m scripts.verify_publication "$@"

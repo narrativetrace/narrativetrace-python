@@ -1,4 +1,4 @@
-<!-- source: README.md blob 9e7e9aa7cd18 | translated: 2026-09-09 | reviewed: - -->
+<!-- source: README.md blob 5b66bb122548 | translated: 2026-09-10 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -183,14 +183,19 @@ Fora deste repositório, a mesma forma não precisa de projeto nenhum — instal
 uv add narrativetrace
 ```
 
-A publicação no PyPI ainda não foi feita — até que os pacotes estejam no índice, trabalhe a partir
-de um checkout deste repositório (`uv sync --all-packages`).
-
-A publicação no PyPI ainda não foi feita — até que os pacotes estejam no índice, trabalhe a partir
-de um checkout deste repositório (`uv sync --all-packages`).
+`narrativetrace` — o pacote que este trecho precisa — já está publicado no PyPI; os pacotes de
+integração opcionais estão sendo lançados um a um (veja a tabela de [Pacotes](#pacotes) mais
+abaixo). Até que o que você precisa esteja no índice, trabalhe a partir de um checkout deste
+repositório (`uv sync --all-packages`).
 
 ```python
 from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_object
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
 
 context = ContextVarNarrativeContext()
 service = trace_object(OrderService(), context)
@@ -424,6 +429,35 @@ Aprofundando:
 - [Guia de pytest](documentation/pt-BR/guia-de-pytest.md) · [Guia de FastAPI/ASGI](documentation/pt-BR/guia-de-fastapi-asgi.md) · [Guia de OpenTelemetry](documentation/pt-BR/guia-de-opentelemetry.md) · [Guia de logging](documentation/pt-BR/guia-de-logging.md) · [Guia de clareza](documentation/pt-BR/guia-de-clareza.md)
 - [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md) — cada funcionalidade que esta implementação distribui, com nível e status
 - [Referência completa (`llms-full.md`)](documentation/llms-full.md) — todos os guias, em um arquivo; [`llms.txt`](documentation/llms.txt) é o índice legível por máquina para agentes de IA
+
+## Perguntas frequentes
+
+### Quanto overhead isso adiciona, e o que acontece sob alta concorrência?
+
+Não vamos afirmar "overhead zero" — e, diferente de outras implementações desta família, ainda não temos números datados e publicados para citar aqui. Existe uma suíte de benchmarks inicial (`packages/narrativetrace/tests/test_bench_*.py`, executada com `uv run poe bench`) cobrindo o overhead de captura por nível de tracing, uma chamada através de `trace_object` contra uma chamada direta, a renderização para cada formato, e a checagem de ocultação em um caminho quente — mas `uv run poe bench-gate` só compara uma execução contra a anterior na *mesma* máquina (números de baseline do host não são comparáveis entre máquinas), então isso é um hábito de regressão noturno, ainda não um número público. Não assuma que os números de Java ou TypeScript se transferem para esta implementação: o que uma linha de código de tracing custa é diferente por implementação. Rode `uv run poe bench` você mesmo no seu próprio hardware se precisar de um número hoje — preferimos não dizer nada aqui do que dizer algo que não podemos sustentar.
+
+O que podemos afirmar com confiança é o mecanismo. A captura é controlada por um nível de tracing checado *antes* de qualquer renderização acontecer: coloque `NARRATIVETRACE_LEVEL=OFF` e `enter_method` retorna `None` imediatamente — sem reflexão, sem trabalho de strings, antes mesmo de tocar seus argumentos. Para loops quentes, restrinja o escopo traçado ou baixe o nível em vez de traçar tudo.
+
+Sob concorrência, os dois caminhos do `DualPathPipeline` padrão têm garantias diferentes. Um listener síncrono — `LoggingTraceConsumer`, a ponte para o `logging` da biblioteca padrão (o análogo nesta implementação do `Slf4jTraceEventListener` do Java) — roda em linha se você conectar um, então é exatamente tão durável — e custa exatamente o mesmo — quanto uma chamada de log já custa. O caminho com buffer, de melhor esforço, é um anel de tamanho fixo (65.536 eventos, nunca cresce) que descarta sob carga em vez de bloquear quem chama, e cada perda é **contada**, nunca em silêncio — `dropped_count()` soma a contrapressão de assinantes, as sobrescritas do buffer e o descarte sob carga juntos, e uma execução que perdeu eventos imprime a contagem na própria linha `Incomplete:` no rodapé da suíte.
+
+**O limite honesto:** hoje não existe sampling nesta implementação, nem em nenhuma implementação do NarrativeTrace — toda chamada traçada é capturada por completo no nível configurado. Um amostrador por porcentagem ou por taxa está no roadmap, mas não foi lançado. Se você precisa limitar o volume de captura agora, use `NARRATIVETRACE_LEVEL=OFF` ou restrinja o escopo traçado ao limite que importa.
+
+### Como sei que um parâmetro com PII ou credenciais não vai vazar em um trace?
+
+Quatro camadas independentes, não uma única promessa geral — o contrato linha a linha, verificado contra o código, é [Privacidade e ocultação](documentation/pt-BR/privacidade-e-ocultacao.md):
+
+1. **`@not_traced("password", "cvv")` em parâmetros nomeados**, e **`not_traced_field(...)`/`__nt_not_traced__` nos campos de uma classe** — ocultação explícita que você controla.
+2. **Uma lista de negação por nome, sempre ativa e multilíngue** — compara nomes de campos e parâmetros com padrões em inglês, espanhol, português, francês, alemão e chinês para senhas, tokens, identificações nacionais e afins, sem locale para escolher e nada para ativar.
+3. **Correspondência pela forma do valor, independente do nome do campo** — uma string com forma de JWT, um número de cartão válido por Luhn, um valor com forma de `Set-Cookie`, ou um checksum ou regra estrutural de identificação nacional (RUT chileno, CPF/CNPJ brasileiro, DNI/NIE espanhol, NIR francês, carteira de identidade chinesa, SSN americano) é ocultado mesmo que chegue sob um nome inocente como `data` ou `value` — combinado em `is_secret_shaped`.
+4. **Ainda não há um modo estrutural sem valores nesta implementação.** O formato `.nt`/`.approved.nt` do irmão Java — a garantia categórica para um contexto onde nenhum valor pode sair do processo — está planejado aqui, não lançado (veja o [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md)). Não confunda com `TraceTranslationView`: essa é uma funcionalidade real e lançada, mas ela reglosa os *nomes* dos identificadores para outro idioma via um glossário — os valores continuam passando byte a byte idênticos, intocados, então não é um modo sem valores.
+
+Também não há um conjunto de regras de ocultação configurável por caminho — nada de uma política estilo JSONPath "sempre oculte `user.creditCard`". A ocultação é por nome e por forma, e é aplicada em cada segmento quando um template de narração `{param.property}` resolve um caminho, não é uma análise de fluxo de dados. Seja preciso sobre o limite: as camadas 1–3 são heurísticas e extensíveis — sempre podem deixar passar uma forma ou um nome que ninguém pensou em adicionar ainda. Nenhuma delas é *categórica* como seria o modo estrutural (ainda não lançado). Se o seu modelo de ameaça exigir "nenhum valor pode jamais sair do processo", essa garantia não existe hoje nesta implementação.
+
+### Os IDs de trace podem se correlacionar com um ID de correlação padrão entre serviços, ou o tracing é só local?
+
+Sim — através do W3C `traceparent`, o mesmo mecanismo que o OpenTelemetry usa, e as duas direções estão lançadas. **Entrada:** o middleware ASGI (`NarrativeTraceMiddleware`, `adopt_traceparent=True` por padrão) analisa um cabeçalho `traceparent` de entrada e chama `context.adopt_trace_id(...)` — o próprio `trace_id` do NarrativeTrace **se torna** diretamente o ID de trace desse cabeçalho, não é um identificador separado apenas com uma forma parecida. **Saída:** `attach_traceparent`/`attach_traceparent_async` são hooks de evento do `httpx` que estampam o ID de trace do contexto atual em cada requisição de saída (`packages/narrativetrace-asgi`) — um mecanismo de saída para o qual a implementação Java não tem equivalente. Quando não há cabeçalho presente, um novo ID é gerado na mesma forma W3C de 32 caracteres hexadecimais minúsculos (`TraceId` é tipado exatamente nesse formato). O pacote `narrativetrace-otel` também exporta os spans do NarrativeTrace (`OtelTraceEventListener`, ao vivo; `TraceSpanExporter`, em lote) com atributos tipados `narrative.*` e remoção de órfãos, então seu collector OTel, Jaeger ou middleware de ID de correlação já existentes entendem o ID sem nada para reconciliar.
+
+O que fica local: a árvore narrativa em si — as chamadas de método aninhadas, os argumentos, a narração — é capturada por processo e nunca é enviada a outro serviço; só o ID de trace cruza a fronteira. Um serviço downstream produz sua própria árvore narrativa correlacionada com esse mesmo ID, não uma única árvore combinada entre serviços. (Ainda não há um exemplo multisserviço elaborado em `examples/` que exercite isso de ponta a ponta — o mecanismo é testado no nível de unidade, em `packages/narrativetrace-asgi/tests/test_outbound.py` e nos próprios testes do middleware, não demonstrado como um cenário distribuído em execução.)
 
 ## Exemplos e demo
 

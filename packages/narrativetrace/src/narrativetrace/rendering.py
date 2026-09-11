@@ -175,6 +175,12 @@ class ValueRenderer:
     def _render_string(self, value: str) -> str:
         if self.redaction_policy.should_redact_value(value):
             return REDACTED_MARKER
+        return self._render_string_body(value)
+
+    def _render_string_body(self, value: str) -> str:
+        """The quoted, sanitised, length-capped rendering of a string already known not to be
+        value-shape redacted -- shared by :meth:`_render_string` and :meth:`render_for_capture`,
+        so a string's shape is checked once per call site rather than re-derived."""
         safe = control_sanitize(value)
         if len(safe) > self.max_string_length:
             return f'"{safe[: self.max_string_length]}…"'
@@ -340,6 +346,46 @@ class ValueRenderer:
             return self._render_structured(value, _RenderWalk())
         except Exception:  # the renderer is total: nothing a value does may escape capture
             return StringVal(f"<{type(value).__name__}>")
+
+    # ------------------------------------------------------------------ #
+    # Capture-oriented rendering                                          #
+    # ------------------------------------------------------------------ #
+    def render_for_capture(self, value: object) -> tuple[str, RenderedValue, bool]:
+        """Renders ``value`` for a :class:`~narrativetrace.signature.ParameterCapture`, reporting
+        alongside the usual text and structured renderings whether value-SHAPE redaction consumed
+        the value whole -- the fact :meth:`~narrativetrace.trace_object._build_capture` needs to
+        set ``ParameterCapture.redacted`` truthfully for a parameter caught by shape (a JWT, a
+        Luhn-valid PAN, a national-id checksum) rather than by name (``trace_object`` already
+        short-circuits the name axis before any rendering happens, so it never calls this).
+
+        ``shape_redacted`` is true only when ``value`` is ITSELF a top-level string whose shape
+        matched -- the one case where the entire rendered text IS the marker because there was
+        nothing else to render. A shape match on a NESTED leaf (a JWT inside a dataclass field, a
+        dict value) still masks that leaf in the text below (``_render_string``/
+        ``_render_structured_string`` run the identical check for it, unconditionally, same as
+        ever) but leaves ``shape_redacted`` here ``False``: the flag is per-PARAMETER, matches are
+        per-leaf, and setting it for a partially-redacted object would claim the whole value was
+        withheld when only one field was.
+
+        Computed directly at the only place a whole-value shape match can occur -- never by
+        comparing the finished text to :data:`REDACTED_MARKER` afterwards, which would misfire on
+        an ordinary string whose content happens to equal the marker literally, and would have
+        nothing to compare at all for a non-string value. The string case checks the shape once
+        here and reuses it for both the text and structured renderings below (rather than letting
+        each re-derive it independently, as calling :meth:`render` and :meth:`render_structured`
+        separately would); a non-string value has no top-level shape check to share, so it simply
+        delegates to both.
+        """
+        try:
+            if isinstance(value, str):
+                shape_redacted = self.redaction_policy.should_redact_value(value)
+                if shape_redacted:
+                    return REDACTED_MARKER, StringVal(REDACTED_MARKER), True
+                return self._render_string_body(value), StringVal(value), False
+            return self.render(value), self.render_structured(value), False
+        except Exception:  # the renderer is total: nothing a value does may escape capture
+            marker = f"<{type(value).__name__}>"
+            return marker, StringVal(marker), False
 
     def _render_structured(self, value: object, walk: _RenderWalk) -> RenderedValue:
         if value is None:

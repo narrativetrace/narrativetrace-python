@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.1.0"
+version = "0.1.1"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.
@@ -186,6 +186,19 @@ help = """Dependency-vulnerability scan of lockfiles/manifests via OSV-Scanner. 
 — the scheduled/web CI job only, never per-commit; auto-fetches a pinned, checksum-verified \
 binary into .tools/bin/ on first use; see documentation/security-tooling.md"""
 
+[tool.poe.tasks.verify-publication]
+cmd = "python -m scripts.verify_publication"
+help = """Post-publish verification against the REAL PyPI index: presence poll (derived package \
+list, honest NOT_YET_PUBLISHED/LAGGING/MISSING split for a partial release), narrativetrace- \
+security-tests absence check, a PEP 740 provenance check per PRESENT package against PyPI's \
+Integrity API (ATTESTED/NOT_ATTESTED/PARTIAL/UNKNOWN — a package with no attestation is always a \
+distinct, visible finding, never a silent pass), and a consumer smoke test of this repo's own \
+documented quickstart installed from PyPI into an isolated venv. Never poe check / per-commit — \
+real network calls; a manual publish-checklist step and the nightly canary's \
+(.github/workflows/verify-publication.yml) payload. `poe verify-publication -- --dry-run` prints \
+what would be checked with no network calls; `poe verify-publication -- --help` lists every \
+option."""
+
 [tool.poe.tasks.semgrep]
 cmd = """semgrep --config=p/security-audit --config=p/secrets --metrics=off \
     packages examples scripts"""
@@ -289,6 +302,19 @@ sequence = [
     { ref = "legal-check" },
     { ref = "bandit" },
 ]
+
+[tool.poe.tasks.verify-all]
+cmd = "python -m scripts.verify_all"
+help = """Runs EVERY verification this repo has, gate and heavy alike: unit tests, coverage, \
+mutation (both packages), property, fuzz tier A (sliced) and tier B (poe fuzz), benchmarks \
+(host-load permitting) and allocation (not-implemented in this ecosystem), architecture \
+(import-linter), stress short/long, conformance, secrets, sast, sca, lint, format, types, \
+complexity, translation, clarity. A failing category never aborts the run; the process exits \
+non-zero iff any category's status is "failed". Writes reports/verification/<date>.json + \
+<date>.md conforming to the cross-port schema in the Java golden repo's \
+reports/verification/SCHEMA.md — never a per-commit/CI gate, this is the long-running, \
+whole-repo audit `poe check`/`poe fuzz`/`poe mutate-gate`/`poe bench-gate` are each a fast \
+slice of."""
 
 # --------------------------------------------------------------------------- #
 # Shared tool configuration                                                   #
@@ -402,6 +428,13 @@ markers = [
 ]
 
 [tool.coverage.run]
+# Every packages/*/ directory must have its import name below, or a documented reason in
+# [tool.coverage.narrativetrace_exempt] -- enforced by
+# packages/narrativetrace/tests/test_coverage_source_completeness.py, which fails, naming the
+# missing package, the moment a new packages/*/ directory is neither. Before 2026-09-10 this list
+# was hand-maintained with nothing checking it against the workspace (found: narrativetrace_pytest,
+# 319 real lines behind a shipped pytest11 entry point, was silently absent and so silently
+# ungated, not diluted like the note on `fail_under` below -- literally unmeasured).
 source = [
     "narrativetrace",
     "narrativetrace_diagrams",
@@ -410,17 +443,79 @@ source = [
     "narrativetrace_clarity",
     "narrativetrace_glossary",
     "narrativetrace_structlog",
+    # Added 2026-09-10. Every one of this package's 28 tests drives the plugin through
+    # pytester.runpytest_subprocess() -- a real child `python -m pytest` process, never
+    # in-process -- so naively adding the name here would have measured ~0%: the outer
+    # pytest-cov tracer never sees code that only ever ran in a subprocess. Wired instead via
+    # coverage.py's own subprocess-measurement recipe (packages/narrativetrace-pytest/tests/
+    # conftest.py sets COVERAGE_PROCESS_START + COVERAGE_FILE + PYTHONPATH for the session;
+    # _subprocess_coverage/sitecustomize.py calls coverage.process_startup() in each child;
+    # `parallel = true` below lets every child's data file coexist; pytest-cov combines them
+    # itself at session end, same as it already does for its own suffixed files). Measured
+    # 2026-09-10, real number, not gamed: 98% (162 stmts, 1 miss; 32 branches, 2 partial).
+    "narrativetrace_pytest",
 ]
 branch = true
+# Needed for narrativetrace_pytest's subprocess-measured coverage above: each pytester subprocess
+# writes its own uniquely-suffixed data file. Safe for every other package too -- pytest-cov
+# already constructs its own Coverage instance with a unique data suffix and calls .combine()
+# at session end regardless of this setting (verified against pytest_cov/engine.py); nothing else
+# in this repo calls `coverage run`/`coverage combine` directly.
+parallel = true
+# "Module narrativetrace_pytest was never imported": expected, not a real warning. The outer
+# pytest-cov process disables the plugin's own entry point (`-p no:narrativetrace` above) so it
+# is never imported there by design -- all of its coverage data arrives already-combined from the
+# subprocess-written files instead.
+disable_warnings = ["module-not-imported"]
+
+[tool.coverage.narrativetrace_exempt]
+# packages/*/ directories with no import name in `source` above, and why -- read by
+# test_coverage_source_completeness.py, which requires every packages/*/ directory to be in
+# exactly one of these two places.
+narrativetrace_security_tests = "src/narrativetrace_security_tests/__init__.py is a 13-line stub; every real line (corpus reader, oracle helpers) lives under tests/, which this repo's convention never treats as production code to measure (2026-09-10)."
 
 [tool.coverage.report]
 fail_under = 95  # ratchet toward the Java 98% gate; raise as headroom allows
+# Dilution, measured 2026-09-10 (a point-in-time figure -- nothing re-verifies this comment
+# against a fresh run, so treat the exact number as dated): fail_under is ONE blended total across
+# every package in `source`, not a per-package gate. At today's totals (7060 stmts, 6923 covered;
+# 1862 branches, 1735 covered -- combined 8658/8922) the workspace could absorb roughly 190 more
+# statements-plus-branches, added by a new package and entirely uncovered, before this single
+# number would drop under 95% and the gate would even notice. A small new file fits inside that
+# headroom. Not fixed here -- per-package gating or a higher floor is a bigger decision than this
+# comment — recorded so 95% stops reading as safer than it actually is for a small addition.
 show_missing = true
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
     "@(abc\\.)?abstractmethod",
 ]
+
+# Mutation testing (mutmut) package selection -- default-deny, same shape as [tool.coverage.run]
+# source / [tool.coverage.narrativetrace_exempt] above. Every packages/*/ directory must be in
+# exactly one of `[tool.narrativetrace.mutation.tested]` (mapped to its equivalent-mutant ledger
+# path -- mutation/*.txt) or `[tool.narrativetrace.mutation.exempt]` (a one-line, verified reason)
+# below; enforced by packages/narrativetrace/tests/test_mutation_accounting.py, the
+# mutation-testing sibling of test_coverage_source_completeness.py. Before 2026-09-10 this set
+# existed only as scripts/mutation_gate.py's own hand-maintained `_PACKAGES` dict, with nothing
+# checking it against the workspace -- a new packages/*/ directory could ship unmutated forever
+# with nothing saying so. `scripts/mutation_gate.py` now reads `tested` from here instead of
+# keeping its own copy.
+[tool.narrativetrace.mutation.tested]
+narrativetrace = "mutation/equivalents.txt"
+narrativetrace-glossary = "mutation/glossary-equivalents.txt"
+
+[tool.narrativetrace.mutation.exempt]
+# packages/*/ directories with no [tool.mutmut] section/mutate task, and why -- read by
+# test_mutation_accounting.py, which requires every packages/*/ directory to be in exactly one of
+# `tested` above or this table.
+narrativetrace-security-tests = "src/narrativetrace_security_tests/__init__.py is a 13-line marker stub; every real line (corpus reader, oracle helpers, the property tests themselves) lives under tests/ -- itself a test suite, so mutating it tests nothing."
+narrativetrace-asgi = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet: mutmut has no multi-root mode, so each further distribution needs its own config and task before it can be mutation-tested."
+narrativetrace-clarity = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
+narrativetrace-diagrams = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
+narrativetrace-otel = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
+narrativetrace-pytest = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
+narrativetrace-structlog = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 
 [tool.importlinter]
 root_packages = [

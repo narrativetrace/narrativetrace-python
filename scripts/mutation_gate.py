@@ -10,7 +10,8 @@ By design, every mutated package must kill at least 80% of its mutants, computed
 ``packages/<package>/mutants``, cross-references that package's own equivalent-mutant ledger,
 and fails the build below the floor. One package per invocation (`argv[1]`, default
 ``narrativetrace``) — mutmut has no multi-root mode, so each mutated package's run and ledger
-are independent; `_PACKAGES` is where a future third mutated package registers.
+are independent; ``[tool.narrativetrace.mutation.tested]`` in the root ``pyproject.toml`` is
+where a future third mutated package registers (see ``_load_packages`` below).
 
 A ledgered mutant only shrinks the denominator while mutmut still reports it as "survived". One
 that a later test happens to kill is simply counted as killed like any other mutant, not
@@ -24,6 +25,7 @@ import json
 import re
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,15 +42,25 @@ class MutatedPackage:
     ledger_path: Path
 
 
-_PACKAGES: dict[str, MutatedPackage] = {
-    "narrativetrace": MutatedPackage(
-        REPO_ROOT / "packages" / "narrativetrace", REPO_ROOT / "mutation" / "equivalents.txt"
-    ),
-    "narrativetrace-glossary": MutatedPackage(
-        REPO_ROOT / "packages" / "narrativetrace-glossary",
-        REPO_ROOT / "mutation" / "glossary-equivalents.txt",
-    ),
-}
+def _load_packages() -> dict[str, MutatedPackage]:
+    """Reads the mutation-tested package set from its single source of truth --
+    `[tool.narrativetrace.mutation.tested]` in the root `pyproject.toml` -- instead of keeping a
+    second, hand-synced copy in this module. Default-deny accounting for the whole set (every
+    `packages/*/` directory in exactly one of `tested` there or
+    `[tool.narrativetrace.mutation.exempt]`, never neither, never both) is
+    `packages/narrativetrace/tests/test_mutation_accounting.py`'s job, not this script's — this
+    function only reads what that table says.
+    """
+    with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
+        pyproject = tomllib.load(handle)
+    tested: dict[str, str] = pyproject["tool"]["narrativetrace"]["mutation"]["tested"]
+    return {
+        name: MutatedPackage(REPO_ROOT / "packages" / name, REPO_ROOT / ledger)
+        for name, ledger in tested.items()
+    }
+
+
+_PACKAGES: dict[str, MutatedPackage] = _load_packages()
 
 
 def parse_ledger(text: str) -> dict[str, str]:

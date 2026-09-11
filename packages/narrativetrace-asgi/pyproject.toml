@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-asgi"
-version = "0.1.0"
+version = "0.1.1"
 description = "ASGI middleware (Starlette/FastAPI) for narrativetrace request tracing"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,4 +32,8 @@ packages = ["src/narrativetrace_asgi"]
 dev = [
     "starlette>=0.37",
     "httpx>=0.27",
+    # Test-only: proves the documentation/guides/fastapi-asgi.md recipe (`app.add_middleware(...)`
+    # on a real FastAPI app, not only the Starlette base class every other test/example wraps
+    # directly) actually runs — FastAPI is not a runtime dependency of this distribution.
+    "fastapi>=0.110",
 ]

@@ -13,7 +13,7 @@ Two entry points share the :mod:`narrativetrace_otel.attributes` mapper:
 from narrativetrace_otel.exporter import TraceSpanExporter
 from narrativetrace_otel.listener import OtelTraceEventListener
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "OtelTraceEventListener",
