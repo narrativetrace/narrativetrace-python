@@ -86,14 +86,16 @@ def test_output_writes_artifact(pytester: pytest.Pytester, monkeypatch: pytest.M
 def test_a_parametrized_invocations_artifact_is_titled_from_its_display_name(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Cross-port structural-header contract (see `ArtifactIdentity.structuralScenario` in the
-    Java runtime): a `@ParameterizedTest`/`@pytest.mark.parametrize` display name interpolates its
-    argument, so the *value-free* artifact a runtime writes must not be titled with it. This
-    runtime has no such artifact yet — `feature-guide.md` states it plainly: "the pytest plugin
-    writes one full-detail file per test" — so its one artifact is the value-carrying kind the
-    contract says keeps the display name. This pins that on purpose: a naive future "fix" that
-    stripped the `[KAYAK]`-style label from this title would put Python on the wrong side of the
-    contract, not the right one, until a value-free artifact actually ships here.
+    """Cross-port structural-header contract (``ArtifactIdentity.structural_scenario``): a
+    ``@pytest.mark.parametrize`` display name interpolates its argument, so the *value-free* `.nt`
+    artifact must not be titled with it — it is titled by the method and its 1-based invocation
+    index instead. The value-carrying Markdown/JSON artifact is a separate question and keeps the
+    display name exactly as before (the 2026-09-12 contract): a naive "fix" that stripped
+    the ``[KAYAK]``-style label from *that* title would put Python on the wrong side of it.
+
+    Per-invocation identity also changes the on-disk *filename* for a parameterized invocation
+    (``<method>-<index>-<label>``, the cross-platform naming scheme) — an ordinary, non-
+    parameterized test's filename is unaffected and keeps moving nowhere.
     """
     out_dir = pytester.path / "nt-out"
     monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
@@ -115,8 +117,8 @@ def test_a_parametrized_invocations_artifact_is_titled_from_its_display_name(
     result = pytester.runpytest_subprocess("-s")
     result.assert_outcomes(passed=2)
 
-    kayak_files = list(out_dir.rglob("test_finds_it_kayak_.md"))
-    tent_files = list(out_dir.rglob("test_finds_it_tent_.md"))
+    kayak_files = list(out_dir.rglob("test_finds_it-001-kayak.md"))
+    tent_files = list(out_dir.rglob("test_finds_it-002-tent.md"))
     assert len(kayak_files) == 1
     assert len(tent_files) == 1
     kayak_text = kayak_files[0].read_text(encoding="utf-8")
@@ -129,6 +131,46 @@ def test_a_parametrized_invocations_artifact_is_titled_from_its_display_name(
     assert "**Scenario:** Test finds it[kayak]" in kayak_text
     assert "scenario: Test finds it[tent]" in tent_text
     assert "**Scenario:** Test finds it[tent]" in tent_text
+
+
+def test_a_parametrized_invocations_structural_header_names_the_index_not_the_argument(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The counterpart to the test above: the value-free artifact and manifest.json for the same
+    two invocations."""
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        import pytest
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def finds(self, item): return item
+
+        @pytest.mark.parametrize("item", ["KAYAK", "TENT"])
+        def test_finds_it(narrative_trace, item):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.finds(item)
+        """
+    )
+    result = pytester.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=2)
+
+    # The value-free structural artifact is titled by the method and the invocation index alone
+    # -- never the interpolated argument.
+    kayak_nt = next(out_dir.rglob("test_finds_it-001-kayak.nt")).read_text(encoding="utf-8")
+    tent_nt = next(out_dir.rglob("test_finds_it-002-tent.nt")).read_text(encoding="utf-8")
+    assert kayak_nt.startswith("scenario: Test finds it #1\n")
+    assert tent_nt.startswith("scenario: Test finds it #2\n")
+    assert "KAYAK" not in kayak_nt
+    assert "TENT" not in tent_nt
+
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    rows = manifest["scenarios"]
+    assert {row["scenario"] for row in rows} == {"Test finds it[kayak]", "Test finds it[tent]"}
+    assert {row["invocation"] for row in rows} == {1, 2}
 
 
 def test_output_is_on_by_default_with_no_configuration_at_all(

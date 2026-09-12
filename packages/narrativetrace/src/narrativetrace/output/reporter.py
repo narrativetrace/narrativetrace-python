@@ -14,9 +14,11 @@ from __future__ import annotations
 import math
 
 from narrativetrace.loss import TraceLoss
+from narrativetrace.output.structural_delta import Kind, ScenarioDelta
 
 _HIGH_THRESHOLD = 0.7
 _MODERATE_THRESHOLD = 0.4
+_SCENARIO_NAME_CAP = 32
 
 
 def _round_half_up(value: float) -> int:
@@ -89,6 +91,57 @@ class ConsoleSummaryReporter:
             f"{loss_line}"
             f"  Reports: {output_path}"
         )
+
+    def format_delta_line(self, deltas: list[ScenarioDelta]) -> str:
+        """One line summarizing every scenario's structural status against its last-green
+        artifact, e.g. ``4 scenarios unchanged · 1 changed: "Weekend trip…" (+4 calls
+        CurrencyConverter.toBaseCurrency)``. Empty when ``deltas`` is empty."""
+        unchanged = sum(1 for d in deltas if d.kind is Kind.UNCHANGED)
+        fresh = sum(1 for d in deltas if d.kind is Kind.NEW)
+        changed = [d for d in deltas if d.kind is Kind.CHANGED]
+        segments: list[str] = []
+        if unchanged > 0:
+            segments.append(f"{_with_noun(segments, unchanged)} unchanged")
+        if fresh > 0:
+            segments.append(f"{_with_noun(segments, fresh)} new")
+        if changed:
+            described = _describe_changed(changed)
+            segments.append(f"{_with_noun(segments, len(changed))} changed: {described}")
+        return " · ".join(segments)
+
+    def format_failure_report(
+        self, scenario: str, trace_text: str, delta: ScenarioDelta | None = None
+    ) -> str:
+        """A failing test's report — localizes change instead of dumping the trace when the
+        failing scenario's structure CHANGED since last green (assertion output already covers
+        detection; the trace's job here is saying *where* behavior moved), and says so plainly
+        when the structure held (UNCHANGED) so a reader looks at values and assertions instead."""
+        if delta is not None and delta.kind is Kind.CHANGED:
+            return f"\n\n{scenario}\n\nChanged since last green ({delta.summary}):\n{delta.diff}"
+        if delta is not None and delta.kind is Kind.UNCHANGED:
+            return (
+                f"\n\n{scenario}\n\nStructure unchanged since last green — the flow held; "
+                f"check values and assertions.\n\nExecution trace:\n{trace_text}"
+            )
+        return f"\n\n{scenario}\n\nExecution trace:\n{trace_text}"
+
+
+def _with_noun(segments: list[str], count: int) -> str:
+    """The word "scenario(s)" rides on the first segment only: ``4 scenarios unchanged · 1 new``."""
+    if segments:
+        return str(count)
+    return f"{count} {'scenario' if count == 1 else 'scenarios'}"
+
+
+def _describe_changed(changed: list[ScenarioDelta]) -> str:
+    return ", ".join(f'"{_truncate(d.scenario)}" ({d.summary})' for d in changed)
+
+
+def _truncate(scenario: str) -> str:
+    """Scenario names are capped so one changed scenario cannot flood the one-line summary."""
+    if len(scenario) <= _SCENARIO_NAME_CAP:
+        return scenario
+    return scenario[:_SCENARIO_NAME_CAP].rstrip() + "…"
 
 
 def _loss_line(loss: TraceLoss | None) -> str:

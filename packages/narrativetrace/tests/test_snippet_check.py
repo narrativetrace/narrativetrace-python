@@ -220,6 +220,46 @@ class TestDurationMasking:
         assert "documentation/page.md:1" in failures[0]
         assert "src/thing.txt" in failures[0]
 
+    def test_sync_repository_leaves_a_duration_only_difference_untouched(
+        self, tmp_path: Path
+    ) -> None:
+        """Wall-clock is never a test input (family standard): a fresh run of the source that
+        differs only in its masked duration reading is not a pending sync, so `sync_repository`
+        must not rewrite the page (and must not report a change) just because this run happened
+        to measure 8ms where the page still shows 3ms."""
+        _write(tmp_path, "src/thing.txt", 'says "hi" — 8ms\n')
+        page_path = _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=duration -->\n"
+            "```text\n"
+            'says "hi" — 3ms\n'
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        before = page_path.read_text(encoding="utf-8")
+        assert sync_repository(tmp_path) == []
+        assert page_path.read_text(encoding="utf-8") == before
+
+    def test_sync_repository_still_rewrites_a_real_drift_under_masking(
+        self, tmp_path: Path
+    ) -> None:
+        """A masked block still resyncs, and still picks up the real (unmasked) duration, when
+        the drift is not just the timing -- only the timing digits themselves are tolerated."""
+        _write(tmp_path, "src/thing.txt", 'says "bye" — 8ms\n')
+        page_path = _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=duration -->\n"
+            "```text\n"
+            'says "hi" — 3ms\n'
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        changes = sync_repository(tmp_path)
+        assert len(changes) == 1
+        assert 'says "bye" — 8ms' in page_path.read_text(encoding="utf-8")
+
 
 class TestCheckAndSyncRepository:
     def test_check_repository_reports_nothing_when_every_block_matches(

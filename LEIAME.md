@@ -1,4 +1,4 @@
-<!-- source: README.md blob 213a680ed90f | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 5dccdfda58d6 | translated: 2026-09-12 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -302,14 +302,18 @@ quando o renderizador ao redor foi construído com uma política personalizada o
   silenciosamente.
 - **A introspecção lê dados armazenados, não código.** Um getter de `@property` calculado nunca
   executa; os únicos membros que o NarrativeTrace invoca são um método `@narrative_summary`
-  cuidadosamente escrito, um `__str__` personalizado quando o tipo não carrega nenhum campo, e
-  caminhos de propriedade nomeados em um template `@narrated`/`@on_error` — mantenha-os puros,
-  como você faria para um depurador. O próprio `__str__` de um composto, do contrário, nunca é
-  confiável *(since 0.1.2, unreleased)*: qualquer objeto que carregue estado de instância é introspectado campo
-  a campo independente de definir um `__str__` personalizado, então um escrito à mão não consegue
-  driblar a ocultação, nem diretamente nem através de um objeto aninhado — uma chave de dict/map
-  passa pela mesma verificação. Um resumo/`__str__`/getter que lança exceção renderiza
-  `<error: TypeName>` para aquela parte, nunca a própria mensagem da exceção.
+  cuidadosamente escrito, um `__str__` personalizado quando o tipo não carrega nenhum campo ou é
+  definido pela plataforma, e caminhos de propriedade nomeados em um template `@narrated`/
+  `@on_error` — mantenha-os puros, como você faria para um depurador. O próprio `__str__` de um
+  composto, do contrário, nunca é confiável *(since 0.1.2, unreleased)*: qualquer objeto que
+  carregue estado de instância é introspectado campo a campo independente de definir um `__str__`
+  personalizado, então um escrito à mão não consegue driblar a ocultação, nem diretamente nem
+  através de um objeto aninhado — uma chave de dict/map passa pela mesma verificação. A única
+  exceção é um tipo que a própria plataforma define *(since 0.1.2, unreleased)* — `pathlib.Path`,
+  `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*` — decidido por
+  origem (seu `__module__`, nunca um prefixo de nome), então um impostor ou uma subclasse ainda são
+  introspectados. Um resumo/`__str__`/getter que lança exceção renderiza `<error: TypeName>` para
+  aquela parte, nunca a própria mensagem da exceção.
 
 → [Privacidade e ocultação](documentation/pt-BR/privacidade-e-ocultacao.md) para o contrato linha por
 linha verificado contra o código.

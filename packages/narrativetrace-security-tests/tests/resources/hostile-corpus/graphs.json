@@ -51,6 +51,10 @@
     { "id": "future-cancelled", "description": "a cancelled future", "kind": "future", "state": "cancelled" },
     { "id": "exception-with-message", "description": "an exception carrying prose - what a message may legitimately show, so the oracle here is well-formedness, not containment", "kind": "throwable", "payload": "plain-text" },
     { "id": "exception-cause-chain", "description": "a fifty-deep cause chain", "kind": "throwable", "n": 50, "payload": "plain-text" },
-    { "id": "suppressed-exception", "description": "a suppressed exception, which no cause-chain walk reaches", "kind": "throwable", "state": "suppressed", "payload": "plain-text" }
+    { "id": "suppressed-exception", "description": "a suppressed exception, which no cause-chain walk reaches", "kind": "throwable", "state": "suppressed", "payload": "plain-text" },
+    { "id": "platform-type-short-value", "description": "a platform-defined type carrying instance state renders its own short text, not a field walk - the oracle here is well-formedness, not containment", "kind": "platformValue", "payload": "plain-text" },
+    { "id": "platform-type-name-redacted", "description": "a field named like the deny-list, holding a platform-defined value, redacts by NAME before the platform-type carve-out is ever consulted", "kind": "platformNameRedacted", "payload": "secret-record" },
+    { "id": "platform-lookalike-walked", "description": "a user class named after a platform type is walked, not trusted - identity is never decided by a class's own name", "kind": "platformLookalike", "payload": "secret-record" },
+    { "id": "platform-subclass-walked", "description": "a user subclass of a platform type is walked, not trusted - a subclass's own defining module is never inherited from its platform base", "kind": "platformSubclass", "payload": "secret-record" }
   ]
 }

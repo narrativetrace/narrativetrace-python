@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob a47f31654e29 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob cbdc6dc9fc64 | translated: 2026-09-12 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -19,6 +19,7 @@ documentação.
 | Processador de structlog / ponte de logging da stdlib | Não |
 | Um `ValueRenderer` personalizado que seu próprio código constrói | Sim — apenas passando `RedactionPolicy.DISABLED` para `trace_object(obj, context, renderer=ValueRenderer(redaction_policy=RedactionPolicy.DISABLED))` explicitamente |
 | `@not_traced` / `not_traced_field(...)` | Não aplicável — é o que faz a ocultação acontecer, e sempre vence |
+| Artefato estrutural `.nt` *(since 0.1.2, unreleased)* | Não aplicável — ele não carrega nenhum valor para ocultar, de saída |
 
 Toda integração distribuída renderiza valores através do mesmo mecanismo `ValueRenderer`/
 `RedactionPolicy` que o `trace_object` usa por padrão (`RedactionPolicy.DEFAULT`) — nenhuma delas
@@ -72,6 +73,26 @@ instância: um número, uma string, uma classe auxiliar sem estado, um membro de
 ainda confia no seu próprio `str()`. `@narrative_summary` não é afetado e continua sendo a forma
 suportada de dar a um composto um resumo curado de uma linha em vez do padrão campo a campo.
 
+**Um tipo definido pela plataforma é confiável para seu próprio `str()` mesmo carregando estado**
+*(since 0.1.2, unreleased)*. A regra acima é correta para tipos de aplicação, mas era ampla demais
+para os próprios tipos de valor da biblioteca padrão — `pathlib.Path`, `datetime`,
+`decimal.Decimal`, `uuid.UUID`, `fractions.Fraction` e `ipaddress.*` carregam todos estado de
+instância e estavam sendo introspectados campo a campo até virar uma saída ilegível ou inacessível
+em vez de sua forma curta normal. A exceção é decidida por **origem, nunca por nome**: um tipo é
+confiável só quando seu `__module__` nomeia um pacote de nível superior da biblioteca padrão
+(`sys.stdlib_module_names`) ou é um tipo nativo genuíno do interpretador (sem a flag de tipo de
+heap) — nunca um prefixo de nome, nem uma lista de permissões mantida manualmente. Quatro casos
+fixam a regra: um tipo de plataforma da lista renderiza seu valor curto; um campo ou parâmetro com
+nome da lista de negação (`token`, por exemplo) ainda oculta mesmo quando seu valor é um tipo de
+plataforma, porque o eixo do nome é verificado primeiro e nunca chega à exceção; uma classe de
+usuário que só compartilha o nome de um tipo de plataforma (um "impostor") é introspectada, não é
+confiável, porque o teste nunca examina o nome próprio de uma classe; e uma **subclasse** de
+usuário de um tipo de plataforma também é introspectada, porque o `__module__` próprio de uma
+subclasse é onde *ela* foi definida, nunca herdado de sua base de plataforma. O mesmo raciocínio,
+aplicado ao eixo de identidade de classe, das verificações de lista de negação e de forma acima: um
+tipo de plataforma não pode carregar um campo de aplicação da lista de negação, então confiar no
+seu texto é ao mesmo tempo a resposta legível e a segura.
+
 Quando um método `@narrative_summary`, um `__str__` personalizado, ou o próprio getter de um campo
 lança uma exceção *(since 0.1.2, unreleased)*, essa parte é renderizada como `<error: <TypeName>>` — o nome do TIPO da exceção
 (`<error: ValueError>`, `<error: RecursionError>`) substituído só para aquela parte. A *mensagem* da
@@ -108,6 +129,14 @@ Detalhe completo e exemplos trabalhados: [Guia de decoradores](guia-de-decorador
   `dataclasses.fields()`, metadados do attrs, o `_fields` de um `NamedTuple`, ou o
   `__dict__`/`__slots__` da instância — um getter de `@property` calculado nunca é enumerado nem
   executado durante a introspecção.
+- **O artefato estrutural `.nt` não carrega nenhum valor de tempo de execução** *(since 0.1.2,
+  unreleased)*. Apenas nomes, hierarquia de chamadas e tipos de desfecho — zero superfície de
+  injeção de prompt, fixado por um teste de conformidade byte a byte contra o formato de
+  referência, não uma política que alguém poderia esquecer de aplicar. Seu cabeçalho `scenario:` é
+  coberto por essa mesma garantia: uma invocação de um caso `@pytest.mark.parametrize` é intitulada
+  `<method> #<index>`, nunca o nome de exibição no qual um id de parametrize interpolou seus
+  argumentos. O que o artefato é *chamado* — seu nome de arquivo — é uma questão diferente; veja a
+  não garantia abaixo.
 
 ## Não garantias
 
@@ -127,15 +156,17 @@ Detalhe completo e exemplos trabalhados: [Guia de decoradores](guia-de-decorador
 - **Nenhum nome de teste é ocultado.** O nome de exibição de um teste — incluindo um id de
   `@pytest.mark.parametrize` (`test_finds_it[KAYAK]`) — é texto identificador escrito pelo
   desenvolvedor ou gerado pelo runner, não um valor capturado: ele chega literalmente
-  (humanizado, nunca ocultado) ao cabeçalho `scenario:`/`**Scenario:**` do artefato do
-  `narrativetrace-pytest` e ao seu nome de arquivo. Nenhuma lista de negação é consultada para
-  ele, e isso é proposital (contrato multiplataforma do cabeçalho estrutural): esta biblioteca
-  ainda não distribui um artefato estrutural livre de valores — o
-  [Guia de funcionalidades](guia-de-funcionalidades.md) afirma isso claramente: "o plugin do
-  pytest grava um arquivo com todo o detalhe por teste" — então seu único artefato por teste é o
-  tipo que carrega valores e, por isso, mantém o nome de exibição em todo lugar. Mantenha
-  segredos fora dos ids de `parametrize` do mesmo jeito que você os manteria fora de um template
-  `@narrated`/`@on_error`.
+  (humanizado, nunca ocultado) ao artefato que carrega valores, no seu cabeçalho
+  `scenario:`/`**Scenario:**` Markdown/JSON e no seu nome de arquivo, e o `manifest.json` nomeia o
+  cenário da mesma forma. Nenhuma lista de negação é consultada para ele, e isso é proposital
+  (contrato multiplataforma do cabeçalho estrutural) — o único lugar onde isso *é* resolvido para
+  você é o artefato `.nt` livre de valores *(since 0.1.2, unreleased)*: o cabeçalho estrutural de
+  uma invocação é intitulado pelo método e seu índice de invocação, nunca pelo nome de exibição no
+  qual um id de parametrize interpolou argumentos (veja a garantia acima e o
+  [Formato de trace estrutural](formato-de-trace-estrutural.md)). Mantenha segredos fora dos ids de
+  `parametrize` do mesmo jeito que você os manteria fora de um template `@narrated`/`@on_error` — o
+  artefato que carrega valores, seu nome de arquivo, e o `manifest.json` ainda os carregam
+  literalmente.
 
 ## O modelo de perda em produção, visualmente
 

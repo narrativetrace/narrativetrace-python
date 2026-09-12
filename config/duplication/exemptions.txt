@@ -1,0 +1,46 @@
+# Duplication exemptions — default-deny: an unclassified cluster over the 60-token floor is a
+# finding, not exempt. Every entry here is a `globA :: globB` pair (this port's own restricted
+# glob syntax — `*` within one path segment, `**` across segments, `?` for one character; see
+# scripts/duplication_check.py's `matches_glob`), with a `#` reason directly above it — see
+# documentation/duplication.md. A cluster is exempt only when every one of its occurrences matches
+# one of the pair's two globs.
+
+# rendering.py renders a value two ways on purpose — the text channel (render) and the typed
+# channel (render_structured) — and the module's own docstring says so: "the string case checks
+# the shape once here and reuses it for both the text and structured renderings below (rather than
+# letting each re-derive it independently, as calling render and render_structured separately
+# would)". jscpd's structural match between the two channels is expected, not a copy to remove —
+# mirrors the Java runtime's own ValueRenderer.java exemption for the identical pattern. (Both
+# sides of the pair name the same file: the twin sections are two ranges inside one file, not two
+# files.)
+packages/narrativetrace/src/narrativetrace/rendering.py :: packages/narrativetrace/src/narrativetrace/rendering.py
+
+# Data tables, not logic (owner ruling 2026-09-12): the clarity package's `_*_data.py` modules
+# (`_abbreviations_data.py`, `_collocations_data.py`, `_role_suffixes_data.py`, `_verbs_data.py`)
+# hold nothing but word-list/lookup literals, so with identifiers and literals ignored every row
+# matches every other row and a handful of shapes recur hundreds of times across and within these
+# files. Exempt the data modules against each other; their own accessor modules (`abbreviations.py`,
+# `collocations.py`, `role_suffixes.py`, `verbs.py`, `generic_tokens.py` — no `_data` suffix, real
+# lookup/scoring logic even where it also holds its own literal word lists) are NOT covered by this
+# pair and stay findings, mirroring the Java runtime's own baseline, which likewise leaves
+# TraceNamer.java's core word-list duplication as its largest non-exempt cluster rather than
+# broadening a dictionary-shaped exemption to cover it.
+packages/narrativetrace-clarity/src/narrativetrace_clarity/_*_data.py :: packages/narrativetrace-clarity/src/narrativetrace_clarity/_*_data.py
+
+# Wide-record dataclass, not logic (owner ruling 2026-09-12, mirroring the Java runtime's
+# identical ruling for CanonicalEntry.java's Builder): CanonicalEntry's own docstring says every
+# field added by schema 1.1/1.2 is "nullable and additive" -- an intentionally wide, flat record,
+# so its field declarations and its attribute-to-schema-key `_FIELD_ORDER` table are many
+# structurally-identical single lines once identifiers/literals are ignored. One field per schema
+# component is the public schema shape; collapsing it would change the schema, not remove
+# duplication.
+packages/narrativetrace/src/narrativetrace/canonical.py :: packages/narrativetrace/src/narrativetrace/canonical.py
+
+# Wide-record dataclass, not logic (owner ruling 2026-09-12, mirroring the Java runtime's
+# identical ruling for the CanonicalEntry.java / SpanContext.java pair): CanonicalEntry's and
+# SpanContext's field declarations match each other once identifiers are ignored -- the same
+# "one field per schema component" shape, across the core module's two wide identity records
+# (`span.py`'s own docstring: "The Java builder is replaced by keyword construction plus
+# dataclasses.replace"). One field per component is the public schema shape on both sides;
+# collapsing it would change the schema, not remove duplication.
+packages/narrativetrace/src/narrativetrace/canonical.py :: packages/narrativetrace/src/narrativetrace/span.py

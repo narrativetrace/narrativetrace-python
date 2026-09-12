@@ -35,14 +35,32 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from narrativetrace.output.paths import diagram_file, extension_for_format, trace_directory
+from narrativetrace.output.artifact_identity import ArtifactIdentity
+from narrativetrace.output.paths import (
+    diagram_file_for,
+    extension_for_format,
+    structural_file,
+    trace_directory,
+)
 from narrativetrace.output.paths import file_slug as _file_slug
+from narrativetrace.output.structural_delta import ScenarioDelta
 from narrativetrace.render.base import TraceMetadata
 from narrativetrace.render.indented import IndentedTextRenderer
 from narrativetrace.render.markdown import MarkdownRenderer
 from narrativetrace.render.scenario import frame
+from narrativetrace.render.scenario_result import ScenarioResult
+from narrativetrace.render.structural import StructuralTraceRenderer
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_canonical import export_canonical_entries
+
+
+def write_text_artifact(content: str, path: Path) -> None:
+    """Creates ``path``'s parent directories and writes ``content`` as UTF-8, substituting rather
+    than raising on anything the codec cannot represent (see the module docstring). The one write
+    primitive every artifact writer in this package (and the manifest/approval modules beside it)
+    shares, so directory creation and encoding never drift between them."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", errors="replace")
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +70,14 @@ class TraceArtifact:
     ``canonical`` opts into the extra ``<test>.canonical.json`` machine artifact — off by default
     because it exists for conformance runners and other runtimes, not for a developer reading a
     failure.
+
+    ``identity``, when given, names this test invocation for every per-invocation artifact
+    (the trace, its companions, and the structural artifact) instead of the plain ``method_name``
+    slug -- the overload a parameterized or repeated test must use so each invocation gets its own
+    files. ``display_name`` is the runner's own display name for this invocation (may differ from
+    ``method_name`` -- a parametrize id, say); it feeds
+    :meth:`~narrativetrace.output.artifact_identity.ArtifactIdentity.structural_scenario` and is
+    ignored when ``identity`` is ``None``.
     """
 
     base_dir: Path
@@ -59,14 +85,18 @@ class TraceArtifact:
     method_name: str
     fmt: str = "markdown"
     canonical: bool = False
+    identity: ArtifactIdentity | None = None
+    display_name: str | None = None
 
 
 @dataclass(slots=True)
 class WriteResult:
-    """Paths written for one trace and the framed console echo."""
+    """Paths written for one trace, the framed console echo, and (for the markdown path on a
+    non-empty trace) the scenario's structural delta against its last-green artifact."""
 
     files: list[Path]
     console_echo: str
+    delta: ScenarioDelta | None = None
 
 
 _DIAGRAM_FORMATS = ("mermaid", "plantuml")
@@ -103,6 +133,21 @@ def _require_diagram_renderer(
         raise ValueError(f"format {fmt!r} requires the matching diagram renderer hook")
 
 
+def _slug(artifact: TraceArtifact) -> str:
+    if artifact.identity is not None:
+        return artifact.identity.file_slug()
+    return _file_slug(artifact.method_name)
+
+
+def _structural_scenario(artifact: TraceArtifact, metadata: TraceMetadata) -> str:
+    """The value-free artifact's title -- never the same variable as ``metadata.scenario`` once an
+    identity is given, since a parameterized invocation's display name may have had an argument
+    interpolated into it (see ``ArtifactIdentity.structural_scenario``)."""
+    if artifact.identity is not None:
+        return artifact.identity.structural_scenario(artifact.display_name)
+    return metadata.scenario
+
+
 def write_trace(
     tree: TraceTree,
     metadata: TraceMetadata,
@@ -118,7 +163,7 @@ def write_trace(
     if tree.is_empty:
         return WriteResult([], "")
 
-    slug = _file_slug(artifact.method_name)
+    slug = _slug(artifact)
     directory = trace_directory(artifact.base_dir, artifact.class_name)
     directory.mkdir(parents=True, exist_ok=True)
     primary = directory / f"{slug}{extension_for_format(fmt)}"
@@ -126,10 +171,12 @@ def write_trace(
     primary.write_text(content, encoding="utf-8", errors="replace")
     written = [primary]
 
+    delta: ScenarioDelta | None = None
     if fmt == "markdown":
-        written += _write_markdown_extras(
-            tree, directory, slug, artifact, json_exporter, diagram_renderer
+        extras, delta = _write_markdown_extras(
+            tree, slug, artifact, metadata, json_exporter, diagram_renderer
         )
+        written += extras
     # Independent of format: the canonical artifact is the machine contract, and a run that
     # switched to `text` or `mermaid` for humans still owes a conformance runner its entries.
     if artifact.canonical:
@@ -137,32 +184,62 @@ def write_trace(
 
     trace_text = IndentedTextRenderer().render(tree)
     echo = f"{frame(metadata.scenario)}\n\nExecution trace:\n{trace_text}\nTrace written: {primary}"
-    return WriteResult(written, echo)
+    return WriteResult(written, echo, delta)
 
 
 def _write_canonical(tree: TraceTree, directory: Path, slug: str) -> Path:
     """Writes ``<slug>.canonical.json``: the flat entry array ``entry.schema.json`` validates."""
     path = directory / f"{slug}.canonical.json"
-    path.write_text(export_canonical_entries(tree), encoding="utf-8", errors="replace")
+    write_text_artifact(export_canonical_entries(tree), path)
     return path
 
 
 def _write_markdown_extras(
     tree: TraceTree,
-    directory: Path,
     slug: str,
     artifact: TraceArtifact,
+    metadata: TraceMetadata,
     json_exporter: Callable[[TraceTree], str] | None,
     diagram_renderer: Callable[[TraceTree], str] | None,
-) -> list[Path]:
+) -> tuple[list[Path], ScenarioDelta]:
+    directory = trace_directory(artifact.base_dir, artifact.class_name)
     extras: list[Path] = []
     if json_exporter is not None:
         json_path = directory / f"{slug}.json"
-        json_path.write_text(json_exporter(tree), encoding="utf-8", errors="replace")
+        write_text_artifact(json_exporter(tree), json_path)
         extras.append(json_path)
     if diagram_renderer is not None:
-        mmd_path = diagram_file(artifact.base_dir, artifact.class_name, artifact.method_name)
-        mmd_path.parent.mkdir(parents=True, exist_ok=True)
-        mmd_path.write_text(diagram_renderer(tree), encoding="utf-8", errors="replace")
+        mmd_path = diagram_file_for(artifact.base_dir, artifact.class_name, slug)
+        write_text_artifact(diagram_renderer(tree), mmd_path)
         extras.append(mmd_path)
-    return extras
+
+    # Not `metadata.scenario`: the structural artifact is the value-free one, and a display name
+    # may have had an argument interpolated into it (ArtifactIdentity.structural_scenario).
+    scenario = _structural_scenario(artifact, metadata)
+    failed = metadata.result is ScenarioResult.ERROR
+    delta = _write_structural(tree, artifact, slug, scenario, failed)
+    structural_path = structural_file(artifact.base_dir, artifact.class_name, slug)
+    if structural_path.is_file():
+        extras.append(structural_path)
+    return extras, delta
+
+
+def _write_structural(
+    tree: TraceTree, artifact: TraceArtifact, slug: str, scenario: str, failed: bool
+) -> ScenarioDelta:
+    """Writes the ADR-002 structural artifact (``.nt``) and classifies the scenario against it.
+
+    The file on disk is the LAST-GREEN baseline: a green run advances it, a non-green run compares
+    against it but never overwrites it, so the delta always reads "what changed since the last
+    time this scenario passed". "Green" is the run's whole verdict, not just its assertions -- a
+    test that passed but whose structure an approval check rejected must arrive here with
+    ``metadata.result`` already folded to ``ERROR`` by the caller, or a rejected structure would
+    poison the baseline.
+    """
+    path = structural_file(artifact.base_dir, artifact.class_name, slug)
+    current = StructuralTraceRenderer().render_document(tree, scenario)
+    baseline = path.read_text(encoding="utf-8") if path.is_file() else None
+    delta = ScenarioDelta.of(scenario, baseline, current)
+    if not failed:
+        write_text_artifact(current, path)
+    return delta

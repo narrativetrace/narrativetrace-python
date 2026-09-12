@@ -44,8 +44,21 @@ counting characters would pass a 200-character CJK name and then fail the write 
 
 _SUFFIX_RESERVE_BYTES = 16
 """Bytes held back from a file slug for the suffix a writer appends to it. The longest shipped
-here is ``.canonical.json`` at 15; ``.puml``/``.json`` are 5, ``.txt``/``.mmd`` 4, ``.md`` 3. 16
-leaves room for one more without this constant having to change."""
+here is ``.incomplete.nt`` at 14; ``.approved.nt``/``.received.nt`` are 12, ``.canonical.json`` is
+15, ``.puml``/``.json`` are 5, ``.txt``/``.mmd`` 4, ``.md`` 3. 16 leaves room for one more without
+this constant having to change."""
+
+_MAX_LABEL_BYTES = 60
+"""Bytes an invocation label may occupy inside an artifact name. A display name is prose -- a
+parametrize id can be long -- so it is bounded before the method slug is, and the index it
+follows is never the part that gets truncated. 60 leaves a long label readable while keeping the
+whole element far below the component limit."""
+
+_INVOCATION_SEPARATOR = "-"
+"""Separates a method slug from its invocation discriminator. The slug alphabet is
+``[a-z0-9_]``, so a hyphen can never appear inside either part: an ordinary method's artifact can
+never collide with an invocation's, and a reader (or a manifest consumer) can split the name back
+into method, index and label."""
 
 
 def _is_path_safe(char: str) -> bool:
@@ -148,11 +161,49 @@ def _capped(slug: str, max_bytes: int) -> str:
     return _truncate_to_bytes(slug, budget) + suffix
 
 
-def file_slug(name: str) -> str:
-    """camelCase/snake → snake, then non-``[a-z0-9_]`` → ``_``, capped to fit a path element."""
+def _raw_slug(name: str) -> str:
+    """camelCase/snake → snake, then non-``[a-z0-9_]`` → ``_``. Uncapped -- the one place both
+    :func:`file_slug` and the invocation label rule derive a slug from a name, so the two can
+    never drift into different alphabets."""
     snake = _CAMEL_BOUNDARY.sub(r"\1_\2", name).lower()
-    slug = _NON_SLUG.sub("_", snake)
-    return _capped(slug, _MAX_COMPONENT_BYTES - _SUFFIX_RESERVE_BYTES)
+    return _NON_SLUG.sub("_", snake)
+
+
+def _label_slug(label: str) -> str:
+    """A display name reduced to a readable name fragment: the shared slug rule, then runs of
+    ``_`` collapsed and the ends trimmed, so a bracket-id label like ``TENT`` reads as ``tent``
+    rather than picking up stray underscores from the brackets themselves. A label that slugs to
+    nothing is dropped entirely by :func:`_invocation_tail` -- the index alone still names the
+    invocation."""
+    collapsed = re.sub(r"_+", "_", _raw_slug(label))
+    trimmed = collapsed.strip("_")
+    return _capped(trimmed, _MAX_LABEL_BYTES)
+
+
+def _invocation_tail(invocation_index: int, invocation_label: str) -> str:
+    """``-002-find_tent``: the index a reader navigates by, then the label they recognize."""
+    index = f"{_INVOCATION_SEPARATOR}{invocation_index:03d}"
+    label = _label_slug(invocation_label)
+    return index if not label else f"{index}{_INVOCATION_SEPARATOR}{label}"
+
+
+def file_slug(name: str, invocation_index: int = 0, invocation_label: str = "") -> str:
+    """camelCase/snake → snake, then non-``[a-z0-9_]`` → ``_``, capped to fit a path element.
+
+    ``invocation_index`` (1-based) and ``invocation_label`` name one invocation of a test method
+    that runs more than once -- a parameterized or repeated test -- appending ``-<index>-<label>``
+    so each invocation gets its own artifact instead of every invocation overwriting the last.
+    ``invocation_index <= 0`` (the default) returns exactly what this function always returned: no
+    existing artifact -- or approved trace beside it -- moves. Otherwise the discriminator is
+    appended and the *method* half absorbs any shortening, so the index a reader navigates by is
+    never the part truncated away. Mirrors the reference format's cross-platform naming scheme
+    (``ArtifactIdentity``/``OutputDirectoryResolver``), byte for byte.
+    """
+    if invocation_index <= 0:
+        return _capped(_raw_slug(name), _MAX_COMPONENT_BYTES - _SUFFIX_RESERVE_BYTES)
+    tail = _invocation_tail(invocation_index, invocation_label)
+    budget = _MAX_COMPONENT_BYTES - _SUFFIX_RESERVE_BYTES - len(tail.encode("utf-8"))
+    return _capped(_raw_slug(name), budget) + tail
 
 
 def extension_for_format(fmt: str) -> str:
@@ -185,3 +236,33 @@ def trace_file(base_dir: Path, class_name: str, method_name: str) -> Path:
 def diagram_file(base_dir: Path, class_name: str, method_name: str) -> Path:
     """``<base>/diagrams/<SimpleClass>/<slug>.mmd`` (the coupled markdown diagram extra)."""
     return base_dir / "diagrams" / _directory_segment(class_name) / f"{file_slug(method_name)}.mmd"
+
+
+def class_directory(root: Path, class_name: str) -> Path:
+    """The per-class directory of any artifact tree, under one sanitizing rule -- ``traces``,
+    ``diagrams``, ``structural`` and the approved-trace tree all key by test class this way."""
+    return root / _directory_segment(class_name)
+
+
+def trace_artifact(base_dir: Path, class_name: str, slug: str, suffix: str) -> Path:
+    """A per-invocation artifact in the ``traces`` tree, keyed by an already-computed slug (see
+    :func:`file_slug`) rather than a bare method name -- the overload every per-invocation writer
+    uses so each invocation of a repeated test gets its own file.
+
+    Args:
+        suffix: the whole suffix including its dot, e.g. ``.txt``, ``.canonical.json``.
+    """
+    return trace_directory(base_dir, class_name) / f"{slug}{suffix}"
+
+
+def diagram_file_for(base_dir: Path, class_name: str, slug: str) -> Path:
+    """The Mermaid diagram of one invocation, keyed by an already-computed slug."""
+    return base_dir / "diagrams" / _directory_segment(class_name) / f"{slug}.mmd"
+
+
+def structural_file(base_dir: Path, class_name: str, slug: str) -> Path:
+    """The last-green structural artifact of one invocation.
+
+    ``<base>/structural/<Class>/<slug>.nt``.
+    """
+    return base_dir / "structural" / _directory_segment(class_name) / f"{slug}.nt"

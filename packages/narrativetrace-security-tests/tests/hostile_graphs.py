@@ -25,12 +25,22 @@ a real, already-tested code path:
 * ``mapKey`` (self-in-map-key) -> a fixed-hash proxy referencing the map back: Python dict keys
   must be hashable, so a dict cannot literally be its own key the way a pathological Java
   ``hashCode`` allows.
+
+Four more kinds (owner ruling, 2026-09-12: the platform-type carve-out) exercise
+``ValueRenderer``'s identity test for a type the platform itself defines: ``platformValue`` (a
+live ``pathlib.PurePosixPath``, well-formedness only), ``platformNameRedacted`` (the deny-list
+by NAME wins before the carve-out is ever consulted), ``platformLookalike`` (a user class named
+like a platform type -- identity is never decided by name), and ``platformSubclass`` (a genuine
+user subclass of a platform type, walked like any other application type since a subclass's own
+``__module__`` is never inherited from its stdlib base).
 """
 
 from __future__ import annotations
 
 import dataclasses
+import pathlib
 import time
+import uuid
 from collections.abc import Callable
 from concurrent.futures import Future
 from typing import NamedTuple
@@ -159,6 +169,47 @@ class _AccessorThrows:
     @property
     def value(self) -> str:
         raise RuntimeError("hostile accessor")
+
+
+@dataclasses.dataclass
+class _TokenBox:
+    """A field named ``token`` -- the deny-list must win before the platform-type carve-out
+    (owner ruling, 2026-09-12) is ever consulted for the value the field holds."""
+
+    token: object = None
+
+
+class _FakePath:
+    """Named like a platform type on purpose: the identity test must never look at a class's OWN
+    name, only at where it is actually defined -- this class lives in this security-tests module,
+    not ``pathlib``, so it is walked, not trusted, however platform-sounding its name looks."""
+
+    def __init__(self, inner: object) -> None:
+        self.inner = inner
+
+    def __str__(self) -> str:
+        return f"Path({self.inner})"
+
+
+class _SubclassedUUID(uuid.UUID):
+    """A genuine user subclass of a platform type: a subclass's own ``__module__`` is wherever
+    *it* is defined, never inherited from its stdlib base, so it must be walked like any other
+    application type carrying state. ``object.__setattr__`` bypasses ``UUID``'s own immutability
+    guard, which blocks ordinary attribute assignment even for a subclass-introduced field."""
+
+    inner: object
+
+    def __init__(self, inner: object) -> None:
+        super().__init__(int=0)
+        object.__setattr__(self, "inner", inner)
+
+    def __str__(self) -> str:
+        return f"{super().__str__()}::{self.inner}"
+
+
+def _platform_name_redacted(payload: object) -> object:
+    secret_text = payload.secret if isinstance(payload, SecretRecord) else str(payload)
+    return _TokenBox(pathlib.PurePosixPath(f"/var/secrets/{secret_text}"))
 
 
 def _hostile_key_names(payload: object) -> dict[object, object]:
@@ -291,6 +342,10 @@ _KIND_BUILDERS: dict[str, Callable[[GraphCase, object], object]] = {
     "emptyContainers": lambda c, p: [[], {}, [], {"a": []}, [{}]],
     "future": lambda c, p: _future_by_state(c.state or "pending", p),
     "throwable": _throwable,
+    "platformValue": lambda c, p: pathlib.PurePosixPath(f"/var/lib/{p}"),
+    "platformNameRedacted": lambda c, p: _platform_name_redacted(p),
+    "platformLookalike": lambda c, p: _FakePath(p),
+    "platformSubclass": lambda c, p: _SubclassedUUID(p),
 }
 
 

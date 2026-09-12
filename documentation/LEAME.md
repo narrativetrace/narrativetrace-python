@@ -21,6 +21,7 @@ verlos.
 | [Guía de decoradores](es/guia-de-decoradores.md) | `@narrated`, `@on_error`, `@not_traced`, el contrato de pureza |
 | [Privacidad y ocultación](es/privacidad-y-ocultacion.md) | El contrato de ocultación fila por fila, verificado contra el código |
 | [Qué commitear](es/que-commitear.md) | Qué archivos generados son artefactos de CI, y cuáles (si los hay) son líneas base revisadas |
+| [Formato de traza estructural](es/formato-de-traza-estructural.md) | El artefacto `.nt` libre de valores: gramática, nombrado por invocación, línea base en verde, modo de aprobación |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → arreglo para los fallos que la gente realmente encuentra |
 
 ## Integraciones

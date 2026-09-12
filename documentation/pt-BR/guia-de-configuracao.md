@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 8475ad12f748 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob c618d3b8ea67 | translated: 2026-09-12 | reviewed: - -->
 
 # Configuração
 
@@ -85,6 +85,8 @@ Os nomes de nível não diferenciam maiúsculas de minúsculas.
 | `level` | `NARRATIVETRACE_LEVEL` | nível de captura para o contexto da fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | diretório com o `glossary.json` commitado, lido como o vocabulário para a pontuação de clareza (ver [guia-de-clareza.md](guia-de-clareza.md)) | diretório de trabalho |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | também grava o array de entradas `<test>.canonical.json` por teste | `false` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica a estrutura contra um trace aprovado commitado *(since 0.1.2, unreleased)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | diretório com os traces `*.approved.nt` commitados *(since 0.1.2, unreleased)* | `test-narratives` |
 
 `output` vem ligado por padrão *(since 0.1.2, unreleased)* — a versão publicada no PyPI, `0.1.1`,
 ainda vem desligada: a fixture `narrative_trace` grava os artefatos de cada teste não vazio sob
@@ -109,6 +111,60 @@ canônicas no esquema `1.2`, um `method_enter` e um `method_exit` por chamada
 traçada, cada uma válida contra `entry.schema.json`. Vem desligado por
 padrão porque é um artefato para máquinas — para outras implementações, fixtures de
 conformidade e tradução — não algo para ler depois de uma falha.
+
+## Artefato estrutural e modo de aprovação *(since 0.1.2, unreleased)*
+
+O caminho Markdown também grava um artefato estrutural `.nt` livre de valores ao lado da
+narrativa — veja o [Formato de trace estrutural](formato-de-trace-estrutural.md) para a gramática.
+O arquivo em disco é a **última baseline verde**: uma execução verde a avança, uma execução que
+não está verde é comparada contra ela mas nunca a sobrescreve, então cada delta se lê como "o que
+mudou desde a última vez que este cenário passou". "Verde" é o veredito completo, não apenas as
+asserções — um teste que passou mas cuja estrutura foi *rejeitada* pelo modo de aprovação termina
+não verde, e sua estrutura não é gravada. Rejeitar uma mudança, portanto, deixa a baseline onde
+estava, e reverter a mudança não relata nenhum delta.
+
+`approval` liga o modo de aprovação: depois de um teste **que passa**, a estrutura livre de
+valores do cenário é verificada contra a baseline commitada
+`<approved_dir>/<TestClassName>/<slug>.approved.nt`. Uma baseline ausente ou uma diferença
+estrutural falha o teste com um diff legível e grava a estrutura atual ao lado da baseline como
+`*.received.nt`. Revise-o, depois promova com `uv run poe approve` (ou o script de console
+`narrativetrace-approve`, que lê essa mesma chave `approved_dir`). Testes que falham nunca são
+verificados — a aprovação só julga um teste que de outra forma teria passado.
+
+Toda execução também grava `<output_dir>/manifest.json`: uma linha por cenário traçado, nomeando
+seu teste, seu número de invocação quando o método rodou mais de uma vez, e cada artefato que
+possui:
+
+```json
+{
+  "schema": "narrativetrace/scenario-manifest/1",
+  "scenarios": [
+    {
+      "scenario": "find TENT",
+      "testClass": "CatalogTest",
+      "testMethod": "test_finds_it",
+      "invocation": 2,
+      "artifacts": {
+        "trace": "traces/CatalogTest/test_finds_it-002-tent.md",
+        "structural": "structural/CatalogTest/test_finds_it-002-tent.nt"
+      }
+    }
+  ]
+}
+```
+
+O rodapé da suíte imprime mais uma linha resumindo o status estrutural de cada cenário:
+
+```
+NarrativeTrace — Suite complete
+  2 scenarios recorded
+  Clarity: 100% high | 0% moderate | 0% low
+  Reports: narrative-traces
+  Since last green: 1 scenario unchanged · 1 changed: "Customer places order" (+1 call InventoryService.release)
+```
+
+O relatório de console de um teste que falha imprime o delta estrutural contra o artefato da
+última execução verde em vez do trace completo, quando a estrutura realmente mudou.
 
 ## Identidade do serviço
 

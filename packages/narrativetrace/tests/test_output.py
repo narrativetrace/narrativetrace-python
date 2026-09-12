@@ -351,7 +351,9 @@ class TestWriter:
             TraceMetadata("happy", ScenarioResult.SUCCESS),
             TraceArtifact(tmp_path, "T", "runIt"),
         )
-        assert len(result.files) == 1
+        # The markdown trace plus its structural (.nt) companion -- the markdown path always
+        # writes one, independent of the json/diagram hooks.
+        assert len(result.files) == 2
         path = result.files[0]
         assert path == tmp_path / "traces" / "T" / "run_it.md"
         assert path.read_text(encoding="utf-8").startswith("---\ntype: trace")
@@ -394,7 +396,7 @@ class TestWriter:
             json_exporter=lambda _t: '{"schema": 1}',
             diagram_renderer=lambda _t: "sequenceDiagram",
         )
-        assert {f.suffix for f in result.files} == {".md", ".json", ".mmd"}
+        assert {f.suffix for f in result.files} == {".md", ".json", ".mmd", ".nt"}
 
     def test_markdown_extras_via_hooks(self, tmp_path: Path) -> None:
         result = write_trace(
@@ -405,7 +407,7 @@ class TestWriter:
             diagram_renderer=lambda _t: "sequenceDiagram",
         )
         suffixes = {f.suffix for f in result.files}
-        assert suffixes == {".md", ".json", ".mmd"}
+        assert suffixes == {".md", ".json", ".mmd", ".nt"}
 
 
 class TestWriterSurrogateResilience:

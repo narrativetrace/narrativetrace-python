@@ -16,6 +16,7 @@ all. Verified directly against `packages/narrativetrace/src/narrativetrace/redac
 | structlog processor / stdlib logging bridge | No |
 | A custom `ValueRenderer` your own code constructs | Yes — only by passing `RedactionPolicy.DISABLED` to `trace_object(obj, context, renderer=ValueRenderer(redaction_policy=RedactionPolicy.DISABLED))` explicitly |
 | `@not_traced` / `not_traced_field(...)` | Not applicable — it is the thing doing the redacting, and it always wins |
+| Structural `.nt` artifact *(since 0.1.2, unreleased)* | Not applicable — it carries no values to redact in the first place |
 
 Every shipped integration renders values through the same `ValueRenderer`/`RedactionPolicy`
 mechanism `trace_object` uses by default (`RedactionPolicy.DEFAULT`) — none of them expose a
@@ -64,6 +65,24 @@ class, a payload-free `Enum` member) still trusts its own `str()`. `@narrative_s
 unaffected and remains the supported way to give a composite a curated one-line rendering instead
 of the field-by-field default.
 
+**A platform-defined type is trusted for its own `str()` even though it carries state** *(since
+0.1.2, unreleased)*. The rule above is correct for application types but was too broad for the
+standard library's own value types — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
+`fractions.Fraction` and `ipaddress.*` all carry instance state and were being walked field-by-field
+into unreadable or inaccessible output instead of their normal short form. The carve-out is decided
+by **origin, never by name**: a type is trusted only when its `__module__` names a top-level
+standard-library package (`sys.stdlib_module_names`) or it is a genuine interpreter built-in (no
+heap-type flag) — never a name prefix, and never a hand-kept allow-list. Four cases pin the rule:
+a listed platform type renders its short value; a field or parameter named like the deny-list
+(`token`, say) still redacts even when its value is a platform type, because the name axis is
+checked first and never reaches the carve-out; a user class that merely shares a platform type's
+name (a "lookalike") is walked, not trusted, because the test never inspects a class's own name;
+and a user **subclass** of a platform type is walked too, because a subclass's own `__module__` is
+wherever *it* was defined, never inherited from its platform base. Same reasoning, applied at the
+class-identity axis, as the deny-list and shape checks above: a platform type cannot carry an
+application's own deny-listed field, so trusting its text is both the readable answer and the safe
+one.
+
 When a `@narrative_summary` method, a custom `__str__`, or a field's own getter raises *(since
 0.1.2, unreleased)*, that one part renders `<error: <TypeName>>` — the exception's own type name
 (`<error: ValueError>`,
@@ -98,6 +117,13 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
 - **Introspection reads stored data, not code.** Field names come from `dataclasses.fields()`,
   attrs metadata, a `NamedTuple`'s `_fields`, or the instance `__dict__` — a computed `@property`
   getter is never enumerated and never runs during introspection.
+- **The structural `.nt` artifact has no runtime values at all** *(since 0.1.2, unreleased)*.
+  Names, call hierarchy and outcome kinds only — zero prompt-injection surface, pinned by a
+  byte-for-byte conformance test against the reference format, not a policy someone could
+  forget to apply. Its `scenario:` header is covered by that: one invocation of a
+  `@pytest.mark.parametrize` case is titled `<method> #<index>`, never the display name a
+  parametrize id interpolated its arguments into. What the artifact is *called* — its
+  filename — is a different question; see the non-guarantee below.
 
 ## Non-guarantees
 
@@ -116,13 +142,16 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
   redacted unless you mark it explicitly.
 - **No redaction of test names.** A test's display name — including a `@pytest.mark.parametrize`
   id (`test_finds_it[KAYAK]`) — is developer-authored/runner-generated identifier text, not a
-  captured value: it reaches the `narrativetrace-pytest` artifact's `scenario:`/`**Scenario:**`
-  header and its filename verbatim (humanized, never redacted). No deny-list is consulted for it,
-  and this is by design (cross-port structural-header contract): this runtime does not ship a
-  value-free structural artifact yet — [Feature Guide](feature-guide.md) states it plainly, "the
-  pytest plugin writes one full-detail file per test" — so its one per-test artifact is the
-  value-carrying kind that keeps the display name everywhere. Keep secrets out of `parametrize`
-  ids the same way you would out of a `@narrated`/`@on_error` template.
+  captured value: it reaches the value-carrying Markdown/JSON artifact's
+  `scenario:`/`**Scenario:**` header and its filename verbatim (humanized, never redacted), and
+  `manifest.json` names the scenario the same way. No deny-list is consulted for it, and this is
+  by design (cross-port structural-header contract) — the one place this *is* handled for you is
+  the value-free `.nt` artifact *(since 0.1.2, unreleased)*: an invocation's structural header is
+  titled by the method and its invocation index, never by the display name a parametrize id
+  interpolated arguments into (see the guarantee above and
+  [Structural Trace Format](structural-trace-format.md)). Keep secrets out of `parametrize` ids
+  the same way you would out of a `@narrated`/`@on_error` template — the value-carrying artifact,
+  the filename, and `manifest.json` all still carry them verbatim.
 
 ## The production loss model, visually
 

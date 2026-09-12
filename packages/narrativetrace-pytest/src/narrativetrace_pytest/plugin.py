@@ -23,6 +23,26 @@ Markdown trace, and only ``markdown`` carries the ``.json`` + ``.mmd`` companion
 ``NARRATIVETRACE_CANONICAL`` (truthy → also write the per-test ``.canonical.json`` entry array,
 whatever the format; off by default because it is a machine artifact for conformance runners).
 
+Structural artifact + approval mode (the markdown path only): each non-empty test additionally
+writes a value-free ``.nt`` structural artifact beside its narrative -- names, call shape and
+outcome kinds only, no runtime values (see :mod:`narrativetrace.render.structural`). The file on
+disk is the last-green baseline: it advances only when the run's overall verdict is green
+(assertions passed *and*, when approval mode is on, structure approved), and a non-green run's
+delta against it is reported on the suite footer's ``Since last green:`` line and, for the failing
+test itself, in place of the full execution trace when the structure changed.
+``NARRATIVETRACE_APPROVAL`` (default off) turns on approval mode: a passing test's structure is
+verified against a committed approved trace under ``NARRATIVETRACE_APPROVED_DIR`` (default
+``test-narratives``), failing the test with a readable diff on any mismatch — see
+:mod:`narrativetrace.output.approval` and the ``narrativetrace-approve`` console script / ``poe
+approve`` task.
+
+A parameterized invocation (any item pytest built from a ``callspec``) gets its own per-invocation
+artifacts, keyed by :class:`~narrativetrace.output.artifact_identity.ArtifactIdentity`: the run
+also writes ``manifest.json`` (one row per traced scenario, naming its test, invocation number, and
+every file it owns), and the invocation's structural header is titled by the method and its
+1-based invocation index (``Equipment can be found #2``), never by the display name a
+``parametrize`` id may have interpolated arguments into.
+
 Clarity aggregation (PY12): each test's captured tree is scored, the suite footer prints a
 high/moderate/low split, and (when output is enabled) a ``clarity-results.json`` plus Markdown
 suite report are written with one entry per test (duplicate scenario names retained).
@@ -68,10 +88,15 @@ from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.export import export_document as export_document_json
 from narrativetrace.levels import NarrativeTraceConfig
 from narrativetrace.loss import TraceLoss
+from narrativetrace.output import approval as approval_mode
+from narrativetrace.output import manifest as scenario_manifest
+from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.reporter import ConsoleSummaryReporter
+from narrativetrace.output.structural_delta import ScenarioDelta
 from narrativetrace.output.warnings import collect, format_warnings
-from narrativetrace.output.writer import TraceArtifact, write_trace
+from narrativetrace.output.writer import TraceArtifact, WriteResult, write_trace
 from narrativetrace.render.base import TraceMetadata
+from narrativetrace.render.indented import IndentedTextRenderer
 from narrativetrace.render.scenario import humanize
 from narrativetrace.render.scenario_result import ScenarioResult
 from narrativetrace.tree import TraceTree
@@ -85,6 +110,8 @@ class _OutputSettings:
     base_dir: Path
     fmt: str
     canonical: bool = False
+    approval: bool = False
+    approved_dir: Path = field(default_factory=lambda: Path("test-narratives"))
 
 
 def _truthy(resolver: ConfigResolver, key: str, default: str = "") -> bool:
@@ -98,11 +125,22 @@ def _output_settings(resolver: ConfigResolver) -> _OutputSettings:
     without also having to discover and set an enable flag. ``NARRATIVETRACE_OUTPUT=false`` (also
     ``0``/``no``/``off``, case-insensitively — anything outside ``_TRUTHY`` opts out) or
     ``output = false`` in a config file turns it back off.
+
+    ``approval`` (default off) turns on approval mode against the committed traces under
+    ``approved_dir`` (default ``test-narratives``) — see :mod:`narrativetrace.output.approval`.
     """
     enabled = _truthy(resolver, "output", "true")
     base_dir = Path((resolver.resolve("output_dir", "") or "").strip() or "narrative-traces")
     fmt = (resolver.resolve("format", "") or "").strip() or "markdown"
-    return _OutputSettings(enabled, base_dir, fmt, _truthy(resolver, "canonical"))
+    approved_dir = Path((resolver.resolve("approved_dir", "") or "").strip() or "test-narratives")
+    return _OutputSettings(
+        enabled,
+        base_dir,
+        fmt,
+        _truthy(resolver, "canonical"),
+        _truthy(resolver, "approval"),
+        approved_dir,
+    )
 
 
 def _resolver(config: pytest.Config) -> ConfigResolver:
@@ -120,6 +158,9 @@ class _SuiteAccumulator:
     clarity: list[tuple[str, ClarityResult]] = field(default_factory=list)
     loss: TraceLoss = field(default_factory=TraceLoss.none)
     harvest_trees: list[TraceTree] = field(default_factory=list)
+    deltas: list[ScenarioDelta] = field(default_factory=list)
+    manifest_entries: list[scenario_manifest.Entry] = field(default_factory=list)
+    invocation_counts: dict[tuple[str, str], int] = field(default_factory=dict)
 
 
 def _glossary_dir(config: pytest.Config) -> str:
@@ -186,6 +227,32 @@ def _class_name(request: pytest.FixtureRequest) -> str:
     return str(request.module.__name__).rsplit(".", 1)[-1]
 
 
+def _artifact_identity(request: pytest.FixtureRequest) -> ArtifactIdentity:
+    """One test invocation's identity (see
+    :class:`~narrativetrace.output.artifact_identity.ArtifactIdentity`).
+
+    An ordinary test keeps its bare method slug. Any item pytest built from a ``callspec`` --
+    every ``@pytest.mark.parametrize``/parametrized-fixture invocation, regardless of how many
+    total cases exist -- is an invocation instead: its 1-based index is this run's own execution
+    order for that (class, method) pair (a session-scoped counter, the pytest analogue of the
+    reference runtime's test-template invocation number), and its label is pytest's own
+    parametrize id -- the readable part of the file name, never the part two invocations are told
+    apart by. ``node.originalname`` is pytest's own pre-parametrize function name, so it already
+    carries no bracket suffix to strip (unlike a JUnit 4 style runner that folds a label into the
+    method name itself).
+    """
+    class_name = _class_name(request)
+    node = request.node
+    callspec = getattr(node, "callspec", None)
+    if callspec is None:
+        return ArtifactIdentity.of_method(class_name, node.name)
+    bare_name = str(getattr(node, "originalname", None) or node.name)
+    counts = _accumulator(request.config).invocation_counts
+    key = (class_name, bare_name)
+    counts[key] = counts.get(key, 0) + 1
+    return ArtifactIdentity.of_invocation(class_name, bare_name, counts[key], str(callspec.id))
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[Any]) -> Iterator[None]:
     outcome = yield
@@ -204,17 +271,101 @@ def narrative_trace(request: pytest.FixtureRequest) -> Iterator[ContextVarNarrat
 
 
 def _finish(context: ContextVarNarrativeContext, request: pytest.FixtureRequest) -> None:
-    """Teardown: aggregate for the suite, surface template warnings, write per-test artifacts."""
+    """Teardown: aggregate for the suite, verify approval, write per-test artifacts, report.
+
+    Sequencing matters (mirrors the reference runtime's exact fix for the same race): the
+    approval verdict is settled *before* anything is written, and a rejection is folded into the
+    write's own verdict -- so a rejected structure can never advance the last-green baseline, and
+    the test still fails with the original approval-mismatch message once every artifact a
+    reviewer needs is already on disk.
+    """
     tree = context.capture_trace()
     scenario = humanize(request.node.name)
-    _accumulate(request.config, scenario, tree, context.trace_loss())
+    loss = context.trace_loss()
+    _accumulate(request.config, scenario, tree, loss)
 
     warning_text = format_warnings(collect(tree))
     if warning_text:
         print(warning_text)
 
     report = getattr(request.node, "_nt_rep_call", None)
-    _write_artifacts(tree, scenario, request, failed=report is not None and report.failed)
+    test_failed = report is not None and report.failed
+    identity = _artifact_identity(request)
+    settings = _output_settings(_resolver(request.config))
+
+    rejection = _approval_rejection(tree, identity, request, settings, loss, test_failed)
+    combined_failed = test_failed or rejection is not None
+
+    write_result = _write_artifacts(
+        tree, scenario, identity, request, settings, failed=combined_failed
+    )
+    _accumulate_write_result(request.config, scenario, identity, settings, write_result)
+    _report_result(tree, scenario, write_result, failed=combined_failed)
+
+    if rejection is not None:
+        raise rejection
+
+
+def _report_result(
+    tree: TraceTree, scenario: str, write_result: WriteResult | None, *, failed: bool
+) -> None:
+    """Prints this invocation's console output: the delta-aware failure report when the run is
+    not green, else the plain write echo -- never both, so a failure is never double-printed."""
+    if write_result is None:
+        return
+    if failed:
+        trace_text = IndentedTextRenderer().render(tree)
+        report = ConsoleSummaryReporter().format_failure_report(
+            scenario, trace_text, write_result.delta
+        )
+        print(report)
+    elif write_result.files:
+        print(write_result.console_echo)
+
+
+def _approval_rejection(
+    tree: TraceTree,
+    identity: ArtifactIdentity,
+    request: pytest.FixtureRequest,
+    settings: _OutputSettings,
+    loss: TraceLoss,
+    test_failed: bool,
+) -> AssertionError | None:
+    """Verifies the scenario against its committed approved trace when approval mode is on.
+
+    Never runs for a test that already failed on its own (Java: "failed ? Optional.empty() :
+    approvalRejection(...)") -- approval only judges a test that would otherwise have passed.
+    """
+    if test_failed or not settings.approval or tree.is_empty:
+        return None
+    scenario_title = identity.structural_scenario(request.node.name)
+    approved_path = approval_mode.approved_file(settings.approved_dir, identity)
+    try:
+        note = approval_mode.verify(tree, scenario_title, approved_path, loss)
+    except AssertionError as rejection:
+        return rejection
+    if note:
+        print(f"  Approval: {note}")
+    return None
+
+
+def _accumulate_write_result(
+    config: pytest.Config,
+    scenario: str,
+    identity: ArtifactIdentity,
+    settings: _OutputSettings,
+    write_result: WriteResult | None,
+) -> None:
+    """Records this invocation's structural delta and manifest row, when anything was written."""
+    if write_result is None:
+        return
+    accumulator = _accumulator(config)
+    if write_result.delta is not None:
+        accumulator.deltas.append(write_result.delta)
+    if write_result.files:
+        accumulator.manifest_entries.append(
+            scenario_manifest.entry_for(settings.base_dir, identity, scenario)
+        )
 
 
 def _accumulate(config: pytest.Config, scenario: str, tree: TraceTree, loss: TraceLoss) -> None:
@@ -233,29 +384,38 @@ def _accumulate(config: pytest.Config, scenario: str, tree: TraceTree, loss: Tra
 
 
 def _write_artifacts(
-    tree: TraceTree, scenario: str, request: pytest.FixtureRequest, *, failed: bool
-) -> None:
-    """Writes this test's trace artifacts when output is enabled and anything was captured."""
-    settings = _output_settings(_resolver(request.config))
+    tree: TraceTree,
+    scenario: str,
+    identity: ArtifactIdentity,
+    request: pytest.FixtureRequest,
+    settings: _OutputSettings,
+    *,
+    failed: bool,
+) -> WriteResult | None:
+    """Writes this test's trace artifacts when output is enabled and anything was captured.
+
+    Returns ``None`` precisely when nothing was written (output disabled, or an empty trace) --
+    the caller's cue to skip both console output and suite accumulation for this invocation.
+    """
     if not settings.enabled or tree.is_empty:
-        return
+        return None
     metadata = TraceMetadata(scenario, ScenarioResult.of(failed))
-    write_result = write_trace(
+    return write_trace(
         tree,
         metadata,
         TraceArtifact(
             settings.base_dir,
-            _class_name(request),
-            request.node.name,
+            identity.test_class_name,
+            identity.method_name,
             settings.fmt,
             canonical=settings.canonical,
+            identity=identity,
+            display_name=request.node.name,
         ),
         json_exporter=lambda captured: export_document_json(captured, metadata),
         diagram_renderer=MermaidSequenceDiagramRenderer().render,
         plantuml_renderer=PlantUmlSequenceDiagramRenderer().render,
     )
-    if write_result.files:
-        print(write_result.console_echo)
 
 
 def pytest_terminal_summary(terminalreporter: Any) -> None:
@@ -271,8 +431,13 @@ def pytest_terminal_summary(terminalreporter: Any) -> None:
             len(accumulator.scenarios), str(settings.base_dir), scores, accumulator.loss
         )
     )
+    delta_line = reporter.format_delta_line(accumulator.deltas)
+    if delta_line:
+        terminalreporter.write_line(f"  Since last green: {delta_line}")
     if settings.enabled and accumulator.clarity:
         _write_clarity_reports(accumulator.clarity, settings.base_dir)
+    if settings.enabled and accumulator.manifest_entries:
+        scenario_manifest.write(accumulator.manifest_entries, settings.base_dir)
     if accumulator.harvest_trees:
         _run_harvest(
             terminalreporter.config, accumulator.harvest_trees, settings.base_dir, terminalreporter

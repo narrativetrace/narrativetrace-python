@@ -81,6 +81,8 @@ case-insensitive.
 | `level` | `NARRATIVETRACE_LEVEL` | capture level for the fixture's context | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directory holding the committed `glossary.json`, read as the vocabulary clarity scores with ([guides/clarity.md](clarity.md)) | working directory |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | also write the per-test `<test>.canonical.json` entry array | `false` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verify structure against a committed approved trace *(since 0.1.2, unreleased)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directory holding committed `*.approved.nt` traces *(since 0.1.2, unreleased)* | `test-narratives` |
 
 `output` is on by default *(since 0.1.2, unreleased)* — PyPI's published `0.1.1` still ships it
 off: the `narrative_trace` fixture writes every non-empty test's artifacts under
@@ -103,6 +105,59 @@ a flat JSON array of canonical entries at schema `1.2`, one `method_enter` and
 one `method_exit` per traced call, each valid against `entry.schema.json`. It is
 off by default because it is a machine artifact — for other runtimes, conformance
 fixtures and translation — not something to read after a failure.
+
+## Structural artifact and approval mode *(since 0.1.2, unreleased)*
+
+The Markdown path additionally writes a value-free `.nt` structural artifact beside the
+narrative — see [Structural Trace Format](../structural-trace-format.md) for the grammar.
+The file on disk is the **last-green baseline**: a green run advances it, a non-green run
+compares against it but never overwrites it, so every delta reads "what changed since the
+last time this scenario passed". "Green" is the whole verdict, not just the assertions — a
+test that passed but whose structure approval mode *rejected* ends non-green, and its
+structure is not written. Rejecting a change therefore leaves the baseline where it was,
+and reverting the change reports no delta.
+
+`approval` turns on approval mode: after a **passing** test, the scenario's value-free
+structure is verified against the committed baseline
+`<approved_dir>/<TestClassName>/<slug>.approved.nt`. A missing baseline or a structural
+difference fails the test with a readable diff and writes the current structure beside the
+baseline as `*.received.nt`. Review it, then promote with `uv run poe approve` (or the
+`narrativetrace-approve` console script, which reads this same `approved_dir` key). Failing
+tests are never verified — approval only judges a test that would otherwise have passed.
+
+Every run also writes `<output_dir>/manifest.json`: one row per traced scenario, naming its
+test, its invocation number when the method ran more than once, and every artifact it owns:
+
+```json
+{
+  "schema": "narrativetrace/scenario-manifest/1",
+  "scenarios": [
+    {
+      "scenario": "find TENT",
+      "testClass": "CatalogTest",
+      "testMethod": "test_finds_it",
+      "invocation": 2,
+      "artifacts": {
+        "trace": "traces/CatalogTest/test_finds_it-002-tent.md",
+        "structural": "structural/CatalogTest/test_finds_it-002-tent.nt"
+      }
+    }
+  ]
+}
+```
+
+The suite footer prints one more line summarizing every scenario's structural status:
+
+```
+NarrativeTrace — Suite complete
+  2 scenarios recorded
+  Clarity: 100% high | 0% moderate | 0% low
+  Reports: narrative-traces
+  Since last green: 1 scenario unchanged · 1 changed: "Customer places order" (+1 call InventoryService.release)
+```
+
+A failing test's console report prints the structural delta against the last-green
+artifact instead of the full trace, when the structure actually changed.
 
 ## Service identity
 

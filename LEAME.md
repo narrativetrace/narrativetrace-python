@@ -1,4 +1,4 @@
-<!-- source: README.md blob 213a680ed90f | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 5dccdfda58d6 | translated: 2026-09-12 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -303,14 +303,18 @@ ocultación](documentation/es/privacidad-y-ocultacion.md) para conocer el alcanc
   subreportar en silencio.
 - **La introspección lee datos almacenados, no código.** Un getter `@property` calculado nunca se
   ejecuta; los únicos miembros que NarrativeTrace invoca son un método `@narrative_summary`
-  curado, un `__str__` personalizado cuando el tipo no porta ningún campo, y las rutas de
-  propiedades nombradas en una plantilla `@narrated`/`@on_error` — mantenlos puros, como lo
-  harías para un depurador. El propio `__str__` de un compuesto de otro modo nunca es de
-  confianza *(since 0.1.2, unreleased)*: cualquier objeto que porte estado de instancia se introspecciona campo
-  por campo sin importar si define un `__str__` personalizado, así que uno escrito a mano no
-  puede sortear la ocultación, ni directamente ni a través de un objeto anidado — una clave de
-  dict/map pasa por la misma comprobación. Un resumen/`__str__`/getter que lanza excepción
-  renderiza `<error: TypeName>` para esa parte, nunca el propio mensaje de la excepción.
+  curado, un `__str__` personalizado cuando el tipo no porta ningún campo o está definido por la
+  plataforma, y las rutas de propiedades nombradas en una plantilla `@narrated`/`@on_error` —
+  mantenlos puros, como lo harías para un depurador. El propio `__str__` de un compuesto de otro
+  modo nunca es de confianza *(since 0.1.2, unreleased)*: cualquier objeto que porte estado de
+  instancia se introspecciona campo por campo sin importar si define un `__str__` personalizado,
+  así que uno escrito a mano no puede sortear la ocultación, ni directamente ni a través de un
+  objeto anidado — una clave de dict/map pasa por la misma comprobación. La única excepción es un
+  tipo que la propia plataforma define *(since 0.1.2, unreleased)* — `pathlib.Path`, `datetime`,
+  `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*` — decidido por origen (su
+  `__module__`, nunca un prefijo de nombre), así que un impostor o una subclase se siguen
+  introspeccionando. Un resumen/`__str__`/getter que lanza excepción renderiza `<error: TypeName>`
+  para esa parte, nunca el propio mensaje de la excepción.
 
 → [Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md) para el contrato fila por
 fila verificado contra el código.

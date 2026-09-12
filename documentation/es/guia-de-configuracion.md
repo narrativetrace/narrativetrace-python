@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 8475ad12f748 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob c618d3b8ea67 | translated: 2026-09-12 | reviewed: - -->
 
 # Configuración
 
@@ -89,6 +89,8 @@ mayúsculas de minúsculas.
 | `level` | `NARRATIVETRACE_LEVEL` | nivel de captura para el contexto del fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directorio que contiene el `glossary.json` confirmado en el repositorio, que se lee para puntuar la claridad del vocabulario (ver [guia-de-claridad.md](guia-de-claridad.md)) | directorio de trabajo |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | también escribe el array de entradas `<test>.canonical.json` por prueba | `false` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica la estructura contra una traza aprobada confirmada en el repositorio *(since 0.1.2, unreleased)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directorio que contiene las trazas `*.approved.nt` confirmadas en el repositorio *(since 0.1.2, unreleased)* | `test-narratives` |
 
 `output` está activado por defecto *(since 0.1.2, unreleased)* — la versión publicada en PyPI,
 `0.1.1`, todavía lo trae desactivado: el fixture `narrative_trace` escribe los artefactos de cada
@@ -115,6 +117,61 @@ plano de entradas canónicas en el esquema `1.2`, un `method_enter` y un
 `entry.schema.json`. Está desactivado por defecto porque es un artefacto
 para máquinas — para otras implementaciones, fixtures de conformidad y traducción — no
 algo para leer después de un fallo.
+
+## Artefacto estructural y modo de aprobación *(since 0.1.2, unreleased)*
+
+La ruta Markdown además escribe un artefacto estructural `.nt` libre de valores junto a la
+narrativa — consulta el [Formato de traza estructural](formato-de-traza-estructural.md) para la
+gramática. El archivo en disco es la **última línea base en verde**: una ejecución en verde la
+avanza, una ejecución que no está en verde se compara contra ella pero nunca la sobrescribe, así
+que cada delta se lee como "qué cambió desde la última vez que este escenario pasó". "Verde" es el
+veredicto completo, no solo las aserciones — una prueba que pasó pero cuya estructura fue
+*rechazada* por el modo de aprobación termina sin estar en verde, y su estructura no se escribe.
+Rechazar un cambio, por tanto, deja la línea base donde estaba, y revertir el cambio no reporta
+ningún delta.
+
+`approval` activa el modo de aprobación: después de una prueba **que pasa**, la estructura libre
+de valores del escenario se verifica contra la línea base confirmada
+`<approved_dir>/<TestClassName>/<slug>.approved.nt`. Una línea base faltante o una diferencia
+estructural hace fallar la prueba con un diff legible y escribe la estructura actual junto a la
+línea base como `*.received.nt`. Revísala, luego promuévela con `uv run poe approve` (o el script
+de consola `narrativetrace-approve`, que lee esta misma clave `approved_dir`). Las pruebas que
+fallan nunca se verifican — la aprobación solo juzga una prueba que de otro modo habría pasado.
+
+Cada ejecución también escribe `<output_dir>/manifest.json`: una fila por escenario trazado,
+nombrando su prueba, su número de invocación cuando el método se ejecutó más de una vez, y cada
+artefacto que le pertenece:
+
+```json
+{
+  "schema": "narrativetrace/scenario-manifest/1",
+  "scenarios": [
+    {
+      "scenario": "find TENT",
+      "testClass": "CatalogTest",
+      "testMethod": "test_finds_it",
+      "invocation": 2,
+      "artifacts": {
+        "trace": "traces/CatalogTest/test_finds_it-002-tent.md",
+        "structural": "structural/CatalogTest/test_finds_it-002-tent.nt"
+      }
+    }
+  ]
+}
+```
+
+El pie de la suite imprime una línea más que resume el estado estructural de cada escenario:
+
+```
+NarrativeTrace — Suite complete
+  2 scenarios recorded
+  Clarity: 100% high | 0% moderate | 0% low
+  Reports: narrative-traces
+  Since last green: 1 scenario unchanged · 1 changed: "Customer places order" (+1 call InventoryService.release)
+```
+
+El informe en consola de una prueba que falla imprime el delta estructural contra el artefacto de
+la última ejecución en verde en lugar de la traza completa, cuando la estructura realmente cambió.
 
 ## Identidad del servicio
 

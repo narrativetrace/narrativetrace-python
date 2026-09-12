@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import concurrent.futures
 import dataclasses
+import decimal
+import fractions
+import ipaddress
 import locale
+import pathlib
+import uuid
+from datetime import UTC, datetime
 from enum import Enum
 from typing import NamedTuple
 
@@ -406,6 +412,91 @@ class TestNativeStringificationNeverTrustedForComposites:
 
         rendered = renderer.render(Holder(RaisingGetter()))
         assert rendered == "Holder(inner=RaisingGetter(bad=<error: ValueError>))"
+
+
+class _SpoofedPath:
+    """A user class naming itself after a platform type -- the identity test must never look at
+    the name, only at where the class was actually defined."""
+
+    def __init__(self, secret: str) -> None:
+        self.secret = secret
+
+    def __str__(self) -> str:
+        return f"Path({self.secret})"
+
+
+class _UserPath(pathlib.PurePosixPath):
+    """A genuine user subclass of a platform type -- its own ``__module__`` is this test module,
+    never inherited from ``pathlib``, so it must still be walked. ``__slots__ = ()`` keeps the
+    idiomatic no-``__dict__`` shape a slotted base expects; an unslotted subclass would grow its
+    own (empty) ``__dict__`` and hide the inherited slot state from field discovery entirely --
+    a pre-existing, unrelated gap this test does not exercise."""
+
+    __slots__ = ()
+
+
+class _TokenHolder:
+    """A field named ``token`` (the deny-list) typed as a platform value -- the name axis must
+    still win even though the value itself would otherwise render short."""
+
+    def __init__(self, token: pathlib.PurePosixPath) -> None:
+        self.token = token
+
+
+class TestPlatformTypeCarveOut:
+    """Owner ruling, 2026-09-12: native stringification is trusted for a platform-defined type
+    even though it carries instance state -- keyed on ORIGIN (``__module__``'s top-level package,
+    or a non-heap C type), never on a name prefix or a hand-kept allow-list."""
+
+    def test_pathlib_path_renders_short(self, renderer: ValueRenderer) -> None:
+        value = pathlib.PurePosixPath("/etc/passwd")
+        assert renderer.render(value) == str(value)
+
+    def test_datetime_renders_short(self, renderer: ValueRenderer) -> None:
+        value = datetime(2026, 9, 12, tzinfo=UTC)
+        assert renderer.render(value) == str(value)
+
+    def test_decimal_renders_short(self, renderer: ValueRenderer) -> None:
+        value = decimal.Decimal("19.99")
+        assert renderer.render(value) == "19.99"
+
+    def test_uuid_renders_short(self, renderer: ValueRenderer) -> None:
+        value = uuid.uuid4()
+        assert renderer.render(value) == str(value)
+
+    def test_fraction_renders_short(self, renderer: ValueRenderer) -> None:
+        value = fractions.Fraction(1, 3)
+        assert renderer.render(value) == "1/3"
+
+    def test_ipaddress_renders_short(self, renderer: ValueRenderer) -> None:
+        value = ipaddress.ip_address("192.168.0.1")
+        assert renderer.render(value) == "192.168.0.1"
+
+    def test_structured_channel_agrees(self, renderer: ValueRenderer) -> None:
+        value = uuid.uuid4()
+        assert renderer.render_structured(value) == StringVal(str(value))
+
+    def test_a_field_named_token_is_still_redacted_by_name(self, renderer: ValueRenderer) -> None:
+        """The platform-type carve-out only changes how a value renders, never whether the
+        NAME axis fires first -- a ``token`` field is masked whatever type it holds."""
+        rendered = renderer.render(_TokenHolder(pathlib.PurePosixPath("/secret/key")))
+        assert rendered == "_TokenHolder(token=[REDACTED])"
+        assert "secret" not in rendered
+
+    def test_a_class_merely_named_like_a_platform_type_is_walked_not_trusted(
+        self, renderer: ValueRenderer
+    ) -> None:
+        rendered = renderer.render(_SpoofedPath("hunter2"))
+        assert rendered == "_SpoofedPath(secret=[REDACTED])"
+        assert "hunter2" not in rendered
+
+    def test_a_user_subclass_of_a_platform_type_is_walked_not_trusted(
+        self, renderer: ValueRenderer
+    ) -> None:
+        value = _UserPath("/etc/passwd")
+        rendered = renderer.render(value)
+        assert rendered.startswith("_UserPath(")
+        assert rendered != str(value)
 
 
 class TestNamedTuples:

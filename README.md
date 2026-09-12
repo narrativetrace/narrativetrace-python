@@ -288,13 +288,16 @@ see [Privacy and Redaction](documentation/privacy-and-redaction.md) for the exac
   the count in its own suite footer instead of silently under-reporting.
 - **Introspection reads stored data, not code.** A computed `@property` getter never runs; the
   only members NarrativeTrace invokes are a curated `@narrative_summary` method, a custom
-  `__str__` when the type carries no fields at all, and property paths named in a
-  `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A composite's
-  own `__str__` is otherwise never trusted *(since 0.1.2, unreleased)*: any object carrying instance state is
-  introspected field-by-field regardless of a custom `__str__`, so a hand-written one cannot
-  bypass redaction, directly or via a nested object — a dict/map key goes through the same check.
-  A raising summary/`__str__`/getter renders `<error: TypeName>` for that one part, never the
-  exception's own message.
+  `__str__` when the type carries no fields at all or is platform-defined, and property paths named
+  in a `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A
+  composite's own `__str__` is otherwise never trusted *(since 0.1.2, unreleased)*: any object
+  carrying instance state is introspected field-by-field regardless of a custom `__str__`, so a
+  hand-written one cannot bypass redaction, directly or via a nested object — a dict/map key goes
+  through the same check. The one exception is a type the platform itself defines
+  *(since 0.1.2, unreleased)* — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
+  `fractions.Fraction`, `ipaddress.*` — decided by origin (its `__module__`, never a name prefix),
+  so a lookalike or a subclass is still walked. A raising summary/`__str__`/getter renders
+  `<error: TypeName>` for that one part, never the exception's own message.
 
 → [Privacy and Redaction](documentation/privacy-and-redaction.md) for the row-by-row contract
 verified against the code.

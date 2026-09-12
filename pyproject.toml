@@ -247,6 +247,10 @@ cmd = """glossary-scan \
     --glossary-dir . --output-dir build/narrativetrace"""
 help = "Deliberate, opt-in static glossary harvest over package sources (item 6, Phase 5)"
 
+[tool.poe.tasks.approve]
+cmd = "narrativetrace-approve"
+help = "Approve verb: promotes reviewed *.received.nt traces to *.approved.nt baselines"
+
 [tool.poe.tasks.format]
 help = "Format and auto-fix"
 sequence = [
@@ -299,10 +303,23 @@ byte-equality, and (when the sibling reference repo is present) derived-LICENSE 
 legal:plain-words region compares. Warn-only here; LEGAL_CHECK_STRICT=1 (publish preflight) fails \
 on the same findings — see legal.properties."""
 
+[tool.poe.tasks.duplication-report]
+cmd = "python scripts/duplication_report.py"
+help = """Runs jscpd (pinned version, npx) over every distribution's main and test trees; writes \
+build/reports/duplication/duplication.json and a summary line. Node missing is a loud, recorded \
+skip locally (exit 0), a hard failure in CI or under NARRATIVETRACE_DUPLICATION_REQUIRED=true \
+-- see documentation/duplication.md"""
+
+[tool.poe.tasks.duplication-check]
+cmd = "python scripts/duplication_check.py"
+help = """Ratchets main-tree duplication (jscpd) against config/duplication/baseline.properties \
+(runs duplication-report first; the test tree is reported only, never gates) -- see \
+documentation/duplication.md"""
+
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
-bandit"""
+duplication-check + bandit"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -316,6 +333,7 @@ sequence = [
     { ref = "translation-check" },
     { ref = "snippet-check" },
     { ref = "legal-check" },
+    { ref = "duplication-check" },
     { ref = "bandit" },
 ]
 

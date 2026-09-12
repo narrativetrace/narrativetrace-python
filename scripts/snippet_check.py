@@ -269,7 +269,15 @@ def _sync_file(repo_root: Path, path: Path) -> list[str]:
     changed: list[str] = []
     for span in reversed(parse_spans(text)):  # back to front: earlier offsets stay valid
         expected = expected_content(repo_root, span)
-        if _actual_content(lines, span) != expected:
+        actual = _actual_content(lines, span)
+        # Masked comparison decides WHETHER to resync, exactly like `_check_file` -- a
+        # `mask=duration` block whose only drift is a fresh wall-clock reading (0ms one run,
+        # 1ms the next) is not "pending sync": wall-clock is never a test input (family
+        # standard), and resyncing on it would churn a committed page and fail the "no pending
+        # sync" gate nondeterministically. A real content drift beyond the masked field still
+        # resyncs, and still writes the actual (unmasked) value -- the page is meant to show a
+        # real captured run, not a placeholder.
+        if _masked(actual, span.options) != _masked(expected, span.options):
             lines[span.content_start : span.content_end] = expected.split("\n")
             changed.append(
                 f"{relative}:{span.open_line + 1}: resynced from '{_source_label(span)}'"

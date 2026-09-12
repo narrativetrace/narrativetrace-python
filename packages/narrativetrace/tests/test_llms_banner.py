@@ -20,6 +20,7 @@ from scripts.llms_banner import (
     CACHE_RELATIVE,
     check_banner,
     compute_banner_line,
+    count_unreleased_markers,
     get_published_version,
     read_repo_version,
     render_banner,
@@ -87,6 +88,39 @@ class TestRenderBanner:
     def test_a_fresh_live_lookup_carries_no_age_comment(self) -> None:
         assert render_banner("0.1.1", "0.1.1", 0.0) == "*(Docs and published both at 0.1.1.)*"
 
+    def test_zero_unreleased_markers_is_unchanged_from_today(self) -> None:
+        assert render_banner("0.1.1", "0.1.1", None, 0) == "*(Docs and published both at 0.1.1.)*"
+
+    def test_equal_versions_with_one_unreleased_marker_is_singular(self) -> None:
+        assert (
+            render_banner("0.1.1", "0.1.1", None, 1)
+            == "*(Docs and published both at 0.1.1; 1 behaviour marked unreleased.)*"
+        )
+
+    def test_equal_versions_with_several_unreleased_markers_is_plural(self) -> None:
+        assert (
+            render_banner("0.1.3", "0.1.3", None, 4)
+            == "*(Docs and published both at 0.1.3; 4 behaviours marked unreleased.)*"
+        )
+
+    def test_differing_versions_with_unreleased_markers(self) -> None:
+        assert render_banner("0.1.3", "0.1.1", None, 4) == (
+            "*(These docs describe 0.1.3; published is 0.1.1; 4 behaviours marked unreleased.)*"
+        )
+
+    def test_offline_with_unreleased_markers(self) -> None:
+        assert render_banner("0.1.3", None, None, 4) == (
+            "*(These docs describe 0.1.3; published: unknown offline; "
+            "4 behaviours marked unreleased.)*"
+        )
+
+    def test_cache_age_comment_still_trails_the_unreleased_clause(self) -> None:
+        line = render_banner("0.1.1", "0.1.1", 125.0, 2)
+        assert line.startswith(
+            "*(Docs and published both at 0.1.1; 2 behaviours marked unreleased.)*"
+        )
+        assert "<!-- registry checked" in line
+
 
 class TestGetPublishedVersion:
     def test_fresh_cache_is_used_without_calling_fetch(self, tmp_path: Path) -> None:
@@ -131,6 +165,49 @@ class TestGetPublishedVersion:
             tmp_path, now=1_000.0, fetch=fail_fetch, allow_network=False
         )
         assert (version, age) == (None, None)
+
+
+class TestCountUnreleasedMarkers:
+    def test_zero_when_nothing_is_marked(self, tmp_path: Path) -> None:
+        _write_repo(tmp_path)
+        assert count_unreleased_markers(tmp_path) == 0
+
+    def test_counts_a_single_marker_in_a_doc_page(self, tmp_path: Path) -> None:
+        _write_repo(tmp_path)
+        (tmp_path / "documentation" / "guide.md").write_text(
+            "# Guide\n\nSomething new *(since 0.1.2, unreleased)*.\n", encoding="utf-8"
+        )
+        assert count_unreleased_markers(tmp_path) == 1
+
+    def test_counts_across_readme_llms_txt_and_doc_pages(self, tmp_path: Path) -> None:
+        _write_repo(
+            tmp_path,
+            llms_txt=_LLMS_TXT.replace("body\n", "body *(since 0.1.2, unreleased)*\n"),
+        )
+        (tmp_path / "README.md").write_text(
+            "# Some Runtime\n\nOne *(since 0.1.2, unreleased)* thing.\n", encoding="utf-8"
+        )
+        (tmp_path / "documentation" / "guide.md").write_text(
+            "# Guide\n\nTwo *(since 0.1.2, unreleased)* and three *(since 0.1.2, unreleased)*.\n",
+            encoding="utf-8",
+        )
+        assert count_unreleased_markers(tmp_path) == 4
+
+    def test_excludes_a_translated_mirror(self, tmp_path: Path) -> None:
+        """A mirror carries the same markers as its source (translated verbatim) -- counting it
+        too would double the true count without a second behaviour actually being unreleased."""
+        _write_repo(tmp_path)
+        (tmp_path / "documentation" / "guide.md").write_text(
+            "# Guide\n\nReal *(since 0.1.2, unreleased)*.\n", encoding="utf-8"
+        )
+        es_dir = tmp_path / "documentation" / "es"
+        es_dir.mkdir()
+        (es_dir / "guia.md").write_text(
+            "<!-- source: documentation/guide.md blob deadbeefcafe | translated: 2026-09-12 -->\n"
+            "# Guía\n\nEspejo *(since 0.1.2, unreleased)*.\n",
+            encoding="utf-8",
+        )
+        assert count_unreleased_markers(tmp_path) == 1
 
 
 class TestComputeBannerLine:
@@ -223,4 +300,26 @@ class TestCheckBanner:
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "x"\nversion = "0.1.0"\n', encoding="utf-8"
         )
+        assert check_banner(tmp_path) == []
+
+    def test_stale_unreleased_count_fails_with_no_network_needed(self, tmp_path: Path) -> None:
+        """The banner still names 0 behaviours marked unreleased, but a doc page now carries one
+        -- caught deterministically, exactly like a stale repo-version token, needing no cache."""
+        with_banner = _LLMS_TXT.replace(
+            "# some-runtime\n\n", "# some-runtime\n\n*(Docs and published both at 0.1.1.)*\n\n"
+        )
+        _write_repo(tmp_path, version="0.1.1", llms_txt=with_banner)
+        (tmp_path / "documentation" / "guide.md").write_text(
+            "# Guide\n\nSomething new *(since 0.1.2, unreleased)*.\n", encoding="utf-8"
+        )
+        failures = check_banner(tmp_path)
+        assert len(failures) == 1
+        assert "unreleased" in failures[0]
+
+    def test_matching_unreleased_count_passes(self, tmp_path: Path) -> None:
+        _write_repo(tmp_path)
+        (tmp_path / "documentation" / "guide.md").write_text(
+            "# Guide\n\nSomething new *(since 0.1.2, unreleased)*.\n", encoding="utf-8"
+        )
+        assert sync_banner(tmp_path) is not None
         assert check_banner(tmp_path) == []

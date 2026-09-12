@@ -1,6 +1,6 @@
 # narrativetrace-python
 
-*(Docs and published both at 0.1.1.)*
+*(Docs and published both at 0.1.1; 42 behaviours marked unreleased.)*
 
 > Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
 > workspace with a dependency-free core and thin integration packages.
@@ -54,8 +54,9 @@ OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantit
 - Every package installs from PyPI today (`uv add ...`); a workspace checkout is only for contributing to this repo, never required to use it.
 - `narrativetrace-pytest` artifact-writing defaults **on** *(since 0.1.2, unreleased)* — PyPI's published `0.1.1` still ships it **off**; set `NARRATIVETRACE_OUTPUT=true` explicitly until the next release.
 - `narrativetrace-structlog` pulls in `structlog` itself *(since 0.1.2, unreleased)* — on PyPI's published `0.1.1` it is an optional extra; add it explicitly (`uv add structlog`) on that version.
-- A composite's own `__str__`/`__repr__` is never trusted for redaction *(since 0.1.2, unreleased)* — any object carrying instance state is introspected field-by-field regardless (see [Privacy and Redaction](privacy-and-redaction.md)).
+- A composite's own `__str__`/`__repr__` is never trusted for redaction *(since 0.1.2, unreleased)* — any object carrying instance state is introspected field-by-field regardless, **except a platform-defined type** (`pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*`), which keeps its own short `str()` — decided by origin (`__module__`, never a name prefix), so a lookalike or a subclass is still walked (see [Privacy and Redaction](privacy-and-redaction.md)).
 - `__nt_not_traced__` is a class attribute — a tuple/list/set of field names — for redacting fields on any object a dataclass field can't reach (see the [Decorators guide](guides/decorators.md)).
+- `narrativetrace-pytest` now also writes a value-free `.nt` structural artifact per test invocation, with a `manifest.json` index and a last-green delta on the suite footer *(since 0.1.2, unreleased)*; `NARRATIVETRACE_APPROVAL=true` turns on approval mode against a committed `.approved.nt` trace, promoted with `uv run poe approve` / `narrativetrace-approve` (see [Structural Trace Format](structural-trace-format.md)).
 
 ## Field notes from AI agents (self-reported, not a benchmark)
 We asked AI agents to build a claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. The reports so far are from the Java runtime; the same exercise runs for Python next, and the principle they describe — the trace as evidence, redaction by parameter name, output on by default — is the same here. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying

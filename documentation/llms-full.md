@@ -81,7 +81,11 @@ print(MarkdownRenderer().render(context.capture_trace()))
 
 - **`narrativetrace-pytest`** — `narrative_trace` fixture (fresh context per test), failure
   narratives, template warnings, artifacts (`NARRATIVETRACE_OUTPUT`/`_OUTPUT_DIR`/`_FORMAT`),
-  suite footer clarity split, per-suite `clarity-results.json` + `clarity-report.md`.
+  suite footer clarity split, per-suite `clarity-results.json` + `clarity-report.md`. Also writes
+  a value-free `.nt` structural artifact per invocation plus `manifest.json`, with a last-green
+  delta on the suite footer and a failing test's report; `NARRATIVETRACE_APPROVAL=true` fails a
+  test against a committed `.approved.nt` trace instead, promoted via `poe approve` /
+  `narrativetrace-approve`.
 - **`narrativetrace-diagrams`** — `MermaidSequenceDiagramRenderer`,
   `PlantUmlSequenceDiagramRenderer` (Java-exact tokens; control-char folding on interpolated
   values).

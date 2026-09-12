@@ -84,6 +84,14 @@
       }
     },
     {
+      "source": "documentation/structural-trace-format.md",
+      "translations": {
+        "es": "formato-de-traza-estructural.md",
+        "pt-BR": "formato-de-trace-estrutural.md",
+        "zh-CN": "结构化追踪格式.md"
+      }
+    },
+    {
       "source": "documentation/troubleshooting.md",
       "translations": {
         "es": "solucion-de-problemas.md",

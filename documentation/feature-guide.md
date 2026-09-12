@@ -64,6 +64,8 @@ are Planned, not merely undocumented.
 | Trace value references — content-addressed dedup of repeated captured values with readable labels (`‹Hotel›=full` on first emission, `‹Hotel›` after) | Free | `render.value_reference.ValueReferenceIndex` via `MarkdownRenderer`. Labels come from the structured value's identity field (name/id/description/…), never a redacted one; byte equality certifies sameness; containment inside other captured values counts and is replaced. Markdown only |
 | Intra-trace value deltas — a re-capture of the same entity, changed, renders as a diff against the reference (`‹Dinner›′{amount: 100.0→92.0, currency: "USD"→"EUR"}`) | Free | `render.value_delta.value_delta`. "Same entity" is the same structured type name plus an equal identity field; changed scalar fields only (`StringVal`/`IntVal`/`FloatVal`/`BoolVal`/`InstantVal`/`NullVal`), never reconstructed from the structured tree. A changed nested object or list, a different field set, or a value with no identity field renders in full exactly as before. A changed variant that itself repeats is defined AS the diff (`‹Dinner·2›=‹Dinner›′{…}`). Markdown only |
 | Per-test trace files with `.json` and Mermaid `.mmd` companions | Free | on by default *(since 0.1.2, unreleased)*, `NARRATIVETRACE_OUTPUT=false` opts out; empty traces write nothing |
+| AI-safe structural trace artifact (`.nt`) — value-free shape, per-invocation naming, `manifest.json`, last-green baseline with a suite-footer delta line | Free *(since 0.1.2, unreleased)* | `render.structural.StructuralTraceRenderer`; see [Structural Trace Format](structural-trace-format.md) |
+| Approval mode — committed `.approved.nt` traces fail a test with a readable diff on any structural mismatch; `uv run poe approve` / `narrativetrace-approve` promotes a reviewed received trace | Free *(since 0.1.2, unreleased)* | `NARRATIVETRACE_APPROVAL=true`; the approval-testing idea, applied to traces — see [What to Commit](what-to-commit.md) |
 | Canonical JSON export (event-stream form) | Free | `export_json` / `export_document_json`; round-trip tested, and schema-validated against `chapter-tree.schema.json` from the bytes the real writer put on disk |
 | Per-service chapter schema (`nt.entryType` / `schemaVersion` / story-chapter entries) | Free | `export_chapter_json`; validated against `chapter.schema.json`. Correlation is never omitted: `trace_id` is adopted/inherited/generated, `nt.storyId` falls back to the first root call (`Class.method`, else `unknown`), `nt.chapterId` to the story, `nt.traceName` to the resolved id — so a trace captured without any span still validates |
 | Canonical schema **1.2** — one `SCHEMA_VERSION` for the entry form, the chapter envelope and the OTel attributes | Free | `nt.narrationTemplate` (1.1, the raw `@narrated` text with placeholders intact) plus the 1.2 identity fields: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, parameter `type`, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` and the process resource fields are declared but not captured (tracked in the private backlog) — all three are gated off by default in the Java runtime too |
@@ -108,10 +110,13 @@ are Planned, not merely undocumented.
 | MCP analysis tool handlers | Planned (Pro, gated) | Enterprise plan Phase E5 |
 
 Note: value separation happens at capture time (product ADR-002 — below
-DETAIL, parameter values are never recorded), but the second per-test
-AI-safe *structural* trace file some runtimes write has no Python
-counterpart yet;
-the pytest plugin writes one full-detail file per test.
+DETAIL, parameter values are never recorded); the pytest plugin now also
+writes a second, value-free *structural* `.nt` file per test invocation
+*(since 0.1.2, unreleased)*, alongside the full-detail Markdown/JSON
+artifact — see [Structural Trace Format](structural-trace-format.md). One
+gap remains, tracked as follow-up: this runtime does not yet emit the
+value-free JSON sibling some other runtimes ship
+(`<test>.structural.json`) — only the `.nt` text form.
 
 ## Pro tier (commercial)
 

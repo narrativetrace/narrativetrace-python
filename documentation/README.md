@@ -19,6 +19,7 @@ design notes) are English-only by convention and stay off every language's trans
 | [Decorators Guide](guides/decorators.md) | `@narrated`, `@on_error`, `@not_traced`, the purity contract |
 | [Privacy and Redaction](privacy-and-redaction.md) | The row-by-row redaction contract, verified against the code |
 | [What to Commit](what-to-commit.md) | Which generated files are CI artifacts, and which (if any) are reviewed baselines |
+| [Structural Trace Format](structural-trace-format.md) | The value-free `.nt` artifact: grammar, per-invocation naming, last-green baseline, approval mode |
 | [Troubleshooting](troubleshooting.md) | Symptom → cause → fix for the failure modes people actually hit |
 
 ## Integrations
@@ -47,6 +48,7 @@ Engineering-only — the *why* behind load-bearing decisions. English-only by co
 | [Security Testing](security-testing.md) | The hostile-corpus fuzz suite: targets, oracles, how a crash becomes a regression test |
 | [Security Tooling](security-tooling.md) | Secrets scanning, SAST, dependency-vulnerability scanning: what runs when |
 | [Concurrency Stress Testing](concurrency-stress.md) | The stress suite over the dual-path pipeline: invariants, how to run it |
+| [Duplication Detection](duplication.md) | jscpd over main/test sources: the 60-token floor, the ratchet against a committed baseline (not a fixed percentage), and how to read or exempt a finding |
 
 ## For AI agents and tools
 

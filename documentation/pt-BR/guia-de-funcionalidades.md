@@ -1,4 +1,4 @@
-<!-- source: documentation/feature-guide.md blob 204e8092b4b7 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/feature-guide.md blob a4df64a7a0cf | translated: 2026-09-12 | reviewed: - -->
 
 # Guia de funcionalidades do NarrativeTrace (Python)
 
@@ -68,6 +68,8 @@ Planejados, não apenas sem documentação.
 | Referências de valor de trace — deduplicação endereçada por conteúdo de valores capturados repetidos, com rótulos legíveis (`‹Hotel›=full` na primeira emissão, `‹Hotel›` depois) | Gratuito | `render.value_reference.ValueReferenceIndex` via `MarkdownRenderer`. Rótulos vêm do campo de identidade do valor estruturado (name/id/description/…), nunca de um oculto; igualdade de bytes certifica igualdade; contenção dentro de outros valores capturados conta e é substituída. Somente Markdown |
 | Deltas de valor intra-trace — uma recaptura da mesma entidade, alterada, renderiza como um diff contra a referência (`‹Dinner›′{amount: 100.0→92.0, currency: "USD"→"EUR"}`) | Gratuito | `render.value_delta.value_delta`. "Mesma entidade" é o mesmo nome de tipo estruturado mais um campo de identidade igual; apenas campos escalares alterados (`StringVal`/`IntVal`/`FloatVal`/`BoolVal`/`InstantVal`/`NullVal`), nunca reconstruídos a partir da árvore estruturada. Um objeto aninhado ou lista alterados, um conjunto de campos diferente, ou um valor sem campo de identidade renderiza por completo exatamente como antes. Uma variante alterada que por si só se repete é definida COMO o diff (`‹Dinner·2›=‹Dinner›′{…}`). Somente Markdown |
 | Arquivos de trace por teste com companheiros `.json` e Mermaid `.mmd` | Gratuito | ligado por padrão *(since 0.1.2, unreleased)*, `NARRATIVETRACE_OUTPUT=false` desliga; traces vazios não gravam nada |
+| Artefato de trace estrutural seguro para IA (`.nt`) — forma livre de valores, nomeação por invocação, `manifest.json`, baseline verde com uma linha de delta no rodapé da suíte | Gratuito *(since 0.1.2, unreleased)* | `render.structural.StructuralTraceRenderer`; veja o [Formato de trace estrutural](formato-de-trace-estrutural.md) |
+| Modo de aprovação — traces `.approved.nt` commitados falham um teste com um diff legível em qualquer divergência estrutural; `uv run poe approve` / `narrativetrace-approve` promove um trace recebido já revisado | Gratuito *(since 0.1.2, unreleased)* | `NARRATIVETRACE_APPROVAL=true`; a ideia do approval testing, aplicada a traces — veja [O que commitar](o-que-commitar.md) |
 | Exportação JSON canônica (forma de stream de eventos) | Gratuito | `export_json` / `export_document_json`; testado com round-trip, e validado por esquema contra `chapter-tree.schema.json` a partir dos bytes que o writer real gravou em disco |
 | Esquema de capítulo por serviço (`nt.entryType` / `schemaVersion` / entradas história-capítulo) | Gratuito | `export_chapter_json`; validado contra `chapter.schema.json`. A correlação nunca é omitida: `trace_id` é adotado/herdado/gerado, `nt.storyId` recai na primeira chamada raiz (`Class.method`, senão `unknown`), `nt.chapterId` na história, `nt.traceName` no id resolvido — então um trace capturado sem nenhum span ainda assim valida |
 | Esquema canônico **1.2** — um único `SCHEMA_VERSION` para a forma de entrada, o envelope de capítulo e os atributos do OTel | Gratuito | `nt.narrationTemplate` (1.1, o texto bruto do `@narrated` com marcadores intactos) mais os campos de identidade 1.2: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, `type` de parâmetro, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` e os campos de recurso de processo estão declarados mas não capturados (registrado na lista de tarefas privada) — os três também vêm desligados por padrão em Java |
@@ -112,10 +114,12 @@ Planejados, não apenas sem documentação.
 | Handlers de ferramentas de análise MCP | Planejado (Pro, restrito) | Fase E5 do plano Enterprise |
 
 Nota: a separação de valores acontece no momento da captura (ADR-002 do
-produto — abaixo de DETAIL, valores de parâmetro nunca são registrados),
-mas o segundo arquivo de trace *estrutural* seguro para IA por teste do
-implementação Java ainda não tem equivalente em Python; o plugin do pytest grava um
-único arquivo com detalhe completo por teste.
+produto — abaixo de DETAIL, valores de parâmetro nunca são registrados); o plugin do pytest agora
+também grava um segundo arquivo *estrutural* livre de valores por invocação de teste *(since
+0.1.2, unreleased)*, ao lado do artefato Markdown/JSON com detalhe completo — veja o
+[Formato de trace estrutural](formato-de-trace-estrutural.md). Uma lacuna permanece, registrada
+como trabalho futuro: esta implementação ainda não emite o irmão JSON livre de valores que outras
+implementações distribuem (`<test>.structural.json`) — apenas a forma de texto `.nt`.
 
 ## Nível Pro (comercial)
 

@@ -4,6 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """Console reporting, template-warning detection, and trace file writing helpers."""
 
+from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.paths import (
     diagram_file,
     extension_for_format,
@@ -16,6 +17,7 @@ from narrativetrace.output.warnings import TemplateWarning, collect, format_warn
 from narrativetrace.output.writer import TraceArtifact, WriteResult, write_trace
 
 __all__ = [
+    "ArtifactIdentity",
     "ConsoleSummaryReporter",
     "TemplateWarning",
     "TraceArtifact",

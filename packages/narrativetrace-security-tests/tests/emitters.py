@@ -25,6 +25,7 @@ from narrativetrace.render.indented import IndentedTextRenderer
 from narrativetrace.render.markdown import MarkdownRenderer
 from narrativetrace.render.prose import ProseRenderer
 from narrativetrace.render.scenario_result import ScenarioResult
+from narrativetrace.render.structural import StructuralTraceRenderer
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_canonical import export_canonical_entries
@@ -88,6 +89,9 @@ EMITTERS: dict[str, Emitter] = {
     "canonical-entries": lambda tree, _meta: export_canonical_entries(tree),
     "mermaid": lambda tree, _meta: MermaidSequenceDiagramRenderer().render(tree),
     "plantuml": lambda tree, _meta: PlantUmlSequenceDiagramRenderer().render(tree),
+    "structural-document": lambda tree, meta: StructuralTraceRenderer().render_document(
+        tree, meta.scenario
+    ),
 }
 
 

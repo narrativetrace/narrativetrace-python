@@ -14,6 +14,25 @@ that PyPI actually ships yet:
   ``*(These docs describe 0.1.2; published: unknown offline.)*`` — never a guess, never a stale
   cached value presented as current.
 
+**The line also counts `unreleased` since-markers** (owner ruling, 2026-09-12; design note
+`docs-vs-published-gate-2026-09-12.md` §1.1 item 8 + §5.1): the repo version stays at the last
+*published* number until a release tags it, so the three shapes above can read as fully in sync
+while `*(since X.Y.Z, unreleased)*` markers still sit on the page describing behaviour PyPI does
+not ship yet. Whenever that count is greater than zero, each shape appends a clause before its
+closing period:
+
+- equal:  ``*(Docs and published both at 0.1.3; 4 behaviours marked unreleased.)*``
+- differ: ``*(These docs describe 0.1.3; published is 0.1.1; 4 behaviours marked unreleased.)*``
+- offline: ``*(These docs describe 0.1.3; published: unknown offline; 4 behaviours marked
+  unreleased.)*``
+- count zero: the line is unchanged from the three shapes above — no clause at all.
+
+"behaviour" is singular when the count is exactly 1. The count is a pure, deterministic file scan
+(:func:`count_unreleased_markers`: `documentation/**` + `README.md` + `llms.txt`/`llms-full.md`,
+translated mirrors excluded via the same set `scripts/translation_check.py#translated_files`
+already computes), so `check_banner` verifies it on every commit alongside the repo-version half —
+unlike the published-version half, which keeps its fresh-cache-only rule (see below).
+
 The repo version comes from the same place `scripts/publish-public.sh#detect_version` reads it
 (root `pyproject.toml#version`); the published version is looked up on PyPI via
 `scripts.verify_publication_registry`'s own project-level URL and "no answer" sentinel, so this
@@ -46,7 +65,7 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
-from scripts.translation_check import REPO_ROOT
+from scripts.translation_check import REPO_ROOT, translated_files
 from scripts.verify_publication_registry import DEFAULT_REGISTRY_BASE, project_url
 
 PACKAGE_NAME = "narrativetrace"  # the core package: the one every install starts with
@@ -56,6 +75,8 @@ CACHE_TTL_SECONDS = 3600.0
 
 _VERSION_RE = re.compile(r'^version\s*=\s*"([^"]+)"', re.MULTILINE)
 _BANNER_LINE_RE = re.compile(r"^\*\(.*\)\*(?:\s*<!--.*-->)?\s*$")
+_UNRELEASED_MARKER_RE = re.compile(r"\*\(since\s+[0-9]+(?:\.[0-9]+)*,\s*unreleased\)\*")
+_UNRELEASED_CLAUSE_RE = re.compile(r"; (\d+) behaviours? marked unreleased")
 
 
 def read_repo_version(repo_root: Path) -> str:
@@ -148,6 +169,59 @@ def get_published_version(
     return None, None
 
 
+def _unreleased_marker_files(repo_root: Path) -> list[Path]:
+    """Every English doc file the `unreleased` count is read from: every `*.md` file under
+    `documentation/` plus `documentation/llms.txt` (mirrors `scripts/snippet_check.py`'s own
+    "English pages" definition, kept independent here rather than imported — `snippet_check`
+    already imports `check_banner` from this module, so importing back would cycle), plus the
+    root `README.md`. Translated mirrors are excluded via the same
+    `scripts.translation_check.translated_files` set `snippet_check` uses."""
+    translated = {path.resolve() for path in translated_files(repo_root)}
+    documentation = repo_root / "documentation"
+    files: list[Path] = []
+    if documentation.is_dir():
+        files.extend(
+            path for path in sorted(documentation.rglob("*.md")) if path.resolve() not in translated
+        )
+        llms_txt = documentation / "llms.txt"
+        if llms_txt.is_file() and llms_txt.resolve() not in translated:
+            files.append(llms_txt)
+    readme = repo_root / "README.md"
+    if readme.is_file() and readme.resolve() not in translated:
+        files.append(readme)
+    return files
+
+
+def count_unreleased_markers(repo_root: Path) -> int:
+    """How many `unreleased` since-markers (each a `*(since X.Y.Z, unreleased)*` clause) sit
+    across the English docs right now. A pure, deterministic file scan — no network, no clock —
+    so `check_banner` can verify it on every commit (see module docstring)."""
+    total = 0
+    for path in _unreleased_marker_files(repo_root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        total += len(_UNRELEASED_MARKER_RE.findall(text))
+    return total
+
+
+def _unreleased_clause(count: int) -> str:
+    """The `; N behaviour(s) marked unreleased` clause `render_banner` inserts before the closing
+    period — empty for a count of zero, so the line reads exactly as it did before this feature."""
+    if count <= 0:
+        return ""
+    noun = "behaviour" if count == 1 else "behaviours"
+    return f"; {count} {noun} marked unreleased"
+
+
+def _extract_unreleased_count(line: str) -> int:
+    """The count a banner line's clause currently states, or ``0`` when it carries none at all —
+    the two are equivalent renderings of "nothing unreleased right now"."""
+    match = _UNRELEASED_CLAUSE_RE.search(line)
+    return int(match.group(1)) if match else 0
+
+
 def _format_age(age_seconds: float) -> str:
     minutes = int(age_seconds // 60)
     if minutes < 1:
@@ -160,14 +234,22 @@ def _format_age(age_seconds: float) -> str:
     return f"{hours}h{minutes % 60:02d}m"
 
 
-def render_banner(repo_version: str, published_version: str | None, cache_age: float | None) -> str:
-    """The banner line's exact text, per the design note's three cases."""
+def render_banner(
+    repo_version: str,
+    published_version: str | None,
+    cache_age: float | None,
+    unreleased_count: int = 0,
+) -> str:
+    """The banner line's exact text, per the design note's three cases, each optionally carrying
+    the `; N behaviour(s) marked unreleased` clause (see module docstring) when
+    `unreleased_count` is greater than zero."""
+    clause = _unreleased_clause(unreleased_count)
     if published_version is None:
-        return f"*(These docs describe {repo_version}; published: unknown offline.)*"
+        return f"*(These docs describe {repo_version}; published: unknown offline{clause}.)*"
     if published_version == repo_version:
-        core = f"*(Docs and published both at {repo_version}.)*"
+        core = f"*(Docs and published both at {repo_version}{clause}.)*"
     else:
-        core = f"*(These docs describe {repo_version}; published is {published_version}.)*"
+        core = f"*(These docs describe {repo_version}; published is {published_version}{clause}.)*"
     if cache_age and cache_age > 0:
         core = f"{core} <!-- registry checked {_format_age(cache_age)} ago -->"
     return core
@@ -184,7 +266,8 @@ def compute_banner_line(
     published_version, cache_age = get_published_version(
         repo_root, allow_network=allow_network, now=now
     )
-    return render_banner(repo_version, published_version, cache_age)
+    unreleased_count = count_unreleased_markers(repo_root)
+    return render_banner(repo_version, published_version, cache_age, unreleased_count)
 
 
 _REPO_VERSION_TOKEN_RE = re.compile(
@@ -248,7 +331,10 @@ def check_banner(repo_root: Path) -> list[str]:
     2. Its repo-version token must match `pyproject.toml#version` right now — this alone catches
        the defect class that matters most (a version bump landed and nobody reran
        `poe snippet-sync`), and needs no registry at all.
-    3. If a still-fresh cache from an earlier `sync_banner` run happens to be on disk, the
+    3. Its unreleased-count clause must match `count_unreleased_markers` right now — deterministic,
+       like the repo-version check, so it is verified every commit regardless of registry
+       reachability (see module docstring).
+    4. If a still-fresh cache from an earlier `sync_banner` run happens to be on disk, the
        published-version half is checked against it too — a bonus catch, never a requirement: a
        cold or expired cache (the standing case for an offline nightly run) is not a failure.
     """
@@ -258,8 +344,11 @@ def check_banner(repo_root: Path) -> list[str]:
     lines = path.read_text(encoding="utf-8").split("\n")
     existing_index = _find_banner_line_index(lines)
     repo_version = read_repo_version(repo_root)
+    unreleased_count = count_unreleased_markers(repo_root)
     if existing_index is None:
-        expected = _strip_cache_comment(render_banner(repo_version, repo_version, None))
+        expected = _strip_cache_comment(
+            render_banner(repo_version, repo_version, None, unreleased_count)
+        )
         return [
             f"{LLMS_TXT_RELATIVE}: missing the docs-vs-published banner line under the H1 "
             f"— run 'poe snippet-sync' (e.g. {expected!r})"
@@ -272,10 +361,19 @@ def check_banner(repo_root: Path) -> list[str]:
             f"{actual_repo_version!r} but pyproject.toml is at {repo_version!r} — run "
             f"'poe snippet-sync' to refresh it"
         ]
+    actual_unreleased_count = _extract_unreleased_count(actual)
+    if actual_unreleased_count != unreleased_count:
+        return [
+            f"{LLMS_TXT_RELATIVE}:{existing_index + 1}: docs-vs-published banner counts "
+            f"{actual_unreleased_count} behaviours marked unreleased but the docs currently mark "
+            f"{unreleased_count} — run 'poe snippet-sync' to refresh it"
+        ]
     cached = _read_fresh_cache(repo_root, now=None, ttl_seconds=CACHE_TTL_SECONDS)
     if cached is not None:
         published_version, cache_age = cached
-        expected = _strip_cache_comment(render_banner(repo_version, published_version, cache_age))
+        expected = _strip_cache_comment(
+            render_banner(repo_version, published_version, cache_age, unreleased_count)
+        )
         if actual != expected:
             return [
                 f"{LLMS_TXT_RELATIVE}:{existing_index + 1}: docs-vs-published banner is stale "

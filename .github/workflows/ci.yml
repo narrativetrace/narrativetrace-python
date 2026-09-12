@@ -21,4 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: uv sync --all-packages
+      # jscpd (poe duplication-check, part of poe check) needs Node -- missing from this image
+      # by default (verified 2026-09-12); see scripts/install-node.sh and documentation/duplication.md.
+      - run: scripts/install-node.sh
       - run: uv run poe check

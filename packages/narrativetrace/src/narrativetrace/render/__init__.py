@@ -11,6 +11,7 @@ from narrativetrace.render.markdown import MarkdownRenderer
 from narrativetrace.render.prose import ProseRenderer
 from narrativetrace.render.scenario import frame, humanize
 from narrativetrace.render.scenario_result import ScenarioResult
+from narrativetrace.render.structural import StructuralTraceRenderer
 
 __all__ = [
     "FrontmatterBuilder",
@@ -19,6 +20,7 @@ __all__ = [
     "NarrativeRenderer",
     "ProseRenderer",
     "ScenarioResult",
+    "StructuralTraceRenderer",
     "TraceMetadata",
     "frame",
     "humanize",

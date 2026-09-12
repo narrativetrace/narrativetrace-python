@@ -26,6 +26,21 @@ just its value), rather than a bare ``str(key)`` that bypassed every guard uncon
 one part renders ``<error: <TypeName>>`` -- the exception's own type name, never ``str(exc)``
 (a message can carry the very value that failed to render).
 
+**Platform-defined types are trusted for native stringification even though they carry state**
+*(since 0.1.2, unreleased)*: the 2026-09-11 fix above is correct for application types but too
+broad for the standard library's own value types -- ``pathlib.Path``, ``datetime``,
+``decimal.Decimal``, ``uuid.UUID``, ``fractions.Fraction`` and ``ipaddress.*`` all carry instance
+state (populated ``__slots__``) and were walked field-by-field into unreadable or inaccessible
+output. ``_is_platform_type`` decides by ORIGIN, never by name: a type whose ``__module__`` names
+a top-level standard-library package (``sys.stdlib_module_names``), or whose C implementation is
+not a heap type at all (a genuine interpreter built-in), is trusted; a user subclass of a platform
+type is not, because a subclass's own ``__module__`` is wherever *it* was defined, never inherited
+from its base. A user class that merely shares a platform type's name is not trusted either -- the
+identity test never looks at the name. Same reasoning as Java's ``PLATFORM_DEFINED`` (keyed on
+defining class loader) and .NET's (keyed on defining assembly); the trusted text is still
+scanned, escaped and capped, and still redacted by field NAME first -- a field or parameter named
+``token`` typed ``pathlib.Path`` still renders ``[REDACTED]``.
+
 Depth limiting (a security fuzz suite finding, mirrors Java's ``RenderWalk``): an identity-based
 cycle guard answers "have I been here before", never "how deep am I" -- a linear chain of distinct
 objects never repeats an identity, so the guard alone let a 10,000-node chain recurse Python's
@@ -47,6 +62,7 @@ import asyncio
 import concurrent.futures
 import dataclasses
 import inspect
+import sys
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, ClassVar
@@ -76,6 +92,11 @@ _COLLECTION_TYPES = (list, tuple, set, frozenset)
 _TOO_DEEP = "<max-depth>"
 
 _TRUSTED_NUMERIC_TYPES = (int, float)
+
+_HEAP_TYPE_FLAG = 1 << 9
+"""``Py_TPFLAGS_HEAPTYPE``: set on every ordinary Python class, clear only on a type allocated
+statically inside the interpreter (``int``, ``str``, ``datetime.datetime``, ...). A stable CPython
+ABI flag, not a private implementation detail."""
 
 
 class _RenderWalk:
@@ -560,6 +581,8 @@ class ValueRenderer:
             return True
         if _is_named_tuple(value):
             return True
+        if _is_platform_type(type(value)):
+            return False
         return _has_instance_state(value)
 
 
@@ -615,6 +638,29 @@ def _slot_names(cls: type) -> list[str]:
                 continue
             names.append(slot)
     return names
+
+
+def _is_platform_type(cls: type) -> bool:
+    """Whether ``cls`` is defined by the platform (the standard library or the interpreter
+    itself) rather than the application -- the carve-out that lets a stateful platform value like
+    ``pathlib.Path`` or ``uuid.UUID`` keep its own ``str()`` instead of being walked field-by-field
+    (owner ruling, 2026-09-12; see the module docstring).
+
+    Decided by ORIGIN, never by name: a class's ``__module__`` is set to wherever *that class* was
+    defined and is not inherited down to subclasses, so a user subclass of a platform type (its
+    ``__module__`` is the user's module) and a user class that merely shares a platform type's name
+    (its ``__module__`` is never a standard-library top-level package) both correctly fail this
+    test -- a name or a prefix comparison would get both wrong. The second branch (no heap-type
+    flag) catches a genuine interpreter built-in whose reported ``__module__`` is ``"builtins"``
+    all the same, and is what Java's identical carve-out reaches by identity of the *defining class
+    loader* rather than a module name -- CPython has no loader for a type the interpreter itself
+    allocates, so the heap-type flag is the analogous identity signal here.
+    """
+    module = getattr(cls, "__module__", None)
+    top_level = module.partition(".")[0] if module else None
+    if top_level is not None and top_level in sys.stdlib_module_names:
+        return True
+    return not (cls.__flags__ & _HEAP_TYPE_FLAG)
 
 
 def _has_instance_state(value: object) -> bool:

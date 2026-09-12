@@ -132,6 +132,7 @@ def test_every_shipped_emitter_is_present_so_a_rename_cannot_silently_drop_one()
         "canonical-entries",
         "mermaid",
         "plantuml",
+        "structural-document",
     }
 
 

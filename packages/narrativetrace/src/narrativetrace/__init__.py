@@ -73,6 +73,7 @@ from narrativetrace.render import (
     NarrativeRenderer,
     ProseRenderer,
     ScenarioResult,
+    StructuralTraceRenderer,
     TraceMetadata,
 )
 from narrativetrace.rendering import ValueRenderer
@@ -147,6 +148,7 @@ __all__ = [
     "SpanContext",
     "SpanId",
     "StringVal",
+    "StructuralTraceRenderer",
     "TenantId",
     "Threw",
     "TraceEvent",
