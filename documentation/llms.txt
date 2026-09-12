@@ -6,6 +6,13 @@
 Wrap an object with `trace_object(obj, context)`; call it; render `context.capture_trace()`.
 The narrative is generated from names and values — no logging calls in the business code.
 
+## Field notes from AI agents (self-reported, not a benchmark)
+We asked AI agents to build a claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. The reports so far are from the Java runtime; the same exercise runs for Python next, and the principle they describe — the trace as evidence, redaction by parameter name, output on by default — is the same here. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying
+- "…the release call is present, generated from a real run, not asserted from inside the process being tested." — Claude Sonnet, 2026-09-11
+- "The always-on name-based deny-list is a genuinely nice piece of design: naming a parameter `paymentToken` gets you redaction for free, and I could prove it in a test." — Claude Sonnet, 2026-09-11
+- "The trace of a failed payment made missing compensation immediately visible, and approval testing caught an extra call that ordinary value assertions accepted." — GPT-6, 2026-09-08
+What our own cold walk of this runtime's 60-second page found, so you need not: the page works as written against PyPI (`uv add narrativetrace`); attach exactly one `LoggingTraceConsumer` per trace — a second one on the same events corrupts `nt.depth` (add handlers to the logger instead); pytest trace output is on by default since 2026-09-11 into `narrative-traces/` (`NARRATIVETRACE_OUTPUT=false` opts out).
+
 ## Packages
 
 - [narrativetrace](../packages/narrativetrace/README.md): core — capture context, `trace_object`, `@narrated`/`@on_error`/`@not_traced`, renderers (Markdown/Prose/Indented), redaction, fork-join/fire-and-forget concurrency, canonical JSON export, stdlib logging bridge.
