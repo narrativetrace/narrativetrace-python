@@ -244,7 +244,7 @@ def _print_dry_run(
     print(
         f"\nSmoke test would install narrativetrace=={version} from {index_url} and run the "
         "README's core trace_object/MarkdownRenderer recipe; narrativetrace-pytest=="
-        f"{version}'s first-10-minutes.md recipe runs only if the presence poll finds it PRESENT."
+        f"{version}'s sixty-seconds.md recipe runs only if the presence poll finds it PRESENT."
     )
     print(
         "\nWould also check every PRESENT package above against PyPI's Integrity API for a "

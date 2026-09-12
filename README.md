@@ -4,7 +4,7 @@
 
 ## Start here
 
-[See a trace in 60 seconds](documentation/first-10-minutes.md) — a plain script, one run, and the trace is in your terminal.
+[See a trace in 60 seconds](documentation/sixty-seconds.md) — a plain script, one run, and the trace is in your terminal.
 
 ## Demo
 
@@ -170,7 +170,9 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Run the suite — artifacts are written by default:**
+**3. Run the suite — artifacts are written by default** *(since 0.1.2, unreleased)* — PyPI's
+published `0.1.1` still ships this off; set `NARRATIVETRACE_OUTPUT=true` explicitly on that
+version:
 
 ```bash
 uv run pytest
@@ -288,7 +290,7 @@ see [Privacy and Redaction](documentation/privacy-and-redaction.md) for the exac
   only members NarrativeTrace invokes are a curated `@narrative_summary` method, a custom
   `__str__` when the type carries no fields at all, and property paths named in a
   `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A composite's
-  own `__str__` is otherwise never trusted (2026-09-11): any object carrying instance state is
+  own `__str__` is otherwise never trusted *(since 0.1.2, unreleased)*: any object carrying instance state is
   introspected field-by-field regardless of a custom `__str__`, so a hand-written one cannot
   bypass redaction, directly or via a nested object — a dict/map key goes through the same check.
   A raising summary/`__str__`/getter renders `<error: TypeName>` for that one part, never the
@@ -355,7 +357,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 
 Start here:
 
-- [See a trace in 60 seconds](documentation/first-10-minutes.md) — a plain script, one run, a real trace in your terminal
+- [See a trace in 60 seconds](documentation/sixty-seconds.md) — a plain script, one run, a real trace in your terminal
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which package you need, as a decision diagram
 - [Installation Guide](documentation/guides/installation.md) — every package, what it adds
 - [Configuration Guide](documentation/guides/configuration.md) — tracing levels, output settings, precedence chain

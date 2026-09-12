@@ -46,6 +46,7 @@ from narrativetrace.logging_bridge import (
     LoggingTraceConsumer,
     NarrativeContextFilter,
     current_scope_keys,
+    export_to_logger,
     request_log_scope,
 )
 from narrativetrace.loss import TraceLoss
@@ -168,6 +169,7 @@ __all__ = [
     "export_chapter_json",
     "export_document_json",
     "export_json",
+    "export_to_logger",
     "markdown_code",
     "markdown_text",
     "narrated",

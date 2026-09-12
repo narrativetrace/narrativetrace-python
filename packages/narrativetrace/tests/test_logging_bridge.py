@@ -10,6 +10,7 @@ import logging
 
 import pytest
 
+from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.events import (
     EnterEvent,
     ExitEvent,
@@ -24,12 +25,16 @@ from narrativetrace.logging_bridge import (
     EventType,
     LoggingTraceConsumer,
     NarrativeContextFilter,
+    export_to_logger,
     request_log_scope,
 )
 from narrativetrace.metadata import ServiceIdentity
 from narrativetrace.outcomes import Returned, Threw
+from narrativetrace.pipeline.event_store import EventStore
+from narrativetrace.render import IndentedTextRenderer
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.span import SpanContext
+from narrativetrace.trace_object import trace_object
 
 TRACE = TraceId("0" * 32)
 
@@ -194,3 +199,117 @@ class TestDepthAndFilter:
             assert record.__dict__["traceId"] == "0" * 32
         finally:
             logger.removeFilter(filt)
+
+
+class TestOneConsumerPerStream:
+    """Two LoggingTraceConsumer instances replaying the same event stream (a discouraged but no
+    longer corrupting pattern -- see the module docstring and guides/logging.md) each report
+    their own correct depth, independent of one another and of processing order."""
+
+    def test_two_consumers_on_the_same_stream_each_report_correct_depth(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        first = LoggingTraceConsumer()
+        second = LoggingTraceConsumer()
+        parent = SpanId("a" * 16)
+        outer = EnterEvent(_span("a"), 0, MethodSignature("S", "outer", []))
+        inner = EnterEvent(_span("b", parent=parent), 1, MethodSignature("S", "inner", []))
+
+        first.accept(outer)
+        second.accept(outer)
+        first.accept(inner)
+        second.accept(inner)
+
+        depths = [r.__dict__["nt.depth"] for r in captured.records[-4:]]
+        assert depths == ["1", "1", "2", "2"]  # each instance's own count, never 2/2/3/4 or worse
+
+    def test_a_lone_consumers_depth_is_unaffected_by_a_second_instance_elsewhere(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        first = LoggingTraceConsumer()
+        # A second, otherwise-idle instance existing (constructed, never fed events) must not
+        # perturb the first one's counting.
+        LoggingTraceConsumer()
+        first.accept(EnterEvent(_span("a"), 0, MethodSignature("S", "one", [])))
+        assert captured.records[-1].__dict__["nt.depth"] == "1"
+
+    def test_same_instance_reused_reports_correct_nesting(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        consumer = LoggingTraceConsumer()
+        parent = SpanId("a" * 16)
+        consumer.accept(EnterEvent(_span("a"), 0, MethodSignature("S", "outer", [])))
+        consumer.accept(EnterEvent(_span("b", parent=parent), 1, MethodSignature("S", "inner", [])))
+        consumer.accept(ExitEvent(_span("b", parent=parent), 2, Returned("i")))
+        consumer.accept(ExitEvent(_span("a"), 3, Returned("o")))
+        assert captured.records[-1].__dict__["nt.depth"] == "0"
+
+
+class TestExportToLogger:
+    """`export_to_logger` -- the one-call replacement for a hand-rolled EventStore + replay
+    loop (documentation/sixty-seconds.md's "Send it to your logger" postscript)."""
+
+    def test_exports_a_captured_trace_in_one_call(self, captured: pytest.LogCaptureFixture) -> None:
+        class OrderService:
+            def place_order(self, customer_id: str) -> str:
+                return f"ORD-{customer_id}"
+
+        context = ContextVarNarrativeContext()
+        service = trace_object(OrderService(), context)
+        service.place_order("cust-1")
+        trace = context.capture_trace()
+
+        export_to_logger(trace)
+
+        messages = [r.getMessage() for r in captured.records[-2:]]
+        assert messages == [
+            '→ OrderService.place_order(customer_id: "cust-1")',
+            '← returned: "ORD-cust-1"',
+        ]
+
+    def test_matches_manual_replay_through_a_dedicated_event_store(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        """Same shape as the postscript's old EventStore-plus-loop, minus the boilerplate."""
+
+        class OrderService:
+            def place_order(self, customer_id: str) -> str:
+                return f"ORD-{customer_id}"
+
+        store = EventStore()
+        context = ContextVarNarrativeContext(store=store)
+        service = trace_object(OrderService(), context)
+        service.place_order("cust-1")
+        manual_consumer = LoggingTraceConsumer(logging.getLogger("narrativetrace"))
+        for event in store.events():
+            manual_consumer.accept(event)
+        manual_lines = [r.getMessage() for r in captured.records[-2:]]
+
+        _reset_scope_helper()
+        one_call_context = ContextVarNarrativeContext()
+        one_call_service = trace_object(OrderService(), one_call_context)
+        one_call_service.place_order("cust-1")
+        export_to_logger(one_call_context.capture_trace())
+        one_call_lines = [r.getMessage() for r in captured.records[-2:]]
+
+        assert one_call_lines == manual_lines
+
+    def test_render_still_works_via_indented_text_renderer(self) -> None:
+        """`export_to_logger` consumes the tree read-only -- capture_trace() still renders fine."""
+
+        class OrderService:
+            def place_order(self, customer_id: str) -> str:
+                return f"ORD-{customer_id}"
+
+        context = ContextVarNarrativeContext()
+        service = trace_object(OrderService(), context)
+        service.place_order("cust-1")
+        trace = context.capture_trace()
+
+        export_to_logger(trace)
+        rendered = IndentedTextRenderer().render(trace)
+        assert "ORD-cust-1" in rendered
+
+
+def _reset_scope_helper() -> None:
+    _SCOPE_STACK.set(None)

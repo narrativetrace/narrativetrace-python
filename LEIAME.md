@@ -1,4 +1,4 @@
-<!-- source: README.md blob 73e62c6597e5 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: README.md blob 213a680ed90f | translated: 2026-09-12 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -6,7 +6,7 @@
 
 ## Comece aqui
 
-[Veja um trace em 60 segundos](documentation/pt-BR/primeiros-10-minutos.md) — um script simples, uma execução, e o trace aparece no seu terminal.
+[Veja um trace em 60 segundos](documentation/pt-BR/sessenta-segundos.md) — um script simples, uma execução, e o trace aparece no seu terminal.
 
 ## Demo
 
@@ -178,7 +178,9 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Rode a suíte — os artefatos são gravados por padrão:**
+**3. Rode a suíte — os artefatos são gravados por padrão** *(since 0.1.2, unreleased)* — a versão
+publicada no PyPI, `0.1.1`, ainda vem com isso desligado; ative `NARRATIVETRACE_OUTPUT=true`
+explicitamente nessa versão:
 
 ```bash
 uv run pytest
@@ -303,7 +305,7 @@ quando o renderizador ao redor foi construído com uma política personalizada o
   cuidadosamente escrito, um `__str__` personalizado quando o tipo não carrega nenhum campo, e
   caminhos de propriedade nomeados em um template `@narrated`/`@on_error` — mantenha-os puros,
   como você faria para um depurador. O próprio `__str__` de um composto, do contrário, nunca é
-  confiável (2026-09-11): qualquer objeto que carregue estado de instância é introspectado campo
+  confiável *(since 0.1.2, unreleased)*: qualquer objeto que carregue estado de instância é introspectado campo
   a campo independente de definir um `__str__` personalizado, então um escrito à mão não consegue
   driblar a ocultação, nem diretamente nem através de um objeto aninhado — uma chave de dict/map
   passa pela mesma verificação. Um resumo/`__str__`/getter que lança exceção renderiza
@@ -374,7 +376,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 
 Comece aqui:
 
-- [Veja um trace em 60 segundos](documentation/pt-BR/primeiros-10-minutos.md) — um script simples, uma execução, um trace real no seu terminal
+- [Veja um trace em 60 segundos](documentation/pt-BR/sessenta-segundos.md) — um script simples, uma execução, um trace real no seu terminal
 - [Escolhendo uma integração](documentation/pt-BR/escolhendo-uma-integracao.md) — qual pacote você precisa, como diagrama de decisão
 - [Guia de instalação](documentation/pt-BR/guia-de-instalacao.md) — cada pacote, o que ele adiciona
 - [Guia de configuração](documentation/pt-BR/guia-de-configuracao.md) — níveis de tracing, configurações de saída, cadeia de precedência

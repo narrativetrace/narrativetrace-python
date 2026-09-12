@@ -25,6 +25,7 @@ BUILD_DIR = HERE / "build"
 
 PLAIN_ARTIFACT = "see_a_trace.txt"
 WITH_LOGGER_ARTIFACT = "see_a_trace_with_logger.txt"
+WITH_REDACTION_ARTIFACT = "see_a_trace_with_redaction.txt"
 
 
 def _run_script(name: str) -> str:
@@ -55,14 +56,19 @@ def _save(filename: str, content: str) -> None:
     (BUILD_DIR / filename).write_text(content, encoding="utf-8")
 
 
-def write_artifacts() -> tuple[str, str]:
-    """Runs ``main.py`` and ``main_with_logger.py``, saves their stdout under ``build/`` for
-    ``scripts/snippet_check.py`` to embed, and returns ``(plain, with_logger)`` -- idempotent
-    and safe to call from more than one test."""
+def write_artifacts() -> tuple[str, str, str]:
+    """Runs ``main.py``, ``main_with_logger.py`` and ``main_llms.py`` (the `llms.txt` "Install and
+    first trace" block's minimal program -- see documentation/llms.txt), saves their stdout under
+    ``build/`` for ``scripts/snippet_check.py`` to embed, and returns
+    ``(plain, with_logger, with_redaction)`` -- idempotent and safe to call from more than one
+    test."""
     plain = _run_script("main.py")
     _save(PLAIN_ARTIFACT, plain)
 
     with_logger = _run_script("main_with_logger.py")
     _save(WITH_LOGGER_ARTIFACT, with_logger)
 
-    return plain, with_logger
+    with_redaction = _run_script("main_llms.py")
+    _save(WITH_REDACTION_ARTIFACT, with_redaction)
+
+    return plain, with_logger, with_redaction

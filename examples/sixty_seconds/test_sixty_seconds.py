@@ -2,21 +2,25 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""The one test behind documentation/first-10-minutes.md's "See a trace in 60 seconds" page.
+"""The one test behind documentation/sixty-seconds.md's "See a trace in 60 seconds" page (and,
+indirectly, documentation/llms.txt's "Install and first trace" block -- see ``main_llms.py``).
 
 This directory *is* the tutorial (rule 8, docs as tests):
-``main.py`` is byte-identical to the page's "The program" code block, and ``main_with_logger.py``
-is what the page's "Send it to your logger" diff turns it into -- both run exactly as the page's
-"Run it" step says (``uv run main.py``). Neither is exercised by import: each runs as a real,
-separate ``python`` process, the same way a reader's shell runs them, so nothing here touches the
-other's global state (each script's own ``LoggingTraceConsumer`` -- never two on one event stream,
-see ``narrativetrace.logging_bridge`` -- and ``main_with_logger.py``'s ``logging.basicConfig``
-call, which would otherwise leak a stdout handler onto the root logger for the rest of this suite's
-process).
+``main.py`` is byte-identical to the page's "The program" code block, ``main_with_logger.py`` is
+what the page's "Send it to your logger" diff turns it into, and ``main_llms.py`` is the same
+program with one ``@not_traced`` parameter -- the variant `llms.txt` embeds so an agent's first
+program already shows redaction applied, not just imported (see documentation/llms.txt). All
+three run exactly as the page's "Run it" step says (``uv run main.py``). None is exercised by
+import: each runs as a real, separate ``python`` process, the same way a reader's shell runs
+them, so nothing here touches another's global state (``main_with_logger.py``'s single
+``export_to_logger()`` call opens its own private ``LoggingTraceConsumer`` -- never two on one
+event stream, see ``narrativetrace.logging_bridge`` -- and its ``logging.basicConfig`` call, which
+would otherwise leak a stdout handler onto the root logger for the rest of this suite's process).
 
-The two scripts' captured stdout is saved under ``build/`` (git-ignored, regenerated every run --
-see documentation/what-to-commit.md) for ``scripts/snippet_check.py`` to embed as the page's two
-"Run it" output blocks, ``mask=duration`` neutralizing the one thing a real run cannot pin down.
+The three scripts' captured stdout is saved under ``build/`` (git-ignored, regenerated every run --
+see documentation/what-to-commit.md) for ``scripts/snippet_check.py`` to embed as the page's and
+`llms.txt`'s output blocks, ``mask=duration`` neutralizing the one thing a real run cannot pin
+down.
 
 The plugin half: ``narrativetrace-pytest``'s ``narrative_trace`` fixture is this repo's own "test
 integration," and output through it is on by default (ruled 2026-09-11) -- exactly what the page's
@@ -54,15 +58,23 @@ def _order_service_source() -> str:
     return ast.unparse(class_def)
 
 
+_REDACTED_TRACE_LINE = re.compile(
+    r'^OrderService\.place_order\(customer_id: \[REDACTED\], product_id: "prod-42", quantity: 3\) '
+    r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms$'
+)
+
+
 def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
-    """Runs the tutorial call through the real traced proxy three ways, once per page section:
+    """Runs the tutorial call through the real traced proxy four ways, once per page/llms.txt
+    section:
 
     - the plain script ("The program" / "Run it"), captured and saved for the snippet embed;
     - its logger-wired sibling ("Send it to your logger"), same treatment;
+    - its redaction-wired sibling (llms.txt's "Install and first trace" block), same treatment;
     - the identical call again, through ``narrativetrace-pytest``'s fixture in an isolated
       subprocess, proving the runtime's own test integration writes the artifact by default.
     """
-    plain, with_logger = write_artifacts()
+    plain, with_logger, with_redaction = write_artifacts()
 
     plain_lines = plain.splitlines()
     assert len(plain_lines) == 1
@@ -75,6 +87,10 @@ def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
         '→ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)'
     )
     assert logger_lines[2] == '← returned: "ORD-cust-1-prod-42-3"'
+
+    redaction_lines = with_redaction.splitlines()
+    assert len(redaction_lines) == 1
+    assert _REDACTED_TRACE_LINE.match(redaction_lines[0])
 
     # Built by concatenation, not an indented triple-quoted literal: `_order_service_source()`'s
     # lines have their own (zero) indentation, and splicing them into an indented f-string leaves

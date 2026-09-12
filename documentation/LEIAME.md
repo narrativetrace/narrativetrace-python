@@ -13,7 +13,7 @@ em inglês por convenção e não fazem parte do conjunto traduzido de nenhum id
 
 | Documento | O que cobre |
 |---|---|
-| [Primeiros 10 minutos](pt-BR/primeiros-10-minutos.md) | Um serviço minúsculo, saída real, da instalação a um valor ocultado |
+| [Veja um trace em 60 segundos](pt-BR/sessenta-segundos.md) | Um serviço minúsculo, saída real, da instalação a um valor ocultado |
 | [Escolhendo uma integração](pt-BR/escolhendo-uma-integracao.md) | Qual pacote você precisa, como diagrama de decisão |
 | [Guia de instalação](pt-BR/guia-de-instalacao.md) | Cada pacote, o que ele adiciona |
 | [Guia de configuração](pt-BR/guia-de-configuracao.md) | Níveis de tracing, configurações de saída, cadeia de precedência |

@@ -524,7 +524,7 @@ class TestMainEntryPoint:
     wiring — exactly the "internals only, never the documented incantation itself" gap this
     class closes, the same way `test_add_middleware_matches_the_documented_fastapi_recipe`
     (`packages/narrativetrace-asgi/tests/test_documented_recipes.py`) and
-    `test_output_matches_the_documented_first_10_minutes_recipe`
+    `test_output_matches_the_documented_sixty_seconds_recipe`
     (`packages/narrativetrace-pytest/tests/test_plugin.py`) close it for their own paths.
 
     A subprocess with its stdout piped (never a TTY) takes `run()`'s plain, unstyled branch —

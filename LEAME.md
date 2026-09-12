@@ -1,4 +1,4 @@
-<!-- source: README.md blob 73e62c6597e5 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: README.md blob 213a680ed90f | translated: 2026-09-12 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -6,7 +6,7 @@
 
 ## Empieza aquí
 
-[Ve una traza en 60 segundos](documentation/es/primeros-10-minutos.md) — un script sencillo, una ejecución, y la traza aparece en tu terminal.
+[Ve una traza en 60 segundos](documentation/es/sesenta-segundos.md) — un script sencillo, una ejecución, y la traza aparece en tu terminal.
 
 ## Demo
 
@@ -177,7 +177,9 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Ejecuta la suite — los artefactos se escriben por defecto:**
+**3. Ejecuta la suite — los artefactos se escriben por defecto** *(since 0.1.2, unreleased)* — la
+versión publicada en PyPI, `0.1.1`, todavía los trae desactivados; activa
+`NARRATIVETRACE_OUTPUT=true` explícitamente en esa versión:
 
 ```bash
 uv run pytest
@@ -304,7 +306,7 @@ ocultación](documentation/es/privacidad-y-ocultacion.md) para conocer el alcanc
   curado, un `__str__` personalizado cuando el tipo no porta ningún campo, y las rutas de
   propiedades nombradas en una plantilla `@narrated`/`@on_error` — mantenlos puros, como lo
   harías para un depurador. El propio `__str__` de un compuesto de otro modo nunca es de
-  confianza (2026-09-11): cualquier objeto que porte estado de instancia se introspecciona campo
+  confianza *(since 0.1.2, unreleased)*: cualquier objeto que porte estado de instancia se introspecciona campo
   por campo sin importar si define un `__str__` personalizado, así que uno escrito a mano no
   puede sortear la ocultación, ni directamente ni a través de un objeto anidado — una clave de
   dict/map pasa por la misma comprobación. Un resumen/`__str__`/getter que lanza excepción
@@ -377,7 +379,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 
 Empieza aquí:
 
-- [Ve una traza en 60 segundos](documentation/es/primeros-10-minutos.md) — un script sencillo, una ejecución, una traza real en tu terminal
+- [Ve una traza en 60 segundos](documentation/es/sesenta-segundos.md) — un script sencillo, una ejecución, una traza real en tu terminal
 - [Eligiendo una integración](documentation/es/eligiendo-una-integracion.md) — qué paquete necesitas, como diagrama de decisión
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — todos los paquetes, qué añade cada uno
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de la salida, cadena de precedencia

@@ -67,8 +67,9 @@ information your code already had.
 ## Send it to your logger
 
 The console line is nice for a script; production wants the trace in the log stream you already
-have. Route it through `LoggingTraceConsumer` — the stdlib `logging` bridge NarrativeTrace ships —
-by giving the context an `EventStore` you can read back:
+have. `export_to_logger` sends an already-captured trace to your logger in one call *(since 0.1.2,
+unreleased)* — the stdlib `logging` bridge NarrativeTrace ships; on published `0.1.1` itself,
+replay `store.events()` through `LoggingTraceConsumer` by hand instead):
 
 <!-- snippet: examples/sixty_seconds/main.py diff=examples/sixty_seconds/main_with_logger.py -->
 ```diff
@@ -80,10 +81,9 @@ by giving the context an `EventStore` you can read back:
 +from narrativetrace import (
 +    ContextVarNarrativeContext,
 +    IndentedTextRenderer,
-+    LoggingTraceConsumer,
++    export_to_logger,
 +    trace_object,
 +)
-+from narrativetrace.pipeline.event_store import EventStore
  
  
  class OrderService:
@@ -91,19 +91,17 @@ by giving the context an `EventStore` you can read back:
          return f"ORD-{customer_id}-{product_id}-{quantity}"
  
  
--context = ContextVarNarrativeContext()
 +logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
 +
-+store = EventStore()
-+context = ContextVarNarrativeContext(store=store)
+ context = ContextVarNarrativeContext()
  service = trace_object(OrderService(), context)
  service.place_order("cust-1", "prod-42", 3)
  
- print(IndentedTextRenderer().render(context.capture_trace()))
+-print(IndentedTextRenderer().render(context.capture_trace()))
++trace = context.capture_trace()
++print(IndentedTextRenderer().render(trace))
 +
-+consumer = LoggingTraceConsumer()
-+for event in store.events():
-+    consumer.accept(event)
++export_to_logger(trace)
 ```
 <!-- /snippet -->
 

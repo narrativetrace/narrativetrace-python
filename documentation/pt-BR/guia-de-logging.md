@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob e987a2d7cfb1 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob f101581900b6 | translated: 2026-09-12 | reviewed: - -->
 
 # Logging & structlog
 
@@ -24,6 +24,50 @@ handler = logging.StreamHandler()
 handler.addFilter(NarrativeContextFilter())
 logging.getLogger().addHandler(handler)
 ```
+
+## Um consumidor por stream, vários handlers
+
+`nt.depth` é um contador privado de cada instância de `LoggingTraceConsumer` *(since 0.1.2,
+unreleased)*, então duas delas
+reproduzindo o *mesmo* stream de eventos (digamos, ambas conectadas como listeners num mesmo
+pipeline) reportam cada uma a sua própria profundidade correta — uma não corrompe mais a
+contagem da outra. O `NarrativeContextFilter` e o processador do `structlog` não são afetados de
+forma alguma: eles leem a identidade compartilhada de classe/método/trace do frame mais interno,
+que é a mesma para qualquer instância que processe um evento, nunca o contador de profundidade
+próprio de um consumidor. Ainda assim, prefira um único `LoggingTraceConsumer` por stream de
+eventos — é mais fácil de raciocinar, e uma segunda instância perdida é fácil de criar por
+acidente (por exemplo, dois pedaços diferentes de código de configuração criando cada um a sua).
+Quer o trace em mais de um lugar (stdout e um arquivo, digamos)? Adicione mais `logging.Handler`s
+ao seu logger em vez de um segundo consumidor:
+
+```python
+logger = logging.getLogger("narrativetrace")
+logger.addHandler(logging.StreamHandler())           # first destination
+logger.addHandler(logging.FileHandler("trace.log"))  # second destination, same consumer
+```
+
+## `export_to_logger` — uma única chamada
+
+*(since 0.1.2, unreleased)* — na versão publicada no PyPI, `0.1.1`, reproduza
+`store.events()` através de um `LoggingTraceConsumer` na mão em vez disso.
+
+`export_to_logger(trace, logger=None)` reproduz um trace já capturado através de um
+`LoggingTraceConsumer` privado em uma única chamada — sem `EventStore` para conectar na mão, sem
+loop para escrever:
+
+```python
+from narrativetrace import ContextVarNarrativeContext, export_to_logger, trace_object
+
+context = ContextVarNarrativeContext()
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+export_to_logger(context.capture_trace())
+```
+
+Cada chamada abre seu próprio consumidor privado, então chamá-la mais de uma vez — mesmo
+concorrentemente, a partir de threads diferentes — nunca viola a regra de "um consumidor por
+stream" acima.
 
 ## Escopo em nível de requisição
 

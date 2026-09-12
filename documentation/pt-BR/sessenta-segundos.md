@@ -1,4 +1,4 @@
-<!-- source: documentation/first-10-minutes.md blob 6d22fc886713 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 70bd8901cadf | translated: 2026-09-12 | reviewed: - -->
 
 # Veja um trace em 60 segundos
 
@@ -65,8 +65,10 @@ informação que seu código já tinha.
 ## Envie para o seu logger
 
 A linha no console é boa para um script; em produção você quer o trace no fluxo de logs que você
-já tem. Encaminhe-o pelo `LoggingTraceConsumer` — a ponte para o `logging` da biblioteca padrão que
-o NarrativeTrace já traz — dando ao contexto um `EventStore` que você possa reler:
+já tem. `export_to_logger` envia um trace já capturado para o seu logger em uma única chamada
+*(since 0.1.2, unreleased)* — a ponte para o `logging` da biblioteca padrão que o NarrativeTrace
+já traz; na própria `0.1.1` publicada, reproduza `store.events()` através do
+`LoggingTraceConsumer` manualmente):
 
 ```diff
  # main.py
@@ -74,28 +76,30 @@ o NarrativeTrace já traz — dando ao contexto um `EventStore` que você possa 
 +import logging
 +import sys
 +
-+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, LoggingTraceConsumer, trace_object
-+from narrativetrace.pipeline.event_store import EventStore
++from narrativetrace import (
++    ContextVarNarrativeContext,
++    IndentedTextRenderer,
++    export_to_logger,
++    trace_object,
++)
  
-
+ 
  class OrderService:
      def place_order(self, customer_id, product_id, quantity):
          return f"ORD-{customer_id}-{product_id}-{quantity}"
-
-
--context = ContextVarNarrativeContext()
+ 
+ 
 +logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
 +
-+store = EventStore()
-+context = ContextVarNarrativeContext(store=store)
+ context = ContextVarNarrativeContext()
  service = trace_object(OrderService(), context)
  service.place_order("cust-1", "prod-42", 3)
-
- print(IndentedTextRenderer().render(context.capture_trace()))
+ 
+-print(IndentedTextRenderer().render(context.capture_trace()))
++trace = context.capture_trace()
++print(IndentedTextRenderer().render(trace))
 +
-+consumer = LoggingTraceConsumer()
-+for event in store.events():
-+    consumer.accept(event)
++export_to_logger(trace)
 ```
 
 ```bash

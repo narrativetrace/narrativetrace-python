@@ -42,22 +42,84 @@ class PaymentService:
 
 ## `@not_traced` — redaction
 
-Redact a parameter by name, or a field via class attribute / dataclass metadata:
+Redact a parameter by name:
 
 ```python
-from dataclasses import dataclass, field
-from narrativetrace import not_traced, not_traced_field
+from narrativetrace import not_traced
 
 class AuthService:
     @not_traced("password")
     def login(self, username: str, password: str) -> Session:
         ...
+```
+
+Redact a **field** on an object passed as an argument, one of two ways:
+
+- **`not_traced_field(...)`** — a dataclass field, marked through its own `field()` metadata.
+- **`__nt_not_traced__`** — a class attribute naming the fields to redact, for any other kind of
+  object: a plain class, a `NamedTuple`, or an attrs class, wherever `field(metadata=...)` is not
+  available. It is a tuple/list/set of field-name strings read off the **class** (`is_field_not_traced`
+  checks it before dataclass metadata), so subclasses inherit it and instances cannot override it.
+
+Both redact identically — field-by-field, not the whole containing object — and win
+unconditionally over any policy:
+
+<!-- snippet: examples/not_traced_fields.py region=main -->
+```python
+from dataclasses import dataclass
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    not_traced_field,
+    trace_object,
+)
+
 
 @dataclass
 class Credentials:
     username: str
-    secret: str = not_traced_field(default="")   # or: __nt_not_traced__ = ("secret",)
+    secret: str = not_traced_field(default="")
+
+
+class LegacyCredentials:
+    """A plain (non-dataclass) class: `__nt_not_traced__` names the fields to redact."""
+
+    __nt_not_traced__ = ("secret",)
+
+    def __init__(self, username: str, secret: str) -> None:
+        self.username = username
+        self.secret = secret
+
+
+class AuthService:
+    # Parameter named `account`, not `credentials` -- the latter is itself on the name-based
+    # deny-list (see documentation/privacy-and-redaction.md) and would redact the whole argument
+    # regardless of which fields inside it are marked `@not_traced`.
+    def login(self, account: Credentials | LegacyCredentials) -> str:
+        return f"session-for-{account.username}"
+
+
+def run() -> str:
+    """Traces two logins, one per redaction surface, and renders the result."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login(Credentials("alice", "hunter2"))
+    service.login(LegacyCredentials("bob", "hunter2"))
+    return IndentedTextRenderer().render(context.capture_trace())
+
+
 ```
+<!-- /snippet -->
+
+`python -m examples.not_traced_fields` prints (`0ms` varies by machine, like the 60-second page):
+
+<!-- snippet: examples/build/not_traced_fields.txt mask=duration -->
+```text
+AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms
+AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms
+```
+<!-- /snippet -->
 
 Redacted values are replaced with a marker before rendering — they never reach a renderer,
 exporter, or log.
@@ -76,7 +138,7 @@ What is invoked, and what is not:
   lazily load) is never enumerated and never runs during introspection. A `NamedTuple` is
   introspected by field name rather than rendered as an anonymous list of positional values,
   so a redacted field stays hidden the same way a dataclass field does.
-- **A custom `__str__` is trusted only for a genuine leaf.** As of 2026-09-11, any object
+- **A custom `__str__` is trusted only for a genuine leaf** *(since 0.1.2, unreleased)*. Any object
   carrying instance state — a dataclass, an attrs class, a `NamedTuple`, or a plain object
   with a populated `__dict__`/`__slots__` — is introspected field-by-field regardless of
   whether it also defines `__str__`/`__repr__`; that hand-written method is never consulted,
@@ -91,7 +153,7 @@ What is invoked, and what is not:
   instead of the field-by-field default — that mechanism is unaffected and still the
   supported way to control exactly what is shown.
 - **A raising summary, `__str__`, or getter renders a typed error marker, never its own
-  message.** `<error: ValueError>`, `<error: RecursionError>` and so on — the failing part's
+  message** *(since 0.1.2, unreleased)*. `<error: ValueError>`, `<error: RecursionError>` and so on — the failing part's
   own exception TYPE name, substituted for that one part only (never the whole trace, never a
   bare `<error>`). The exception's *message* is deliberately never rendered: a message can
   carry the very value that failed to render (`"summary failed for {token}"` would otherwise

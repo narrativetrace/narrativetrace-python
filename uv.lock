@@ -1317,27 +1317,14 @@ version = "0.1.1"
 source = { editable = "packages/narrativetrace-structlog" }
 dependencies = [
     { name = "narrativetrace" },
-]
-
-[package.optional-dependencies]
-structlog = [
-    { name = "structlog" },
-]
-
-[package.dev-dependencies]
-dev = [
     { name = "structlog" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "narrativetrace", editable = "packages/narrativetrace" },
-    { name = "structlog", marker = "extra == 'structlog'", specifier = ">=24" },
+    { name = "structlog", specifier = ">=24" },
 ]
-provides-extras = ["structlog"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "structlog", specifier = ">=24" }]
 
 [[package]]
 name = "narrativetrace-workspace"

@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from examples.not_traced_fields import write_artifact as write_not_traced_fields_artifact
 from examples.sixty_seconds.tutorial_artifacts import write_artifacts
 from scripts.snippet_check import (
     _strip_license_header,
@@ -276,19 +277,23 @@ class TestCheckAndSyncRepository:
 class TestRealRepository:
     """Exercises the check/sync against this real repository's own documentation and source.
 
-    Two of the snippet sources (``examples/sixty_seconds/build/*.txt``) are git-ignored,
-    generated artifacts that only ``examples/sixty_seconds/test_sixty_seconds.py`` writes --
-    ``write_artifacts()`` regenerates them here too rather than relying on that test having run
-    first: pytest collects ``packages`` before ``examples`` (``testpaths`` in
+    Some snippet sources (``examples/sixty_seconds/build/*.txt``,
+    ``examples/build/not_traced_fields.txt``) are git-ignored, generated artifacts that only their
+    own example's test module writes -- regenerated here too rather than relying on that test
+    having run first: pytest collects ``packages`` before ``examples`` (``testpaths`` in
     ``pyproject.toml``), and a pristine checkout has no pre-existing ``build/`` at all.
     """
 
-    def test_the_real_repository_has_no_drifted_snippets(self) -> None:
+    def _regenerate_build_artifacts(self) -> None:
         write_artifacts()
+        write_not_traced_fields_artifact()
+
+    def test_the_real_repository_has_no_drifted_snippets(self) -> None:
+        self._regenerate_build_artifacts()
         assert check_repository(REPO_ROOT) == []
 
     def test_the_real_repository_has_no_pending_sync(self) -> None:
-        write_artifacts()
+        self._regenerate_build_artifacts()
         assert sync_repository(REPO_ROOT) == []
 
 

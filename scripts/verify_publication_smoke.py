@@ -13,7 +13,7 @@ Two tiers, run independently, because this release is a real, honest partial one
   recipe: `uv add narrativetrace` then `trace_object` + `MarkdownRenderer` directly, no framework.
   Only `narrativetrace` itself is required, so this tier runs on every release from 0.1.0 onward.
 - **`run_pytest_plugin_smoke_test`** — the fully-documented
-  [`first-10-minutes.md`](../documentation/first-10-minutes.md) / README ["Add it to one
+  [`sixty-seconds.md`](../documentation/sixty-seconds.md) / README ["Add it to one
   test"](../README.md#add-it-to-one-test) recipe: the `narrativetrace-pytest` fixture, real
   pytest11 auto-registration, `NARRATIVETRACE_OUTPUT=1`, and the exact frontmatter+call-flow
   Markdown the docs promise. `narrativetrace-pytest` (and its own dependency,
@@ -58,7 +58,7 @@ from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_o
 
 
 # OrderService is not repeated in the README's own "Try it locally" snippet -- it is the same
-# class first-10-minutes.md step 2 defines, reused here rather than fabricated, so this remains
+# class sixty-seconds.md step 2 defines, reused here rather than fabricated, so this remains
 # the documented recipe, not a lookalike.
 class OrderService:
     def place_order(self, customer_id, product_id, quantity):
@@ -98,7 +98,7 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 """
 
-# The exact promised content of documentation/first-10-minutes.md step 5 / README "Add it to one
+# The exact promised content of documentation/sixty-seconds.md step 5 / README "Add it to one
 # test" step 4 -- the assertion is "the docs are true", not "a file exists".
 PYTEST_PLUGIN_TRACE_MUST_CONTAIN = (
     "entry_point: OrderService.place_order",
@@ -232,7 +232,7 @@ def run_core_recipe_smoke_test(version: str, index_url: str = DEFAULT_INDEX_URL)
 
 
 def run_pytest_plugin_smoke_test(version: str, index_url: str = DEFAULT_INDEX_URL) -> SmokeResult:
-    """`documentation/first-10-minutes.md` / README "Add it to one test": install
+    """`documentation/sixty-seconds.md` / README "Add it to one test": install
     `narrativetrace-pytest`, write the exact `order_service.py` + test the docs show, run
     `NARRATIVETRACE_OUTPUT=1 pytest -s`, and assert the written Markdown matches what the docs
     promise on the lines that matter (frontmatter fields, the call-flow line).

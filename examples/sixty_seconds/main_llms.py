@@ -3,29 +3,22 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 # main.py
-import logging
-import sys
-
 from narrativetrace import (
     ContextVarNarrativeContext,
     IndentedTextRenderer,
-    export_to_logger,
+    not_traced,
     trace_object,
 )
 
 
 class OrderService:
+    @not_traced("customer_id")
     def place_order(self, customer_id, product_id, quantity):
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
-
-logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
 
 context = ContextVarNarrativeContext()
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 
-trace = context.capture_trace()
-print(IndentedTextRenderer().render(trace))
-
-export_to_logger(trace)
+print(IndentedTextRenderer().render(context.capture_trace()))

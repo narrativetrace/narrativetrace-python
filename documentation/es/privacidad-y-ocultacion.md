@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 2d39adf125dc | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob a47f31654e29 | translated: 2026-09-12 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -55,8 +55,8 @@ dataclass — la ocultación sobrevive ese nivel de contenedor. Y gana sobre una
 que lo nombra: `{param.property}` en `@narrated`/`@on_error` resuelve una ruta hacia un miembro
 oculto como `[REDACTED]`, en cada nivel de la ruta, nunca con el valor literal.
 
-**El propio `__str__`/`__repr__` de un tipo compuesto nunca es de confianza (2026-09-11).**
-Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`, o
+**El propio `__str__`/`__repr__` de un tipo compuesto nunca es de confianza** *(since 0.1.2,
+unreleased)*. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`, o
 un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin importar
 si además define un `__str__`/`__repr__` personalizado; ese método escrito a mano nunca se consulta
 para él. Antes de esta corrección, `ValueRenderer` confiaba en el `__str__` propio de una clase
@@ -73,7 +73,7 @@ admitida de darle a un compuesto un resumen curado de una línea en vez del pred
 campo.
 
 Cuando un método `@narrative_summary`, un `__str__` personalizado, o el propio getter de un campo
-lanza una excepción, esa parte se renderiza como `<error: <TypeName>>` — el nombre del TIPO de la
+lanza una excepción *(since 0.1.2, unreleased)*, esa parte se renderiza como `<error: <TypeName>>` — el nombre del TIPO de la
 excepción (`<error: ValueError>`, `<error: RecursionError>`) sustituido solo para esa parte. El
 *mensaje* de la excepción deliberadamente nunca se renderiza, porque un mensaje puede llevar el
 mismo valor que falló al renderizarse; solo el nombre del tipo llega a la salida, nunca `str(exc)`.
@@ -124,6 +124,18 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
 - **La ocultación se basa en nombre y forma, no en un análisis de flujo de datos.** Un valor sensible
   almacenado bajo un nombre que la lista de denegación no reconoce, y que no coincide con ninguna
   forma de secreto conocida, no se oculta a menos que lo marques explícitamente.
+- **Ningún nombre de prueba se oculta.** El nombre visible de una prueba — incluido un id de
+  `@pytest.mark.parametrize` (`test_finds_it[KAYAK]`) — es texto identificador escrito por el
+  desarrollador o generado por el runner, no un valor capturado: llega textualmente (humanizado,
+  nunca ocultado) al encabezado `scenario:`/`**Scenario:**` del artefacto de
+  `narrativetrace-pytest` y a su nombre de archivo. Ninguna lista de denegación se consulta para
+  él, y esto es deliberado (contrato multiplataforma del encabezado estructural): esta librería
+  todavía no distribuye un artefacto estructural libre de valores — la
+  [Guía de funcionalidades](guia-de-funcionalidades.md) lo dice sin rodeos: "el plugin de pytest
+  escribe un archivo con todo el detalle por prueba" — así que su único artefacto por prueba es el
+  tipo que conserva valores y por tanto conserva el nombre visible en todas partes. Mantén los
+  secretos fuera de los ids de `parametrize` igual que los mantendrías fuera de una plantilla
+  `@narrated`/`@on_error`.
 
 ## El modelo de pérdida en producción, visualmente
 

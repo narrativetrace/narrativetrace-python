@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob 29594b4fda69 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob 6f260cb42c31 | translated: 2026-09-12 | reviewed: - -->
 
 # Decoradores
 
@@ -47,21 +47,80 @@ class PaymentService:
 
 ## `@not_traced` — ocultação
 
-Oculte um parâmetro pelo nome, ou um campo via atributo de classe / metadados de dataclass:
+Oculte um parâmetro pelo nome:
 
 ```python
-from dataclasses import dataclass, field
-from narrativetrace import not_traced, not_traced_field
+from narrativetrace import not_traced
 
 class AuthService:
     @not_traced("password")
     def login(self, username: str, password: str) -> Session:
         ...
+```
+
+Oculte um **campo** de um objeto passado como argumento, de duas formas:
+
+- **`not_traced_field(...)`** — um campo de dataclass, marcado pelos próprios metadados do seu
+  `field()`.
+- **`__nt_not_traced__`** — um atributo de classe que nomeia os campos a ocultar, para qualquer
+  outro tipo de objeto: uma classe simples, um `NamedTuple`, ou uma classe attrs, onde quer que
+  `field(metadata=...)` não esteja disponível. É uma tupla/lista/conjunto de nomes de campo lida da
+  **classe** (`is_field_not_traced` a verifica antes dos metadados de dataclass), então subclasses
+  a herdam e instâncias não podem sobrescrevê-la.
+
+Ambas ocultam de forma idêntica — campo a campo, não o objeto contêiner inteiro — e prevalecem
+incondicionalmente sobre qualquer política:
+
+```python
+from dataclasses import dataclass
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    not_traced_field,
+    trace_object,
+)
+
 
 @dataclass
 class Credentials:
     username: str
-    secret: str = not_traced_field(default="")   # ou: __nt_not_traced__ = ("secret",)
+    secret: str = not_traced_field(default="")
+
+
+class LegacyCredentials:
+    """A plain (non-dataclass) class: `__nt_not_traced__` names the fields to redact."""
+
+    __nt_not_traced__ = ("secret",)
+
+    def __init__(self, username: str, secret: str) -> None:
+        self.username = username
+        self.secret = secret
+
+
+class AuthService:
+    # Parameter named `account`, not `credentials` -- the latter is itself on the name-based
+    # deny-list (see documentation/privacy-and-redaction.md) and would redact the whole argument
+    # regardless of which fields inside it are marked `@not_traced`.
+    def login(self, account: Credentials | LegacyCredentials) -> str:
+        return f"session-for-{account.username}"
+
+
+def run() -> str:
+    """Traces two logins, one per redaction surface, and renders the result."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login(Credentials("alice", "hunter2"))
+    service.login(LegacyCredentials("bob", "hunter2"))
+    return IndentedTextRenderer().render(context.capture_trace())
+```
+
+`python -m examples.not_traced_fields` imprime (`0ms` varia conforme a máquina, igual à página de
+60 segundos):
+
+```text
+AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms
+AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms
 ```
 
 Valores ocultos são substituídos por um marcador antes da renderização — nunca chegam a um
@@ -83,8 +142,8 @@ O que é invocado, e o que não é:
   Um `NamedTuple` é introspectado pelo nome do campo em vez de renderizado como uma lista anônima de
   valores posicionais, então um campo oculto permanece oculto da mesma forma que um campo de
   dataclass.
-- **Um `__str__` personalizado só é confiável para uma folha genuína.** A partir de 2026-09-11,
-  qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um
+- **Um `__str__` personalizado só é confiável para uma folha genuína** *(since 0.1.2,
+  unreleased)*. Qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um
   `NamedTuple`, ou um objeto simples com `__dict__`/`__slots__` preenchido — é introspectado campo
   a campo independente de também definir `__str__`/`__repr__`; esse método escrito à mão nunca é
   consultado, do mesmo jeito que nunca era consultado numa dataclass. Só um valor sem nenhum estado
@@ -99,7 +158,7 @@ O que é invocado, e o que não é:
   padrão campo a campo — esse mecanismo não é afetado e continua sendo a forma suportada de
   controlar exatamente o que é mostrado.
 - **Um resumo, `__str__` ou getter que lança exceção renderiza um marcador de erro tipado, nunca
-  sua própria mensagem.** `<error: ValueError>`, `<error: RecursionError>`, e assim por diante — o
+  sua própria mensagem** *(since 0.1.2, unreleased)*. `<error: ValueError>`, `<error: RecursionError>`, e assim por diante — o
   nome do próprio TIPO da exceção da parte que falha, substituído só para aquela parte (nunca o
   trace inteiro, nunca um `<error>` nu). A *mensagem* da exceção deliberadamente nunca é
   renderizada: uma mensagem pode carregar o próprio valor que falhou ao renderizar

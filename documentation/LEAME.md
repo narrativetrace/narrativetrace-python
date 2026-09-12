@@ -14,7 +14,7 @@ verlos.
 
 | Documento | Qué cubre |
 |---|---|
-| [Primeros 10 minutos](es/primeros-10-minutos.md) | Un servicio diminuto, salida real, desde la instalación hasta un valor ocultado |
+| [Ve una traza en 60 segundos](es/sesenta-segundos.md) | Un servicio diminuto, salida real, desde la instalación hasta un valor ocultado |
 | [Eligiendo una integración](es/eligiendo-una-integracion.md) | Qué paquete necesitas, como diagrama de decisión |
 | [Guía de instalación](es/guia-de-instalacion.md) | Cada paquete, qué añade |
 | [Guía de configuración](es/guia-de-configuracion.md) | Niveles de tracing, configuración de la salida, cadena de precedencia |

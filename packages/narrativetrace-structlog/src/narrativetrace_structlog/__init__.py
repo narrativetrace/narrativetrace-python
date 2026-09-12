@@ -22,6 +22,7 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from typing import Any
 
 from narrativetrace import current_scope_keys
@@ -32,9 +33,15 @@ __all__ = ["narrative_context_processor"]
 
 
 def narrative_context_processor(
-    _logger: Any, _method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    """A structlog processor adding the current scope's correlation keys (without overwriting)."""
+    _logger: Any, _method_name: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """A structlog processor adding the current scope's correlation keys (without overwriting).
+
+    Typed against ``MutableMapping``, not ``dict``: structlog's own ``Processor`` protocol takes
+    the broader type, so a narrower one here fails strict mypy the moment a caller feeds this
+    straight into ``structlog.configure(processors=[...])`` -- found running exactly that, this
+    guide's own documented usage example, under this repository's strict mypy gate.
+    """
     for key, value in current_scope_keys().items():
         event_dict.setdefault(key, value)
     return event_dict

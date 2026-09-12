@@ -6,7 +6,7 @@ repeating it here — one home per fact.
 
 ## No trace output files
 
-**Cause:** artifact output is on by default, so something turned it off — an
+**Cause:** artifact output is on by default *(since 0.1.2, unreleased)*, so something turned it off — an
 `NARRATIVETRACE_OUTPUT=false` in the environment or CI, or `output = false` in `narrativetrace.toml` /
 `pyproject.toml`'s `[tool.narrativetrace]` — or the files are in a directory you are not looking in.
 

@@ -14,6 +14,20 @@ fire-and-forget lifecycle lines.
 keys of the current (innermost) traced span onto *every* record. Keys adopt Java's vocabulary:
 ``nt.class``/``nt.method``/``nt.depth`` and ``traceId``/``traceName``/``spanId``/``parentSpanId``/
 ``service.name``/``service.version``/``service.environment``.
+
+**One consumer per event stream, many handlers.** Two :class:`LoggingTraceConsumer` instances
+processing the *same* event stream (e.g. both attached as listeners on one pipeline) used to
+corrupt ``nt.depth``: it was tracked on one stack shared by every instance on the same
+thread/task, so each instance's push/pop interleaved with the other's and both misreported depth
+for the same event. ``nt.depth`` is now a private counter on each instance (still a
+:class:`contextvars.ContextVar`, so it stays isolated per thread/task the way it always was) —
+two instances replaying the same stream now each report the correct depth independently, with
+nothing to corrupt. :class:`NarrativeContextFilter` and the ``structlog`` processor are
+unaffected: they read the shared MDC key *dict* for the innermost frame (class/method/trace
+identity, the same for every instance processing one event), never a consumer's own depth
+counter. Prefer one consumer per stream regardless — add extra ``logging.Handler``\\ s to its
+logger for more destinations instead of a second consumer. See
+``guides/logging.md#one-consumer-per-stream``.
 """
 
 from __future__ import annotations
@@ -24,6 +38,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from enum import Enum
 
+from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.escape import control_sanitize
 from narrativetrace.events import (
     EnterEvent,
@@ -34,7 +49,9 @@ from narrativetrace.events import (
     TraceEvent,
 )
 from narrativetrace.outcomes import Returned, Threw
+from narrativetrace.pipeline.event_store import EventStore
 from narrativetrace.span import SpanContext
+from narrativetrace.tree import TraceTree
 
 _DEFAULT_LOGGER_NAME = "narrativetrace"
 
@@ -133,6 +150,13 @@ class LoggingTraceConsumer:
         self._entry = overrides.get(EventType.ENTRY, logging.DEBUG)
         self._return = overrides.get(EventType.RETURN, logging.DEBUG)
         self._exception = overrides.get(EventType.EXCEPTION, logging.WARNING)
+        # This instance's own depth counter -- never shared with another LoggingTraceConsumer, so
+        # a second instance replaying the same stream cannot corrupt it (see module docstring). A
+        # fresh ContextVar per instance still isolates concurrent threads/tasks the way the old
+        # shared stack did.
+        self._depth: contextvars.ContextVar[int] = contextvars.ContextVar(
+            f"narrativetrace_consumer_depth_{id(self)}", default=0
+        )
 
     def __call__(self, event: TraceEvent) -> None:
         self.accept(event)
@@ -165,9 +189,10 @@ class LoggingTraceConsumer:
         keys = _span_keys(enter.span_context)
         keys["nt.class"] = sig.class_name
         keys["nt.method"] = sig.method_name
-        stack = _stack()
-        keys["nt.depth"] = str(len(stack) + 1)
-        stack.append(keys)
+        depth = self._depth.get() + 1
+        self._depth.set(depth)
+        keys["nt.depth"] = str(depth)
+        _stack().append(keys)
         self._logger.log(
             self._entry, "→ %s.%s(%s)", sig.class_name, sig.method_name, params, extra=keys
         )
@@ -176,8 +201,10 @@ class LoggingTraceConsumer:
         stack = _stack()
         if stack:
             stack.pop()
+        depth = max(self._depth.get() - 1, 0)
+        self._depth.set(depth)
         keys = _span_keys(exit_event.span_context)
-        keys["nt.depth"] = str(len(stack))
+        keys["nt.depth"] = str(depth)
         outcome = exit_event.outcome
         if isinstance(outcome, Returned):
             self._logger.log(self._return, "← returned: %s", outcome.rendered_value, extra=keys)
@@ -200,3 +227,32 @@ class LoggingTraceConsumer:
             )
         else:
             self._logger.log(self._exception, "!! %s: %s", exc_type, message, extra=keys)
+
+
+def export_to_logger(
+    trace: TraceTree,
+    logger: logging.Logger | None = None,
+    levels: dict[EventType, int] | None = None,
+) -> None:
+    """Sends an already-captured ``trace`` to ``logger`` in one call.
+
+    The one-call equivalent of giving a context its own :class:`~narrativetrace.pipeline.
+    event_store.EventStore`, running the code, and replaying ``store.events()`` through a
+    :class:`LoggingTraceConsumer` by hand — this does that replay internally, on a private
+    context/store the caller never sees, so ``ContextVarNarrativeContext()`` can stay parameter-
+    free at the call site::
+
+        trace = context.capture_trace()
+        export_to_logger(trace)
+
+    Each call replays into a fresh :class:`LoggingTraceConsumer`, so it obeys the "one consumer
+    per stream" rule on its own (see the module docstring) — safe to call more than once, even
+    concurrently, from different threads/tasks.
+    """
+    store = EventStore()
+    replay_context = ContextVarNarrativeContext(store=store)
+    for root in trace.roots:
+        replay_context.emit_trace_node(root, None)
+    consumer = LoggingTraceConsumer(logger, levels)
+    for event in store.events():
+        consumer.accept(event)

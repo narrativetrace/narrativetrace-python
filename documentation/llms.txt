@@ -1,17 +1,67 @@
 # narrativetrace-python
 
+*(Docs and published both at 0.1.1.)*
+
 > Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
 > workspace with a dependency-free core and thin integration packages.
 
 Wrap an object with `trace_object(obj, context)`; call it; render `context.capture_trace()`.
 The narrative is generated from names and values — no logging calls in the business code.
 
+## Install and first trace (copy this)
+
+```bash
+uv add narrativetrace
+```
+
+<!-- snippet: examples/sixty_seconds/main_llms.py -->
+```python
+# main.py
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    not_traced,
+    trace_object,
+)
+
+
+class OrderService:
+    @not_traced("customer_id")
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+context = ContextVarNarrativeContext()
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+print(IndentedTextRenderer().render(context.capture_trace()))
+```
+<!-- /snippet -->
+
+Run: `uv run main.py`. Expected output (duration varies by machine):
+
+<!-- snippet: examples/sixty_seconds/build/see_a_trace_with_redaction.txt mask=duration -->
+```text
+OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+```
+<!-- /snippet -->
+
+## Before you start
+
+- One `LoggingTraceConsumer` per event stream, always — on PyPI `0.1.1` a second one on the same events silently corrupts `nt.depth`; each instance counts its own depth *(since 0.1.2, unreleased)* so this no longer happens, but a second instance is still needless (add `logging.Handler`s instead).
+- Sending a trace to your logger: on `0.1.1`, replay `store.events()` through `LoggingTraceConsumer` by hand; one-call `export_to_logger(trace)` *(since 0.1.2, unreleased)*.
+- Every package installs from PyPI today (`uv add ...`); a workspace checkout is only for contributing to this repo, never required to use it.
+- `narrativetrace-pytest` artifact-writing defaults **on** *(since 0.1.2, unreleased)* — PyPI's published `0.1.1` still ships it **off**; set `NARRATIVETRACE_OUTPUT=true` explicitly until the next release.
+- `narrativetrace-structlog` pulls in `structlog` itself *(since 0.1.2, unreleased)* — on PyPI's published `0.1.1` it is an optional extra; add it explicitly (`uv add structlog`) on that version.
+- A composite's own `__str__`/`__repr__` is never trusted for redaction *(since 0.1.2, unreleased)* — any object carrying instance state is introspected field-by-field regardless (see [Privacy and Redaction](privacy-and-redaction.md)).
+- `__nt_not_traced__` is a class attribute — a tuple/list/set of field names — for redacting fields on any object a dataclass field can't reach (see the [Decorators guide](guides/decorators.md)).
+
 ## Field notes from AI agents (self-reported, not a benchmark)
 We asked AI agents to build a claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. The reports so far are from the Java runtime; the same exercise runs for Python next, and the principle they describe — the trace as evidence, redaction by parameter name, output on by default — is the same here. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying
 - "…the release call is present, generated from a real run, not asserted from inside the process being tested." — Claude Sonnet, 2026-09-11
 - "The always-on name-based deny-list is a genuinely nice piece of design: naming a parameter `paymentToken` gets you redaction for free, and I could prove it in a test." — Claude Sonnet, 2026-09-11
 - "The trace of a failed payment made missing compensation immediately visible, and approval testing caught an extra call that ordinary value assertions accepted." — GPT-6, 2026-09-08
-What our own cold walk of this runtime's 60-second page found, so you need not: the page works as written against PyPI (`uv add narrativetrace`); attach exactly one `LoggingTraceConsumer` per trace — a second one on the same events corrupts `nt.depth` (add handlers to the logger instead); pytest trace output is on by default since 2026-09-11 into `narrative-traces/` (`NARRATIVETRACE_OUTPUT=false` opts out).
 
 ## Packages
 
@@ -22,6 +72,7 @@ What our own cold walk of this runtime's 60-second page found, so you need not: 
 - [narrativetrace-asgi](../packages/narrativetrace-asgi/README.md): ASGI middleware for Starlette/FastAPI — fail-safe request-boundary capture, W3C traceparent adopt/inject, `get_narrative_context()`.
 - [narrativetrace-clarity](../packages/narrativetrace-clarity/README.md): naming-clarity engine and CI gate — 1053 verbs, abbreviation/collocation/role dictionaries, five weighted scorers, `narrativetrace-clarity` console script.
 - [narrativetrace-structlog](../packages/narrativetrace-structlog/README.md): structlog processor injecting the same correlation keys as the stdlib filter.
+- [narrativetrace-glossary](../packages/narrativetrace-glossary/README.md): domain glossary — ubiquitous-language harvesting, trace translation, and the vocabulary norm the clarity gate enforces.
 
 ## Guides
 

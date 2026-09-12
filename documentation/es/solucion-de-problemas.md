@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 778a5e6e41d1 | translated: 2026-09-12 | reviewed: - -->
 
 # Solución de problemas
 
@@ -8,8 +8,8 @@ en lugar de repetirla aquí — un único lugar por cada hecho.
 
 ## No se generan archivos de salida de trazas
 
-**Causa:** la salida de artefactos está activada de forma predeterminada, así que algo la
-desactivó — un `NARRATIVETRACE_OUTPUT=false` en el entorno o en CI, o `output = false` en
+**Causa:** la salida de artefactos está activada de forma predeterminada *(since 0.1.2,
+unreleased)*, así que algo la desactivó — un `NARRATIVETRACE_OUTPUT=false` en el entorno o en CI, o `output = false` en
 `narrativetrace.toml` / en la tabla `[tool.narrativetrace]` de `pyproject.toml` — o los archivos
 están en un directorio distinto del que estás mirando.
 

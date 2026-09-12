@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob f45d36689e76 | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 8475ad12f748 | translated: 2026-09-12 | reviewed: - -->
 
 # Configuración
 
@@ -83,14 +83,15 @@ mayúsculas de minúsculas.
 
 | Clave | Variable de entorno | Significado | Predeterminado |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → escribe artefactos por prueba | activado |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → escribe artefactos por prueba | activado *(since 0.1.2, unreleased)* |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | directorio de artefactos | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | nivel de captura para el contexto del fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directorio que contiene el `glossary.json` confirmado en el repositorio, que se lee para puntuar la claridad del vocabulario (ver [guia-de-claridad.md](guia-de-claridad.md)) | directorio de trabajo |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | también escribe el array de entradas `<test>.canonical.json` por prueba | `false` |
 
-`output` está activado por defecto: el fixture `narrative_trace` escribe los artefactos de cada
+`output` está activado por defecto *(since 0.1.2, unreleased)* — la versión publicada en PyPI,
+`0.1.1`, todavía lo trae desactivado: el fixture `narrative_trace` escribe los artefactos de cada
 prueba no vacía bajo `narrative-traces/` sin necesidad de ninguna configuración. Desactívalo con
 `NARRATIVETRACE_OUTPUT=false` (`0`/`no`/`off` también funcionan, sin distinguir mayúsculas de
 minúsculas) o `output = false` en un archivo de configuración — ver [que-commitear.md](que-commitear.md)

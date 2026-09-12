@@ -83,6 +83,54 @@ def test_output_writes_artifact(pytester: pytest.Pytester, monkeypatch: pytest.M
     result.stdout.fnmatch_lines(["*Trace written:*"])
 
 
+def test_a_parametrized_invocations_artifact_is_titled_from_its_display_name(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cross-port structural-header contract (see `ArtifactIdentity.structuralScenario` in the
+    Java runtime): a `@ParameterizedTest`/`@pytest.mark.parametrize` display name interpolates its
+    argument, so the *value-free* artifact a runtime writes must not be titled with it. This
+    runtime has no such artifact yet — `feature-guide.md` states it plainly: "the pytest plugin
+    writes one full-detail file per test" — so its one artifact is the value-carrying kind the
+    contract says keeps the display name. This pins that on purpose: a naive future "fix" that
+    stripped the `[KAYAK]`-style label from this title would put Python on the wrong side of the
+    contract, not the right one, until a value-free artifact actually ships here.
+    """
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        import pytest
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def finds(self, item): return item
+
+        @pytest.mark.parametrize("item", ["KAYAK", "TENT"])
+        def test_finds_it(narrative_trace, item):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.finds(item)
+        """
+    )
+    result = pytester.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=2)
+
+    kayak_files = list(out_dir.rglob("test_finds_it_kayak_.md"))
+    tent_files = list(out_dir.rglob("test_finds_it_tent_.md"))
+    assert len(kayak_files) == 1
+    assert len(tent_files) == 1
+    kayak_text = kayak_files[0].read_text(encoding="utf-8")
+    tent_text = tent_files[0].read_text(encoding="utf-8")
+
+    # The two invocations get distinct filenames (the label separates them on disk, per the
+    # contract's filename rule) and each artifact's scenario line/frontmatter carries the
+    # argument the runner interpolated into the display name — never redacted or stripped.
+    assert "scenario: Test finds it[kayak]" in kayak_text
+    assert "**Scenario:** Test finds it[kayak]" in kayak_text
+    assert "scenario: Test finds it[tent]" in tent_text
+    assert "**Scenario:** Test finds it[tent]" in tent_text
+
+
 def test_output_is_on_by_default_with_no_configuration_at_all(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -227,10 +275,10 @@ def test_config_file_output_false_opts_out_without_any_environment_variable(
     assert not out_dir.exists() or list(out_dir.rglob("*")) == []
 
 
-def test_output_matches_the_documented_first_10_minutes_recipe(
+def test_output_matches_the_documented_sixty_seconds_recipe(
     pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`documentation/first-10-minutes.md` steps 1-5 / README "Add it to one test", run through
+    """`documentation/sixty-seconds.md` steps 1-5 / README "Add it to one test", run through
     the real installed plugin (a `pytester_subprocess` run, so real pytest11 auto-registration —
     never an in-process fixture call) and checked against the EXACT Markdown the docs promise —
     entry_point, error_count, and the call-flow line — not just "a file exists" the way

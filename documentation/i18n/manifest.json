@@ -28,11 +28,11 @@
   ],
   "documents": [
     {
-      "source": "documentation/first-10-minutes.md",
+      "source": "documentation/sixty-seconds.md",
       "translations": {
-        "es": "primeros-10-minutos.md",
-        "pt-BR": "primeiros-10-minutos.md",
-        "zh-CN": "前10分钟.md"
+        "es": "sesenta-segundos.md",
+        "pt-BR": "sessenta-segundos.md",
+        "zh-CN": "60秒.md"
       }
     },
     {

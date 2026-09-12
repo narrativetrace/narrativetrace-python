@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-11 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 778a5e6e41d1 | translated: 2026-09-12 | reviewed: - -->
 
 # Solução de problemas
 
@@ -8,7 +8,7 @@ repeti-lo aqui — um único lugar por fato.
 
 ## Nenhum arquivo de saída de trace
 
-**Causa:** a saída de artefatos vem ligada por padrão, então algo a desligou — um
+**Causa:** a saída de artefatos vem ligada por padrão *(since 0.1.2, unreleased)*, então algo a desligou — um
 `NARRATIVETRACE_OUTPUT=false` no ambiente ou na CI, ou `output = false` em `narrativetrace.toml` /
 na tabela `[tool.narrativetrace]` do `pyproject.toml` — ou os arquivos estão em um diretório
 diferente do que você está olhando.

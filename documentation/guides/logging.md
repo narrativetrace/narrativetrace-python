@@ -22,6 +22,46 @@ handler.addFilter(NarrativeContextFilter())
 logging.getLogger().addHandler(handler)
 ```
 
+## One consumer per stream, many handlers
+
+`nt.depth` is a private counter on each `LoggingTraceConsumer` instance *(since 0.1.2,
+unreleased)*, so two of them replaying the *same* event stream (say, both attached as listeners on
+one pipeline) each report their own correct depth — one no longer corrupts the other's count.
+`NarrativeContextFilter` and the
+`structlog` processor are unaffected either way: they read the shared class/method/trace identity
+of the innermost frame, which is the same for every instance processing one event, never a
+consumer's own depth counter. Prefer one `LoggingTraceConsumer` per event stream regardless — it
+is simpler to reason about, and a stray second instance is easy to create by accident (e.g. two
+different pieces of setup code each constructing their own). Want the trace in more than one place
+(stdout and a file, say)? Add more `logging.Handler`s to its logger instead of a second consumer:
+
+```python
+logger = logging.getLogger("narrativetrace")
+logger.addHandler(logging.StreamHandler())           # first destination
+logger.addHandler(logging.FileHandler("trace.log"))  # second destination, same consumer
+```
+
+## `export_to_logger` — one call
+
+*(since 0.1.2, unreleased)* — on PyPI's published `0.1.1`, replay `store.events()` through a
+`LoggingTraceConsumer` by hand instead.
+
+`export_to_logger(trace, logger=None)` replays an already-captured `TraceTree` through a private
+`LoggingTraceConsumer` in one call — no `EventStore` to wire up, no loop to write by hand:
+
+```python
+from narrativetrace import ContextVarNarrativeContext, export_to_logger, trace_object
+
+context = ContextVarNarrativeContext()
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+export_to_logger(context.capture_trace())
+```
+
+Each call opens its own private consumer, so calling it more than once — even concurrently, from
+different threads — never trips the one-consumer-per-stream rule above.
+
 ## Request-level scope
 
 Inside an HTTP request the ASGI middleware opens a `request_log_scope(...)` so request keys

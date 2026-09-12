@@ -51,6 +51,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts.llms_banner import check_banner
 from scripts.translation_check import REPO_ROOT, translated_files
 
 _MARKER_OPEN_RE = re.compile(r"^<!--\s*snippet:\s*(?P<rest>.+?)\s*-->\s*$")
@@ -213,14 +214,20 @@ def _source_label(span: SnippetSpan) -> str:
 
 def _english_markdown_files(repo_root: Path) -> list[Path]:
     """Every `documentation/**/*.md` file that is a source, not a translation (mirrors excluded
-    the same way `scripts/translation_check.py` tells the two apart)."""
+    the same way `scripts/translation_check.py` tells the two apart), plus `documentation/llms.txt`
+    -- the one non-`.md` page an agent reads first, English-only and outside the translation
+    manifest, whose embedded blocks must be just as drift-proof as any guide's."""
     translated = {path.resolve() for path in translated_files(repo_root)}
     documentation = repo_root / "documentation"
     if not documentation.is_dir():
         return []
-    return [
+    pages = [
         path for path in sorted(documentation.rglob("*.md")) if path.resolve() not in translated
     ]
+    llms_txt = documentation / "llms.txt"
+    if llms_txt.is_file():
+        pages.append(llms_txt)
+    return pages
 
 
 def _relative(repo_root: Path, path: Path) -> str:
@@ -245,10 +252,13 @@ def _check_file(repo_root: Path, path: Path) -> list[str]:
 
 
 def check_repository(repo_root: Path) -> list[str]:
-    """Every drifted snippet block across every English documentation page, in file/line order."""
+    """Every drifted snippet block across every English documentation page, in file/line order,
+    plus a stale `documentation/llms.txt` docs-vs-published banner line (`scripts/llms_banner.py`).
+    """
     failures: list[str] = []
     for path in _english_markdown_files(repo_root):
         failures.extend(_check_file(repo_root, path))
+    failures.extend(check_banner(repo_root))
     return failures
 
 

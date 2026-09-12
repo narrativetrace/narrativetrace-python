@@ -8,6 +8,9 @@
 English pages only, same as `translation_check.py`'s own split between staleness (checked) and
 translated code-block content (never auto-rewritten) — a translated mirror's fix is a translator
 restamping its header after this runs on the English source.
+
+Also refreshes `documentation/llms.txt`'s docs-vs-published banner line (`scripts/llms_banner.py`)
+in the same pass, so the two build steps that decide what an agent reads first never drift apart.
 """
 
 from __future__ import annotations
@@ -17,11 +20,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts.llms_banner import sync_banner
 from scripts.snippet_check import REPO_ROOT, sync_repository
 
 
 def main() -> int:
     changes = sync_repository(REPO_ROOT)
+    banner_change = sync_banner(REPO_ROOT)
+    if banner_change is not None:
+        changes.append(banner_change)
     if not changes:
         print("snippet-sync: nothing to do — every embedded block already matches its source")
         return 0

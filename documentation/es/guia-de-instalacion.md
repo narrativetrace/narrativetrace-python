@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/installation.md blob 080622673a09 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/guides/installation.md blob 6155e178c221 | translated: 2026-09-12 | reviewed: - -->
 
 # Instalación
 
@@ -13,15 +13,21 @@ uv add narrativetrace-otel            # puente con OpenTelemetry (opentelemetry-
 uv add narrativetrace-asgi            # middleware de Starlette/FastAPI
 uv add narrativetrace-clarity         # motor de claridad de nombres + puerta de CLI
 uv add narrativetrace-structlog       # procesador de structlog
+uv add narrativetrace-glossary        # glosario de dominio + traducción de trazas
 ```
 
 `pip install narrativetrace` funciona igual. Añade solo las integraciones que uses — el núcleo
-no lleva dependencias de terceros.
+no lleva dependencias de terceros. Todos los paquetes de arriba están en PyPI, publicados en la
+versión `0.1.1`.
 
-La publicación en PyPI todavía no está hecha — hasta que los paquetes estén en el índice,
-instálalos desde una copia de este repositorio, abajo.
+`narrativetrace-structlog` incluye `structlog` como dependencia propia *(since 0.1.2,
+unreleased)* — en la versión publicada en PyPI, `0.1.1`, es un extra opcional, así que
+`uv add narrativetrace-structlog` por sí solo no instala `structlog`; añádelo explícitamente
+(`uv add structlog`) en esa versión.
 
 ## Desde este repositorio (workspace)
+
+Solo necesario para trabajar en NarrativeTrace mismo, no para usarlo:
 
 ```bash
 uv sync --all-packages     # instala todos los paquetes del workspace en modo editable
