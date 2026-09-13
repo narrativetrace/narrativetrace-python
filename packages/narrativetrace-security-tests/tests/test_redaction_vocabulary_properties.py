@@ -34,7 +34,7 @@ from __future__ import annotations
 import pytest
 from emitters import captured_value_tree, every_output, metadata_for
 from hostile_corpus import RedactionCase, redactions
-from oracles import bounded_size, within_budget
+from oracles import bounded_size
 
 from narrativetrace.redaction import REDACTED_MARKER
 from narrativetrace.rendering import ValueRenderer
@@ -62,9 +62,7 @@ class TestCorpusRedactionRows:
     @pytest.mark.parametrize("case", redactions(), ids=str)
     def test_every_corpus_row_goes_the_way_it_declares(self, case: RedactionCase) -> None:
         renderer = ValueRenderer()
-        outputs = within_budget(
-            f"every output for {case.id}", lambda: _every_output(renderer, case.payload)
-        )
+        outputs = _every_output(renderer, case.payload)
 
         if case.expects_redaction:
             for emitter, output in outputs.items():

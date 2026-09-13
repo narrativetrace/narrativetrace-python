@@ -316,10 +316,19 @@ help = """Ratchets main-tree duplication (jscpd) against config/duplication/base
 (runs duplication-report first; the test tree is reported only, never gates) -- see \
 documentation/duplication.md"""
 
+[tool.poe.tasks.contract-lint]
+cmd = "python scripts/contract_lint.py"
+help = """Docs-vs-published contract gate, per-commit half (no network): validates \
+documentation/contract.yaml's own schema, that every 'since' is a real version string, no two \
+entries make the same claim, every entry's probe file exists, every page#anchor pointer resolves \
+to a real heading, and every '*(since X.Y.Z, unreleased)*' marker in the English docs has a \
+matching contract.yaml entry -- see documentation/contract-gate.md. The registry-backed half \
+(contract-probe/ against a real PyPI install) is 'python -m scripts.contract_check', nightly only."""
+
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
-duplication-check + bandit"""
+duplication-check + contract-lint + bandit"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -334,6 +343,7 @@ sequence = [
     { ref = "snippet-check" },
     { ref = "legal-check" },
     { ref = "duplication-check" },
+    { ref = "contract-lint" },
     { ref = "bandit" },
 ]
 
@@ -387,6 +397,11 @@ max-returns = 8
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["PLR2004", "PLR0913", "S101"]
+# The `narrativetrace` import is deferred into `observe()` on purpose: `export_to_logger` does not
+# exist at all in the published 0.1.1 wheel, and contract_probe.runner imports every probe module
+# regardless of whether its entry is applicable at the version under test -- see the module's own
+# docstring and documentation/contract-gate.md.
+"contract-probe/src/contract_probe/probes/export_to_logger_probe.py" = ["PLC0415"]
 
 [tool.bandit]
 # `poe bandit` targets packages/examples/scripts explicitly (never the whole repo root), so this

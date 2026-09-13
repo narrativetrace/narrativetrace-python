@@ -49,6 +49,7 @@ Engineering-only — the *why* behind load-bearing decisions. English-only by co
 | [Security Tooling](security-tooling.md) | Secrets scanning, SAST, dependency-vulnerability scanning: what runs when |
 | [Concurrency Stress Testing](concurrency-stress.md) | The stress suite over the dual-path pipeline: invariants, how to run it |
 | [Duplication Detection](duplication.md) | jscpd over main/test sources: the 60-token floor, the ratchet against a committed baseline (not a fixed percentage), and how to read or exempt a finding |
+| [The Contract Gate](contract-gate.md) | `documentation/contract.yaml` + `contract-probe/`: proving a documented default or config shape against a real PyPI install, not just the workspace |
 
 ## For AI agents and tools
 

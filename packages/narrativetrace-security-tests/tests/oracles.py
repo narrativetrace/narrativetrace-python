@@ -6,25 +6,25 @@
 
 Named here, once, so every property test in this package speaks the same oracle -- exactly the
 role Java's own ``oracle/Oracles.java`` plays for its property tests.
+
+Used to carry a sixth oracle, ``within_budget`` -- a wall-clock hang detector (``elapsed <=
+BUDGET_SECONDS``, scaled 10x under `pytest --cov`'s tracer). Removed 2026-09-13 (family release
+rule 3: wall-clock, GC and scheduler are never test inputs): it flaked on the corpus's
+``long-1mib``/``huge-to-string`` worst cases under host load despite the scaling, because host
+load -- not tracer overhead -- was what it was actually measuring. Each call site now asserts the
+deterministic property the timing bound stood in for instead: a bounded-output test next to the
+structural cap that makes the worst case cheap in the first place (see
+``test_output_format_properties.py``'s and ``test_value_renderer_redaction_properties.py``'s
+``TestBoundedWork``), or, where the property was genuinely about parse cost rather than output
+size (``narrativetrace-asgi``'s 100,000-field ``traceparent`` header), a `pytest-benchmark` case
+in the benchmark lane (`poe bench`/`poe bench-gate`), which is never part of the per-commit gate.
 """
 
 from __future__ import annotations
 
-import sys
 import threading
-import time
 import uuid
 from collections.abc import Callable
-
-BUDGET_SECONDS = 10.0
-"""A hang detector, not a benchmark -- generous on purpose (mirrors Java's ``BUDGET_MILLIS``)."""
-
-_TRACED_BUDGET_MULTIPLIER = 10
-"""``poe check`` always runs this suite under ``pytest --cov``, whose branch tracer instruments
-every line and branch executed -- measured ~9x wall-clock overhead on the worst-case (1 MiB)
-corpus case alone. Scaling the budget when a trace function is active (``coverage.py`` or a
-debugger) keeps the check a hang detector rather than a coverage-overhead detector; an actual
-hang would still blow through even a 10x-scaled budget by orders of magnitude."""
 
 MAX_OUTPUT_CHARS = 4 * 1024 * 1024
 """Mirrors Java's ``MAX_OUTPUT_BYTES``; this runtime measures characters, not encoded bytes."""
@@ -33,18 +33,6 @@ MAX_OUTPUT_CHARS = 4 * 1024 * 1024
 def sentinel_token() -> str:
     """A fresh, unique-per-call token a redaction oracle plants and then searches for."""
     return f"SENTINEL-{uuid.uuid4().hex}"
-
-
-def within_budget[T](label: str, work: Callable[[], T]) -> T:
-    """Runs ``work``, failing loudly if it takes longer than :data:`BUDGET_SECONDS` -- scaled by
-    :data:`_TRACED_BUDGET_MULTIPLIER` while a trace function is active, since instrumentation
-    overhead is not a hang."""
-    budget = BUDGET_SECONDS * (_TRACED_BUDGET_MULTIPLIER if sys.gettrace() is not None else 1)
-    start = time.perf_counter()
-    result = work()
-    elapsed = time.perf_counter() - start
-    assert elapsed <= budget, f"{label} took {elapsed:.2f}s, budget is {budget}s"
-    return result
 
 
 def bounded_size(outputs: dict[str, str]) -> None:

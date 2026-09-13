@@ -26,7 +26,7 @@ from conformance import (
 )
 from emitters import every_output, metadata_for
 from hostile_corpus import TraceShapeCase, trace_shapes
-from oracles import bounded_size, no_new_threads, within_budget
+from oracles import bounded_size, no_new_threads
 from trace_shapes import build
 
 from narrativetrace.tree import TraceTree
@@ -37,7 +37,7 @@ _METADATA = metadata_for("trace shape scenario")
 
 def _outputs(case: TraceShapeCase) -> dict[str, str]:
     tree = build(case)
-    return no_new_threads(lambda: within_budget(case.id, lambda: every_output(tree, _METADATA)))
+    return no_new_threads(lambda: every_output(tree, _METADATA))
 
 
 class TestEveryTraceShapeIsWellFormedAndBounded:
@@ -76,11 +76,11 @@ class TestEveryTraceShapeSurvivesEquality:
     def test_two_independent_copies_of_the_same_shape_compare_equal(
         self, case: TraceShapeCase
     ) -> None:
-        left = within_budget(case.id, lambda: build(case).roots[0])
-        right = within_budget(case.id, lambda: build(case).roots[0])
-        assert within_budget(case.id, lambda: left == right)
+        left = build(case).roots[0]
+        right = build(case).roots[0]
+        assert left == right
 
     @pytest.mark.parametrize("case", trace_shapes(), ids=str)
     def test_a_shape_never_equals_an_empty_tree(self, case: TraceShapeCase) -> None:
         tree: TraceTree = build(case)
-        assert within_budget(case.id, lambda: tree != TraceTree([]))
+        assert tree != TraceTree([])

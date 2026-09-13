@@ -19,7 +19,7 @@ from hostile_corpus import HeaderCase, traceparents, tracestates
 from hypothesis import given
 from hypothesis import strategies as st
 from narrativetrace_asgi import format_traceparent, parse_traceparent
-from oracles import no_new_threads, within_budget
+from oracles import no_new_threads
 
 from narrativetrace.rendering import ValueRenderer
 
@@ -55,9 +55,16 @@ class TestCorpusTraceparents:
         assert reparsed.span_id == parsed.span_id
         assert reparsed.sampled == parsed.sampled
 
-    def test_the_hundred_thousand_field_header_parses_within_budget(self) -> None:
-        case = next(c for c in traceparents() if c.id == "very-long-fields")
-        within_budget("very-long-fields parse", lambda: parse_traceparent(case.value))
+    # `very-long-fields` (a hundred thousand extension fields, spec-permitted so it must be
+    # ACCEPTED) is exercised for correctness by `test_acceptance_matches_the_corpus_declaration`
+    # above like every other corpus case. It used to also carry a dedicated wall-clock assertion
+    # here (`oracles.within_budget`) -- removed 2026-09-13 (family release rule 3: wall-clock, GC
+    # and scheduler are never test inputs). The parse-*cost* property that assertion actually
+    # guarded is genuine (an attacker-controlled header on every request; a naive splitter could
+    # go quadratic on a hundred thousand fields) but not reducible to a bounded-output property,
+    # so it now lives as a `pytest-benchmark` case in the benchmark lane instead:
+    # `narrativetrace-asgi/tests/test_bench_traceparent.py` (`poe bench`/`poe bench-gate`, never
+    # part of the per-commit gate).
 
     def test_parsing_starts_no_background_thread(self) -> None:
         case = next(c for c in traceparents() if c.id == "valid-v00")

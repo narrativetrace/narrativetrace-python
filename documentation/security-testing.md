@@ -44,7 +44,7 @@ uv run poe fuzz                                                # Tier B, budgete
 | `tests/hostile_corpus.py` | `corpus/HostileCorpus` | reads the five JSON fixtures into typed cases |
 | `tests/hostile_graphs.py` | the graph builder in `ValueRendererRedactionPropertyTest` | turns a declarative `graphs.json` shape into a live object graph |
 | `tests/emitters.py` | `oracle/Emitters` | every shipped output format, in one map (`EMITTERS`), so an emitter added there is covered by every oracle at once |
-| `tests/oracles.py` | `oracle/Oracles` | shared assertions: budget, bounded size, redaction (`contains_nowhere`), idempotence, no-thread-left-behind |
+| `tests/oracles.py` | `oracle/Oracles` | shared assertions: bounded size, redaction (`contains_nowhere`), idempotence, no-thread-left-behind |
 | `tests/formats.py` | the shape half of `oracle/Formats` | JSON/diagram/frontmatter *shape* comparisons for the injection oracle (well-formedness itself lives in the root `conformance.py`) |
 | `tests/fuzz_config.py` | `fuzz/FuzzBudget` | Tier B's Hypothesis settings (budget, corpus database) |
 | `tests/test_hostile_corpus.py` | `HostileCorpusTest` | pins the corpus fixtures themselves (case counts, ASCII-on-disk, `repeat` materialization) |
@@ -65,7 +65,13 @@ A crash is not the only defect, and "it did not throw" is not an oracle. Every t
 package asserts from this list:
 
 1. **No uncaught exception.** A hostile input degrades — it never propagates.
-2. **Bounded time and size.** `oracles.within_budget`/`bounded_size`.
+2. **Bounded size.** `oracles.bounded_size`, plus a per-target `TestBoundedWork` asserting the
+   corpus's worst-case value/graph renders within a small, deterministic ceiling — the property a
+   wall-clock `within_budget` assertion used to stand in for until it flaked under host load and
+   was removed 2026-09-13 (family release rule 3: wall-clock, GC and scheduler are never test
+   inputs). The one genuine parse-*cost* concern this style of oracle covered (a hundred thousand
+   `traceparent` extension fields) lives instead as a `pytest-benchmark` case in the never-gated
+   benchmark lane (`narrativetrace-asgi/tests/test_bench_traceparent.py`).
 3. **Well-formedness, read back by the consumer's own parser.** JSON validates against the
    canonical `chapter-tree`/`chapter`/`entry` schemas (`conformance.py`); a Mermaid/PlantUML diagram
    carries no raw control character; Markdown frontmatter parses as YAML.

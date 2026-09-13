@@ -1,0 +1,192 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Machine-readable claims this repository's documentation makes about defaults, entry points,
+# config shapes and their effects — checked against a PUBLISHED (never local) install, never a
+# workspace sync. See documentation/contract-gate.md for what runs this and when.
+#
+# Schema (four `kind`s, docs-vs-published-gate §2):
+#   id                  unique slug
+#   kind                entry-point | reflectable-default | probed-default | config-shape
+#   page                "<doc path>#<anchor>" — the sentence this entry backs
+#   claim               one human sentence
+#   since               the version the claim first holds (x.y.z)
+#   documented_default  (reflectable-default, probed-default) the exact observed value expected
+#   expected_effect     (config-shape) same role, named the way the design note spells it
+#   probe               source file (repo-relative) implementing the check
+#   coordinate          (entry-point only) the PyPI project name
+#   registry            (entry-point only) pypi (the only registry this repo publishes to)
+#
+# `since` exempts an entry from the nightly gate only while it is LATER than the version actually
+# installed that run (docs-vs-published-gate §5.1 ruling 1) — never keyed on this repo's own
+# pyproject.toml version. `poe check`'s contract-lint step (per commit, no network) validates this
+# file's shape; scripts/contract_check.py (nightly, registry-backed) runs contract-probe/ against
+# it.
+version_source: "pyproject.toml#version"
+entries:
+  # ---- entry points: does the coordinate resolve at all, on the real registry -----------------
+  - id: entry-point-narrativetrace
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-pytest
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-pytest"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-pytest resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-diagrams
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-diagrams"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-diagrams resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-otel
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-otel"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-otel resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-asgi
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-asgi"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-asgi resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-clarity
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-clarity"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-clarity resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-structlog
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-structlog"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-structlog resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  - id: entry-point-narrativetrace-glossary
+    kind: entry-point
+    registry: pypi
+    coordinate: "narrativetrace-glossary"
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-glossary resolves on PyPI at the installed version"
+    since: "0.1.0"
+    documented_default: "PRESENT"
+    probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
+
+  # ---- an already-shipped default, probed for real (holds against the published 0.1.1) --------
+  - id: probed-not-traced-class-attribute
+    kind: probed-default
+    page: "documentation/guides/decorators.md#not_traced--redaction"
+    claim: "a class attribute __nt_not_traced__ redacts the named fields on any non-dataclass object, unconditionally"
+    since: "0.1.0"
+    documented_default: "[REDACTED]"
+    probe: "contract-probe/src/contract_probe/probes/not_traced_class_attribute_probe.py"
+
+  # ---- claims that ship in 0.1.2, still unreleased when this contract was seeded ---------------
+  # (documentation/*.md carries a matching "*(since 0.1.2, unreleased)*" marker for each of these —
+  # contract-lint fails if that marker ever loses its contract entry; contract_check.py must report
+  # not-applicable-before-since for all nine of these when run against the published 0.1.1.)
+  - id: probed-pytest-artifacts-default
+    kind: probed-default
+    page: "documentation/guides/pytest.md#what-you-get"
+    claim: "the pytest plugin writes trace artifacts (Markdown/JSON/diagram/structural) for each non-empty test with no configuration -- NARRATIVETRACE_OUTPUT defaults to true"
+    since: "0.1.2"
+    documented_default: "true"
+    probe: "contract-probe/src/contract_probe/probes/pytest_artifacts_default_probe.py"
+
+  - id: config-shape-export-to-logger
+    kind: config-shape
+    page: "documentation/sixty-seconds.md#send-it-to-your-logger"
+    claim: "export_to_logger(trace) replays an already-captured TraceTree through a private LoggingTraceConsumer in one call, with no EventStore to wire up by hand"
+    since: "0.1.2"
+    expected_effect: "logged"
+    probe: "contract-probe/src/contract_probe/probes/export_to_logger_probe.py"
+
+  - id: config-shape-logging-consumer-per-instance-depth
+    kind: config-shape
+    page: "documentation/guides/logging.md#one-consumer-per-stream-many-handlers"
+    claim: "nt.depth is a private counter on each LoggingTraceConsumer instance, so two consumers replaying the same event stream each report their own correct depth"
+    since: "0.1.2"
+    expected_effect: "independent-depth"
+    probe: "contract-probe/src/contract_probe/probes/logging_consumer_depth_probe.py"
+
+  - id: reflectable-structlog-depends-on-structlog
+    kind: reflectable-default
+    page: "documentation/guides/installation.md#installation"
+    claim: "narrativetrace-structlog declares a direct (non-optional) dependency on structlog, not an optional extra"
+    since: "0.1.2"
+    documented_default: "true"
+    probe: "contract-probe/src/contract_probe/probes/structlog_dependency_probe.py"
+
+  - id: probed-native-stringification-not-trusted
+    kind: probed-default
+    page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
+    claim: "a composite type carrying instance state is walked field by field; its own __str__/__repr__ is never trusted, even when it defines one"
+    since: "0.1.2"
+    documented_default: "field-walked-not-str"
+    probe: "contract-probe/src/contract_probe/probes/native_stringification_not_trusted_probe.py"
+
+  - id: probed-platform-type-carveout
+    kind: probed-default
+    page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
+    claim: "a platform-defined type (pathlib.Path, datetime, decimal.Decimal, uuid.UUID) keeps its own str(), unwalked, even though it carries instance state"
+    since: "0.1.2"
+    documented_default: "own-str-used"
+    probe: "contract-probe/src/contract_probe/probes/platform_type_carveout_probe.py"
+
+  - id: probed-typed-error-marker
+    kind: probed-default
+    page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
+    claim: "when a field's own getter raises while being rendered, that part renders <error: TypeName> -- the exception's own message is excluded"
+    since: "0.1.2"
+    documented_default: "<error: ValueError>"
+    probe: "contract-probe/src/contract_probe/probes/typed_error_marker_probe.py"
+
+  - id: probed-approval-default
+    kind: probed-default
+    page: "documentation/what-to-commit.md#approval-mode-visually"
+    claim: "approval mode is opt-in -- NARRATIVETRACE_APPROVAL defaults to false, and a reviewed received trace promotes via narrativetrace-approve"
+    since: "0.1.2"
+    documented_default: "false"
+    probe: "contract-probe/src/contract_probe/probes/approval_default_probe.py"
+
+  - id: probed-manifest-per-invocation-identity
+    kind: probed-default
+    page: "documentation/structural-trace-format.md#artifact-identity-cross-platform"
+    claim: "a run writes <output_dir>/manifest.json, one row per traced scenario naming its test, its invocation number and every file it owns"
+    since: "0.1.2"
+    documented_default: "true"
+    probe: "contract-probe/src/contract_probe/probes/manifest_identity_probe.py"

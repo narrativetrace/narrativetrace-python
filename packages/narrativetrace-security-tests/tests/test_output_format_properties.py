@@ -37,7 +37,7 @@ from formats import frontmatter_keys
 from hostile_corpus import CorpusCase, strings
 from hypothesis import given
 from hypothesis import strategies as st
-from oracles import bounded_size, idempotent, no_new_threads, within_budget
+from oracles import bounded_size, idempotent, no_new_threads
 
 from narrativetrace.render.base import TraceMetadata
 from narrativetrace.rendering import ValueRenderer
@@ -93,9 +93,7 @@ def _assert_well_formed(name: str, text: str) -> None:
 
 
 def _check_every_format(tree: TraceTree, metadata: TraceMetadata) -> dict[str, str]:
-    outputs = no_new_threads(
-        lambda: within_budget("every_output", lambda: every_output(tree, metadata))
-    )
+    outputs = no_new_threads(lambda: every_output(tree, metadata))
     bounded_size(outputs)
     for name, text in outputs.items():
         _assert_well_formed(name, text)
@@ -108,9 +106,7 @@ def _check_every_format_well_formed(tree: TraceTree, metadata: TraceMetadata) ->
     renderers, matching Java's own F4 scope (only the diagram identifiers are capped) -- so a
     corpus case built purely to stress the *value* size bound is not a well-formedness failure
     here."""
-    outputs = no_new_threads(
-        lambda: within_budget("every_output", lambda: every_output(tree, metadata))
-    )
+    outputs = no_new_threads(lambda: every_output(tree, metadata))
     for name, text in outputs.items():
         _assert_well_formed(name, text)
     return outputs
@@ -167,6 +163,51 @@ class TestCorpusStringsNarrationRoute:
     ) -> None:
         tree = captured_value_tree('"ok"')
         _check_every_format(tree, metadata_for(case.value))
+
+
+_DEFAULT_MAX_STRING_LENGTH = 200
+"""``ValueRenderer``'s own default string-length cap (``narrativetrace.rendering.
+_DEFAULT_MAX_STRING_LENGTH``, private to that module) -- pinned here as the number
+:class:`TestBoundedWork` checks against, rather than a bare literal repeated at each call site."""
+
+_MAX_SANE_OUTPUT_CHARS = 4_000
+"""A generous, deterministic ceiling for a single-value one-node tree's rendering in any shipped
+format: comfortably above every legitimately-capped output measured for this fixture shape today
+(a few hundred characters), and orders of magnitude below what a broken string cap would let the
+corpus's megabyte-sized ``long-1mib`` value produce."""
+
+
+class TestBoundedWork:
+    """Replaces a removed wall-clock hang detector (family release rule 3, 2026-09-07: wall-clock,
+    GC and scheduler are never test inputs -- ``oracles.within_budget`` flaked on exactly this
+    corpus case under host load) with the deterministic property the timing bound stood in for on
+    ``long-1mib`` ('one mebibyte in one value -- the bounded-size oracle's worst case'):
+    ``ValueRenderer``'s string-length cap, not a lucky race against the clock, is what keeps a
+    megabyte-sized captured value cheap to render in every format."""
+
+    @staticmethod
+    def _long_1mib() -> CorpusCase:
+        return next(c for c in strings() if c.id == "long-1mib")
+
+    def test_a_megabyte_value_is_truncated_to_the_string_cap_before_it_reaches_a_format(
+        self,
+    ) -> None:
+        rendered = ValueRenderer().render(self._long_1mib().value)
+
+        assert rendered == f'"{"x" * _DEFAULT_MAX_STRING_LENGTH}…"', (
+            "a megabyte value must already be capped by the time it reaches any emitter"
+        )
+
+    def test_a_megabyte_value_renders_with_bounded_output_in_every_format(self) -> None:
+        rendered = ValueRenderer().render(self._long_1mib().value)
+        tree = captured_value_tree(rendered)
+
+        outputs = _check_every_format(tree, metadata_for("s"))
+
+        for name, text in outputs.items():
+            assert len(text) <= _MAX_SANE_OUTPUT_CHARS, (
+                f"{name} produced {len(text)} chars for one capped value -- a cap likely broke"
+            )
 
 
 _HOSTILE_TEXT = st.text(

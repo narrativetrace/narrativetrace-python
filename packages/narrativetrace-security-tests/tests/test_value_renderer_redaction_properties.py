@@ -17,17 +17,17 @@ from hostile_corpus import GraphCase, graphs
 from hostile_graphs import _LAYER_BUILDERS, SecretRecord, _apply_layers, build
 from hypothesis import given
 from hypothesis import strategies as st
-from oracles import contains_nowhere, idempotent, no_new_threads, sentinel_token, within_budget
+from oracles import contains_nowhere, idempotent, no_new_threads, sentinel_token
 
 from narrativetrace.rendering import ValueRenderer
 
 
 def _flat(renderer: ValueRenderer, graph: object) -> str:
-    return within_budget("flat render", lambda: renderer.render(graph))
+    return renderer.render(graph)
 
 
 def _structured(renderer: ValueRenderer, graph: object) -> str:
-    return within_budget("structured render", lambda: repr(renderer.render_structured(graph)))
+    return repr(renderer.render_structured(graph))
 
 
 def _outputs(renderer: ValueRenderer, graph: object) -> dict[str, str]:
@@ -50,6 +50,51 @@ class TestCorpusGraphs:
         graph = build(case, sentinel)
         renderer = ValueRenderer()
         idempotent(lambda: renderer.render(graph))
+
+
+_MAX_SANE_FLAT_LENGTH = 4_000
+"""A generous, deterministic ceiling for :meth:`ValueRenderer.render` over any corpus graph:
+comfortably above every legitimately-capped shape measured today (the deepest chains and widest
+containers reach roughly a thousand characters), and orders of magnitude below what
+``huge-to-string`` alone would produce (1,048,576 characters) the moment its string cap broke."""
+
+_MAX_SANE_STRUCTURED_LENGTH = 8_000
+"""Same reasoning as :data:`_MAX_SANE_FLAT_LENGTH`, sized for the structured channel's ``repr``
+overhead (measured up to ~2,800 characters for the widest legitimate corpus shape today)."""
+
+
+class TestBoundedWork:
+    """Replaces a removed wall-clock hang detector (family release rule 3, 2026-09-07: wall-clock,
+    GC and scheduler are never test inputs -- ``oracles.within_budget`` used to wrap both render
+    calls here) with the deterministic property the timing bound stood in for: ``ValueRenderer``'s
+    string/collection/object/depth caps bound every hostile graph's rendered size to a small,
+    generous ceiling regardless of the graph's own size -- exactly as sensitive to a caps
+    regression as the removed timing bound was, without depending on host load to hold."""
+
+    @pytest.mark.parametrize("case", graphs(), ids=str)
+    def test_every_hostile_graph_renders_with_bounded_output(self, case: GraphCase) -> None:
+        graph = build(case, sentinel_token())
+        outputs = _outputs(ValueRenderer(), graph)
+
+        assert len(outputs["flat"]) <= _MAX_SANE_FLAT_LENGTH, (
+            f"{case.id} produced unbounded flat output ({len(outputs['flat'])} chars)"
+        )
+        assert len(outputs["structured"]) <= _MAX_SANE_STRUCTURED_LENGTH, (
+            f"{case.id} produced unbounded structured output ({len(outputs['structured'])} chars)"
+        )
+
+    def test_a_megabyte_to_string_is_truncated_to_the_string_cap(self) -> None:
+        """The deterministic property the removed wall-clock assertion was actually guarding for
+        ``huge-to-string``: a hostile ``__str__`` returning a megabyte is truncated, never
+        consumed whole, in either channel."""
+        case = next(c for c in graphs() if c.id == "huge-to-string")
+        graph = build(case, sentinel_token())
+        outputs = _outputs(ValueRenderer(), graph)
+
+        assert outputs["flat"].endswith("…"), "a truncated value must end in the truncation marker"
+        assert len(outputs["flat"]) <= _MAX_SANE_FLAT_LENGTH
+        assert "…" in outputs["structured"], "the structured channel must carry the same marker"
+        assert len(outputs["structured"]) <= _MAX_SANE_STRUCTURED_LENGTH
 
 
 _WRAPPER_STACKS = st.lists(st.sampled_from(list(_LAYER_BUILDERS)), max_size=6)
