@@ -3,6 +3,63 @@
 Wrapping an object with `trace_object` traces every public method. Decorators refine what is
 captured and how it reads.
 
+## You imported this — apply it like this
+
+Importing `narrated` or `not_traced` does nothing by itself — each has to be applied to a real
+method or parameter, and the result has to be proven with an assertion. The minimal pairing of
+both, stacked on one method the way `packages/narrativetrace/tests/test_trace_object.py`'s
+`AuthService` already does:
+
+<!-- snippet: examples/import_and_use.py region=main -->
+```python
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    ProseRenderer,
+    narrated,
+    not_traced,
+    trace_object,
+)
+
+
+class AuthService:
+    @narrated("login attempt for {username} with {password}")
+    @not_traced("password")
+    def login(self, username: str, password: str) -> str:
+        return f"session-for-{username}"
+
+
+def run() -> str:
+    """Traces one login and renders the result -- `password` never reaches it, in the argument
+    list or in the narration template that names it."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login("alice", "hunter2")
+    return ProseRenderer().render(context.capture_trace())
+
+
+```
+<!-- /snippet -->
+
+<!-- snippet: examples/build/import_and_use.txt mask=traceName -->
+```text
+The trace damp shard sways:
+
+The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+```
+<!-- /snippet -->
+
+The assertion that proves it: `assert "[REDACTED]" in rendered` — `password` never reaches the
+narration text `@narrated` builds around it, and a neighboring assertion checks that `username`,
+the non-redacted argument, is still there (`examples/test_import_and_use.py`).
+
+`uv run narrativetrace doctor` watches for exactly this failure mode in a project's own source:
+**`trap.silent-sink`** flags the field-redaction surfaces below (`not_traced_field`,
+`__nt_not_traced__`) imported or declared but never actually applied — call `not_traced_field(...)`
+on a real field or list real field names in `__nt_not_traced__`, then prove it by asserting
+`"[REDACTED]"` in a rendered trace — and **`trap.redaction-proof`** flags a project with no test
+anywhere asserting the literal `[REDACTED]` marker. Both decorators, and both field-redaction
+surfaces, in detail below.
+
 ## `@narrated` — prose narration
 
 ```python

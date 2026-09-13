@@ -1,9 +1,60 @@
-<!-- source: documentation/guides/decorators.md blob 44729105cff3 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob d8177db2bf28 | translated: 2026-09-13 | reviewed: - -->
 
 # Decoradores
 
 Envolver um objeto com `trace_object` traça cada método público. Decoradores refinam o que é
 capturado e como isso é narrado.
+
+## Você importou isso — é assim que se aplica
+
+Importar `narrated` ou `not_traced` não faz nada por si só — cada um precisa ser aplicado a um
+método ou parâmetro real, e o resultado precisa ser provado com uma asserção. O par mínimo dos
+dois, empilhados em um único método do jeito que `AuthService` já faz em
+`packages/narrativetrace/tests/test_trace_object.py`:
+
+```python
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    ProseRenderer,
+    narrated,
+    not_traced,
+    trace_object,
+)
+
+
+class AuthService:
+    @narrated("login attempt for {username} with {password}")
+    @not_traced("password")
+    def login(self, username: str, password: str) -> str:
+        return f"session-for-{username}"
+
+
+def run() -> str:
+    """Traces one login and renders the result -- `password` never reaches it, in the argument
+    list or in the narration template that names it."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login("alice", "hunter2")
+    return ProseRenderer().render(context.capture_trace())
+```
+
+```text
+The trace damp shard sways:
+
+The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+```
+
+A asserção que prova isso: `assert "[REDACTED]" in rendered` — `password` nunca chega ao texto de
+narração que `@narrated` constrói ao redor dele, e uma asserção vizinha verifica que `username`, o
+argumento não ocultado, ainda está presente (`examples/test_import_and_use.py`).
+
+`uv run narrativetrace doctor` observa exatamente essa falha no código-fonte de um projeto:
+**`trap.silent-sink`** sinaliza as superfícies de ocultação de campo abaixo (`not_traced_field`,
+`__nt_not_traced__`) importadas ou declaradas mas nunca realmente aplicadas — chame
+`not_traced_field(...)` em um campo real ou liste nomes de campo reais em `__nt_not_traced__`, e
+depois prove isso asseverando `"[REDACTED]"` em um trace renderizado — e **`trap.redaction-proof`**
+sinaliza um projeto sem nenhum teste que assevere o marcador literal `[REDACTED]`. Os dois
+decoradores, e as duas superfícies de ocultação de campo, em detalhe a seguir.
 
 ## `@narrated` — narração em prosa
 

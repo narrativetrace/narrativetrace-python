@@ -57,7 +57,8 @@ def check_not_traced_unused(snapshot: DoctorSnapshot) -> Finding:
         ID,
         f"{path}: {reason}",
         "A redaction marker that is present but never applied protects nothing — either call "
-        "not_traced_field(...) on a real field or list real field names in __nt_not_traced__, or "
-        "remove the unused marker so it stops reading as handled.",
+        "not_traced_field(...) on a real field or list real field names in __nt_not_traced__, "
+        'then prove it by asserting "[REDACTED]" in a rendered trace, or remove the unused marker '
+        "so it stops reading as handled.",
         DOC["redaction_surface_by_surface"],
     )

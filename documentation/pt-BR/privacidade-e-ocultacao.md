@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 72cd91283b7d | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 6e0cdedcb7b1 | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -8,6 +8,63 @@ que é ocultado, até onde isso alcança e até onde não alcança, e o que o Na
 o que ele não promete de forma alguma. Verificado diretamente contra
 `packages/narrativetrace/src/narrativetrace/redaction.py` e `template.py`, não inferido de outra
 documentação.
+
+## Você importou isso — é assim que se aplica
+
+Importar `not_traced` ou `narrated` não prova nada por si só. Um estudo de serviços escritos por
+agentes encontrou ambos importados e nenhum aplicado — a proteção real foi escrita à mão, sem
+passar pela biblioteca. Cada um precisa ser aplicado a um parâmetro, campo ou método real, e o
+resultado precisa ser provado com uma asserção — o mesmo par que
+`packages/narrativetrace/tests/test_trace_object.py` já exercita no seu `AuthService`:
+
+```python
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    ProseRenderer,
+    narrated,
+    not_traced,
+    trace_object,
+)
+
+
+class AuthService:
+    @narrated("login attempt for {username} with {password}")
+    @not_traced("password")
+    def login(self, username: str, password: str) -> str:
+        return f"session-for-{username}"
+
+
+def run() -> str:
+    """Traces one login and renders the result -- `password` never reaches it, in the argument
+    list or in the narration template that names it."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login("alice", "hunter2")
+    return ProseRenderer().render(context.capture_trace())
+```
+
+`python -m examples.import_and_use` imprime (a frase do trace varia a cada execução, igual à
+página de 60 segundos):
+
+```text
+The trace damp shard sways:
+
+The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+```
+
+A asserção que prova isso: `assert "[REDACTED]" in rendered` — `password` nunca chega ao texto de
+narração que `@narrated` constrói ao redor dele, e uma asserção vizinha verifica que `username`, o
+argumento não ocultado, ainda está presente, então uma ocultação ampla demais também falharia
+(`examples/test_import_and_use.py`).
+
+`uv run narrativetrace doctor` observa exatamente essa falha no código-fonte de um projeto:
+**`trap.silent-sink`** sinaliza as superfícies de ocultação de campo (`not_traced_field`,
+`__nt_not_traced__`) importadas ou declaradas mas nunca realmente aplicadas — chame
+`not_traced_field(...)` em um campo real ou liste nomes de campo reais em `__nt_not_traced__`, e
+depois prove isso asseverando `"[REDACTED]"` em um trace renderizado — e **`trap.redaction-proof`**
+sinaliza um projeto sem nenhum teste que assevere o marcador literal `[REDACTED]`, seja qual for a
+superfície de ocultação que deveria produzi-lo. Passo a passo completo com cada decorador: [Guia de
+decoradores](guia-de-decoradores.md).
 
 ## Ocultação, superfície por superfície
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from examples.import_and_use import write_artifact as write_import_and_use_artifact
 from examples.not_traced_fields import write_artifact as write_not_traced_fields_artifact
 from examples.sixty_seconds.tutorial_artifacts import write_artifacts
 from scripts.snippet_check import (
@@ -422,15 +423,17 @@ class TestRealRepository:
     """Exercises the check/sync against this real repository's own documentation and source.
 
     Some snippet sources (``examples/sixty_seconds/build/*.txt``,
-    ``examples/build/not_traced_fields.txt``) are git-ignored, generated artifacts that only their
-    own example's test module writes -- regenerated here too rather than relying on that test
-    having run first: pytest collects ``packages`` before ``examples`` (``testpaths`` in
-    ``pyproject.toml``), and a pristine checkout has no pre-existing ``build/`` at all.
+    ``examples/build/not_traced_fields.txt``, ``examples/build/import_and_use.txt``) are
+    git-ignored, generated artifacts that only their own example's test module writes --
+    regenerated here too rather than relying on that test having run first: pytest collects
+    ``packages`` before ``examples`` (``testpaths`` in ``pyproject.toml``), and a pristine checkout
+    has no pre-existing ``build/`` at all.
     """
 
     def _regenerate_build_artifacts(self) -> None:
         write_artifacts()
         write_not_traced_fields_artifact()
+        write_import_and_use_artifact()
 
     def test_the_real_repository_has_no_drifted_snippets(self) -> None:
         self._regenerate_build_artifacts()

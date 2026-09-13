@@ -6,6 +6,68 @@ it does and does not reach, and what NarrativeTrace guarantees versus what it do
 all. Verified directly against `packages/narrativetrace/src/narrativetrace/redaction.py` and
 `template.py`, not inferred from other docs.
 
+## You imported this — apply it like this
+
+Importing `not_traced` or `narrated` proves nothing by itself. A study of agent-written services
+found both imported and neither applied — the actual protection was hand-written instead, past the
+library entirely. Each has to be applied to a real parameter, field, or method, and the result has
+to be proven with an assertion — the same pairing already exercised by
+`packages/narrativetrace/tests/test_trace_object.py`'s `AuthService`:
+
+<!-- snippet: examples/import_and_use.py region=main -->
+```python
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    ProseRenderer,
+    narrated,
+    not_traced,
+    trace_object,
+)
+
+
+class AuthService:
+    @narrated("login attempt for {username} with {password}")
+    @not_traced("password")
+    def login(self, username: str, password: str) -> str:
+        return f"session-for-{username}"
+
+
+def run() -> str:
+    """Traces one login and renders the result -- `password` never reaches it, in the argument
+    list or in the narration template that names it."""
+    context = ContextVarNarrativeContext()
+    service = trace_object(AuthService(), context)
+    service.login("alice", "hunter2")
+    return ProseRenderer().render(context.capture_trace())
+
+
+```
+<!-- /snippet -->
+
+`python -m examples.import_and_use` prints (the trace phrase varies by run, like the 60-second
+page):
+
+<!-- snippet: examples/build/import_and_use.txt mask=traceName -->
+```text
+The trace damp shard sways:
+
+The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+```
+<!-- /snippet -->
+
+The assertion that proves it: `assert "[REDACTED]" in rendered` — `password` never reaches the
+narration text `@narrated` builds around it, and a neighboring assertion checks that `username`,
+the non-redacted argument, is still there, so an over-broad redaction would fail too
+(`examples/test_import_and_use.py`).
+
+`uv run narrativetrace doctor` watches for exactly this failure mode in a project's own source:
+**`trap.silent-sink`** flags the field-redaction surfaces (`not_traced_field`,
+`__nt_not_traced__`) imported or declared but never actually applied — call `not_traced_field(...)`
+on a real field or list real field names in `__nt_not_traced__`, then prove it by asserting
+`"[REDACTED]"` in a rendered trace — and **`trap.redaction-proof`** flags a project with no test
+anywhere asserting the literal `[REDACTED]` marker, whichever redaction surface is meant to
+produce it. Full walkthrough with every decorator: [Decorators Guide](guides/decorators.md).
+
 ## Redaction, surface by surface
 
 | Surface | Can disable built-in redaction? |
