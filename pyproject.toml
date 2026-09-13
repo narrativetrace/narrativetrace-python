@@ -16,6 +16,7 @@ narrativetrace-diagrams = { workspace = true }
 narrativetrace-glossary = { workspace = true }
 narrativetrace-otel = { workspace = true }
 narrativetrace-pytest = { workspace = true }
+narrativetrace-skills = { workspace = true }
 narrativetrace-structlog = { workspace = true }
 
 [tool.uv]
@@ -325,10 +326,31 @@ to a real heading, and every '*(since X.Y.Z, unreleased)*' marker in the English
 matching contract.yaml entry -- see documentation/contract-gate.md. The registry-backed half \
 (contract-probe/ against a real PyPI install) is 'python -m scripts.contract_check', nightly only."""
 
+[tool.poe.tasks.skills-check]
+cmd = "python scripts/skills_render.py --check"
+help = """Agent-skills build-output gate: .claude/skills/{doctor,add}/SKILL.md and this \
+repository's own AGENTS.md managed section must match narrativetrace_skills' typed catalogue -- \
+fails naming what drifted; 'poe skills-render' fixes it. Depends on 'coverage' having just run \
+(the same examples/sixty_seconds/build/*.txt snippet-check depends on) for the snippet steps' \
+embedded source to resolve."""
+
+[tool.poe.tasks.skills-render]
+cmd = "python scripts/skills_render.py --fix"
+help = "Regenerates .claude/skills/{doctor,add}/SKILL.md and the AGENTS.md managed section."
+
+[tool.poe.tasks.promotion-check]
+cmd = "python scripts/promotion_render.py --check"
+help = """Tier B promotion-matrix gate: packages/narrativetrace-skills/ledger/promotion.md must \
+match ledger/runs.jsonl -- fails naming the drift; 'poe promotion-render' fixes it."""
+
+[tool.poe.tasks.promotion-render]
+cmd = "python scripts/promotion_render.py --fix"
+help = "Regenerates packages/narrativetrace-skills/ledger/promotion.md from ledger/runs.jsonl."
+
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
-duplication-check + contract-lint + bandit"""
+duplication-check + contract-lint + bandit + skills-check + promotion-check"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -345,6 +367,8 @@ sequence = [
     { ref = "duplication-check" },
     { ref = "contract-lint" },
     { ref = "bandit" },
+    { ref = "skills-check" },
+    { ref = "promotion-check" },
 ]
 
 [tool.poe.tasks.verify-all]
@@ -402,6 +426,9 @@ max-returns = 8
 # regardless of whether its entry is applicable at the version under test -- see the module's own
 # docstring and documentation/contract-gate.md.
 "contract-probe/src/contract_probe/probes/export_to_logger_probe.py" = ["PLC0415"]
+# Same reason as export_to_logger_probe.py above: narrativetrace.doctor does not exist at all in
+# the 0.1.1 wheel's public API, so this import is also deferred into observe().
+"contract-probe/src/contract_probe/probes/narrativetrace_doctor_probe.py" = ["PLC0415"]
 
 [tool.bandit]
 # `poe bandit` targets packages/examples/scripts explicitly (never the whole repo root), so this
@@ -442,15 +469,24 @@ files = [
     "packages/narrativetrace-structlog/tests",
     "packages/narrativetrace-security-tests/src",
     "packages/narrativetrace-security-tests/tests",
+    "packages/narrativetrace-skills/src",
+    "packages/narrativetrace-skills/tests",
+    "packages/narrativetrace-skills/evals",
     "examples",
 ]
-mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src"
+mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src:packages/narrativetrace-skills/src"
 # examples/sixty_seconds/main*.py are excluded, not silenced: they are the "See a trace in 60
 # seconds" page's code blocks (documentation/sixty-seconds.md) and documentation/llms.txt's
 # "Install and first trace" block (main_llms.py), byte-identical on purpose (rule 8, docs as
 # tests) -- a beginner's untyped script, not this repo's own typed example style every other
 # examples/* module follows. test_sixty_seconds.py stays checked like any other test module.
-exclude = ['(^|/)conftest\.py$', 'examples/sixty_seconds/main(_with_logger|_llms)?\.py$']
+# The redaction-gap eval fixture is the same class of thing: a deliberately minimal Tier B
+# fixture script, not this repo's own typed source style.
+exclude = [
+    '(^|/)conftest\.py$',
+    'examples/sixty_seconds/main(_with_logger|_llms)?\.py$',
+    'packages/narrativetrace-skills/evals/fixtures/redaction-gap/main\.py$',
+]
 
 # atheris is platform-conditional (see the `security` dependency group below and
 # documentation/security-testing.md) and ships no type stubs of its own; not installed in most
@@ -508,6 +544,7 @@ source = [
     # itself at session end, same as it already does for its own suffixed files). Measured
     # 2026-09-10, real number, not gamed: 98% (162 stmts, 1 miss; 32 branches, 2 partial).
     "narrativetrace_pytest",
+    "narrativetrace_skills",
 ]
 branch = true
 # Needed for narrativetrace_pytest's subprocess-measured coverage above: each pytester subprocess
@@ -569,6 +606,7 @@ narrativetrace-clarity = "DEFERRED -- no [tool.mutmut] section/mutate task exist
 narrativetrace-diagrams = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-otel = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-pytest = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
+narrativetrace-skills = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-structlog = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 
 [tool.importlinter]

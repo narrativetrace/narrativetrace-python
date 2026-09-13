@@ -41,7 +41,15 @@ class TestApproveCli:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        # `ConfigResolver`'s cwd-based discovery (narrativetrace.config) is exercised by making
+        # `Path.cwd()` report `tmp_path`, never by a real `os.chdir()`: a real chdir moves the
+        # *whole process* off the checkout, which a test must never depend on either way -- it
+        # breaks just as easily whatever else in the process resolves paths relative to the live
+        # cwd. Found running `poe mutate`'s "clean" baseline (not a mutant) from this repo's own
+        # cwd: mutmut's trampoline re-resolves its configured, relative `source_paths` against
+        # the current process cwd on every call into mutated code (`main` included), so a real
+        # chdir to an unrelated tmp dir starved that resolution and crashed the whole run.
+        monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
         exit_code = main([])
         assert exit_code == 0
         assert "No received traces to approve." in capsys.readouterr().out

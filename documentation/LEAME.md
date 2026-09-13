@@ -22,6 +22,7 @@ verlos.
 | [Privacidad y ocultación](es/privacidad-y-ocultacion.md) | El contrato de ocultación fila por fila, verificado contra el código |
 | [Qué commitear](es/que-commitear.md) | Qué archivos generados son artefactos de CI, y cuáles (si los hay) son líneas base revisadas |
 | [Formato de traza estructural](es/formato-de-traza-estructural.md) | El artefacto `.nt` libre de valores: gramática, nombrado por invocación, línea base en verde, modo de aprobación |
+| [Habilidades del agente](es/habilidades-del-agente.md) | `narrativetrace-doctor` y `add-narrative-tracing` — procedimientos cargables por un agente sobre la CLI probada |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → arreglo para los fallos que la gente realmente encuentra |
 
 ## Integraciones

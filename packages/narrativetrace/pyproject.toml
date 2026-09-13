@@ -24,6 +24,7 @@ Source = "https://github.com/narrativetrace/narrativetrace-python"
 
 [project.scripts]
 narrativetrace-approve = "narrativetrace.cli:main"
+narrativetrace = "narrativetrace.doctor.cli_bin:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,33 @@
+[project]
+name = "narrativetrace-skills"
+version = "0.1.1"
+description = "Typed catalogue source for NarrativeTrace's agent skills — renders SKILL.md/AGENTS.md"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+keywords = ["tracing", "observability", "agent-skills"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+# Deliberately dependency-free, same discipline as the core `narrativetrace` distribution: a
+# catalogue of prose and shell-command strings needs nothing at runtime, and never imports
+# `narrativetrace` itself -- the two skills invoke the free CLI as a subprocess, they do not call
+# into the library.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_skills"]

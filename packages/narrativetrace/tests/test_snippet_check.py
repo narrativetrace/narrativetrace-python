@@ -395,6 +395,28 @@ class TestCheckAndSyncRepository:
         assert sync_repository(tmp_path) == []
         assert translated_page.read_text(encoding="utf-8") == header + _SIMPLE_PAGE
 
+    def test_a_claude_skill_page_is_checked_the_same_as_a_doc_page(self, tmp_path: Path) -> None:
+        """`.claude/skills/*/SKILL.md` is rendered BUILD OUTPUT whose steps embed real source
+        through this exact marker convention (never a hand-typed literal in the typed catalogue,
+        `narrativetrace_skills.render.claude`) -- this gate must catch a drifted one the same way
+        it catches a drifted guide page, belt-and-suspenders alongside `skills_render.py --check`'s
+        own whole-file regeneration check."""
+        _write(tmp_path, "src/thing.py", "new content\n")
+        _write(tmp_path, ".claude/skills/add/SKILL.md", _SIMPLE_PAGE)
+        failures = check_repository(tmp_path)
+        assert len(failures) == 1
+        assert ".claude/skills/add/SKILL.md:3" in failures[0]
+
+    def test_sync_repository_fixes_a_drifted_claude_skill_page(self, tmp_path: Path) -> None:
+        _write(tmp_path, "src/thing.py", "new content\n")
+        page_path = _write(tmp_path, ".claude/skills/doctor/SKILL.md", _SIMPLE_PAGE)
+        changes = sync_repository(tmp_path)
+        assert len(changes) == 1
+        assert page_path.read_text(encoding="utf-8") == _SIMPLE_PAGE.replace(
+            "old content", "new content"
+        )
+        assert check_repository(tmp_path) == []
+
 
 class TestRealRepository:
     """Exercises the check/sync against this real repository's own documentation and source.

@@ -287,9 +287,20 @@ def export_to_logger(
     Each call replays into a fresh :class:`LoggingTraceConsumer`, so it obeys the "one consumer
     per stream" rule on its own (see the module docstring) — safe to call more than once, even
     concurrently, from different threads/tasks.
+
+    The replay carries ``trace``'s own :attr:`~narrativetrace.tree.TraceTree.trace_id` (so
+    ``traceName`` in the logged records names the *captured* trace, not a fresh one minted by
+    this replay) when the tree has one -- an empty tree (``trace_id is None``) has no identity to
+    carry, so the replay context is left to generate its own rather than pass ``None`` through
+    :meth:`~narrativetrace.context.NarrativeContext.adopt_trace_id`. ``runName`` needs no such
+    plumbing: :class:`LoggingTraceConsumer` reads the process-wide :func:`current_run_name`
+    directly, so the run active when ``export_to_logger`` is called is the run these records
+    carry, regardless of which context replays them.
     """
     store = EventStore()
     replay_context = ContextVarNarrativeContext(store=store)
+    if trace.trace_id is not None:
+        replay_context.adopt_trace_id(trace.trace_id)
     for root in trace.roots:
         replay_context.emit_trace_node(root, None)
     consumer = LoggingTraceConsumer(logger, levels)

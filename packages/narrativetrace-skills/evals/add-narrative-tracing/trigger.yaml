@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Trigger cases: must fire on the positive phrasings, must stay quiet on the negative ones. Gates
+# on rate, target >=90%. Phrasings mined from the README's Quick Start, llms.txt's "Install and
+# first trace", and the troubleshooting page's own framing of what a not-yet-installed project
+# looks like -- never invented.
+
+positive:
+  - "add narrative tracing to my service"
+  - "install narrativetrace"
+  - "get a trace in 60 seconds"
+  - "wrap this object so I can see a trace"
+  - "send my traces to my logger"
+  - "set up narrativetrace in this project"
+  - "how do I get started with narrativetrace"
+  - "this project has no narrativetrace yet, help me add it"
+  - "hook narrativetrace up to my logger"
+  - "trace this service and show me the output"
+
+# The doctor's own positive set (diagnosing an existing install is that skill's job, not this
+# one's), plus another skill's job or no skill's job at all. Must NOT fire.
+negative:
+  - "check my narrativetrace setup"
+  - "is narrativetrace broken"
+  - "why isn't anything being traced"
+  - "my traces aren't showing up"
+  - "a *args method's parameters show as one args value"
+  - "no trace output files"
+  - "narrativetrace doctor"
+  - "make my tests produce narrative traces"
+  - "rename these unclear method names"
+  - "generate a sequence diagram for this PR"
+  - "summarize hotspots across my captured traces"
+  - "upgrade narrativetrace to the latest version"

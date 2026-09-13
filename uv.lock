@@ -18,6 +18,7 @@ members = [
     "narrativetrace-otel",
     "narrativetrace-pytest",
     "narrativetrace-security-tests",
+    "narrativetrace-skills",
     "narrativetrace-structlog",
     "narrativetrace-workspace",
 ]
@@ -1310,6 +1311,11 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pyyaml", specifier = ">=6" }]
+
+[[package]]
+name = "narrativetrace-skills"
+version = "0.1.1"
+source = { editable = "packages/narrativetrace-skills" }
 
 [[package]]
 name = "narrativetrace-structlog"

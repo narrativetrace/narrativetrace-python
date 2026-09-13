@@ -26,6 +26,7 @@ from contract_probe.probes import (
     export_to_logger_probe,
     logging_consumer_depth_probe,
     manifest_identity_probe,
+    narrativetrace_doctor_probe,
     native_stringification_not_trusted_probe,
     not_traced_class_attribute_probe,
     platform_type_carveout_probe,
@@ -59,6 +60,7 @@ _DISPATCH: dict[str, Callable[[], str]] = {
     "probed-typed-error-marker": typed_error_marker_probe.observe,
     "probed-approval-default": approval_default_probe.observe,
     "probed-manifest-per-invocation-identity": manifest_identity_probe.observe,
+    "config-shape-narrativetrace-doctor": narrativetrace_doctor_probe.observe,
 }
 
 

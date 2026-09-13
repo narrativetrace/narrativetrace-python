@@ -1,6 +1,6 @@
 # narrativetrace-python
 
-*(Docs and published both at 0.1.1; 48 behaviours marked unreleased.)*
+*(Docs and published both at 0.1.1; 52 behaviours marked unreleased.)*
 
 > Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
 > workspace with a dependency-free core and thin integration packages.
@@ -88,6 +88,7 @@ We asked AI agents to build a claims service with NarrativeTrace and write up th
 - [Logging & structlog](guides/logging.md)
 - [OpenTelemetry](guides/opentelemetry.md)
 - [Clarity](guides/clarity.md)
+- [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over `uv run narrativetrace doctor`, installable today via `.claude/skills/{add,doctor}/` or the always-on `AGENTS.md` pointer *(since 0.1.2, unreleased)*
 
 ## Examples
 

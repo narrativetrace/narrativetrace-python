@@ -43,6 +43,13 @@ class TestNoBaseline:
         assert received.is_file()
         assert received.read_text(encoding="utf-8").startswith("scenario: scenario\n")
 
+    def test_message_points_at_the_doctor_skill(self, tmp_path: Path) -> None:
+        """`trap.approval-traces` already inspects this same approved-directory state, so an
+        agent hitting this failure is pointed at the tool that would have caught it up front."""
+        approved = tmp_path / "T" / "m.approved.nt"
+        with pytest.raises(AssertionError, match="→ narrativetrace-doctor skill"):
+            approval.verify(_tree("run"), "scenario", approved)
+
 
 class TestMatchingStructure:
     def test_verify_passes_silently_and_deletes_a_stale_received_trace(
@@ -72,6 +79,14 @@ class TestChangedStructure:
         received = tmp_path / "T" / "m.received.nt"
         assert received.is_file()
         assert "extra" in received.read_text(encoding="utf-8")
+
+    def test_message_points_at_the_doctor_skill(self, tmp_path: Path) -> None:
+        approved = tmp_path / "T" / "m.approved.nt"
+        approved.parent.mkdir(parents=True)
+        approved.write_text("scenario: scenario\n\n- Svc.run() → value\n", encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="→ narrativetrace-doctor skill"):
+            approval.verify(_tree("run", "extra"), "scenario", approved)
 
 
 class TestPromoteReceived:

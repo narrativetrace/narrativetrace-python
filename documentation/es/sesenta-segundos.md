@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 58bc1ed9b34b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob c9e26b0afb36 | translated: 2026-09-13 | reviewed: - -->
 
 # Ve una traza en 60 segundos
 
@@ -140,13 +140,14 @@ uv run main.py
 trace: loose hook parks (a1b2c3d)
 
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
-[mossy burr coats] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
-[mossy burr coats] [] ← returned: "ORD-cust-1-prod-42-3"
+[loose hook parks] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+[loose hook parks] [] ← returned: "ORD-cust-1-prod-42-3"
 ```
 
 (el tiempo varía — el `0ms` es lo que haya medido tu máquina, igual que arriba; la frase entre
-corchetes también varía — `export_to_logger` reproduce la traza con su propio id nuevo, sin
-relación con el fijo de arriba). `traceName` aparece poblado porque hay una traza activa;
+corchetes es siempre la misma — la reproducción de `export_to_logger` conserva el id propio de la
+traza capturada, así que aquí `traceName` nombra la misma traza fijada arriba, nunca una nueva).
+`traceName` aparece poblado porque hay una traza activa;
 `runName` está vacío aquí porque este script sencillo no pertenece a ninguna ejecución de suite de
 pruebas — solo se completa bajo el fixture de `narrativetrace-pytest` (consulta [Guía de
 configuración, § La ejecución tiene un

@@ -1,0 +1,10 @@
+<!-- narrativetrace:skills:start -->
+## NarrativeTrace agent skills
+
+- `narrativetrace-doctor` — Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being traced, no trace output files appear, DuplicateConfigurationError shows up on startup, a *args method's parameters render as one args: [...] value, or you are not sure NarrativeTrace is wired up correctly. Checks the interpreter and pytest versions, that all eight narrativetrace-* packages agree on one version, NARRATIVETRACE_OUTPUT, that the pytest plugin is registered and not disabled, unrecognized narrativetrace.toml keys, an imported-but-unused not_traced_field/__nt_not_traced__ marker, whether redaction is proven in a test, and stale approval-trace diffs. Read-only -- makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it.
+- `add-narrative-tracing` — Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Installs narrativetrace with uv add, wraps an object with trace_object, renders and runs the first trace, then wires the stdlib logging bridge so traces reach your logger. Ends by running narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in 60 seconds', 'wrap this object so I can see a trace', or 'send my traces to my logger' to invoke it.
+- `narrativetrace-pro-aggregate` (Pro, shipped) — aggregated trees, hotspots, and method/error frequencies via the Pro EventAggregator, fed EventStore.events()
+- `narrativetrace-mcp` (Pro, planned) — a stdio MCP server, connecting Claude Code / Cursor directly to captured traces
+
+See llms.txt for the full doc index.
+<!-- narrativetrace:skills:end -->

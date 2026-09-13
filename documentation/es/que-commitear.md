@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 80984b172f68 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob cf18ef2cbfd6 | translated: 2026-09-13 | reviewed: - -->
 
 # Qué commitear
 
@@ -26,6 +26,7 @@ gramática completa y el flujo de trabajo del modo de aprobación.
 | Resultados de claridad de la suite | `<OUTPUT_DIR>/clarity-results.json` | No | Se genera junto con el informe |
 | Salida del escáner independiente (CLI `narrativetrace-clarity`) | donde apunte `--output-dir` | No | Igual que lo anterior, se genera bajo demanda |
 | `glossary.json` / `glossary.md` | raíz del repositorio (o donde apuntes `NARRATIVETRACE_GLOSSARY_DIR`) | **Sí**, si lo usas | Vocabulario de propiedad humana — el archivo commiteado es lo que lee la puntuación de claridad, y nunca se regenera con una ejecución de pruebas. "Un archivo, un flujo de revisión" |
+| `.claude/skills/**/SKILL.md`, la sección `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2, unreleased)* | `.claude/skills/{add,doctor}/SKILL.md`, `AGENTS.md` | **Sí** | Salida generada a partir del catálogo tipado de `narrativetrace-skills` (`python scripts/skills_render.py --fix`), no salida de una ejecución de pruebas — se commitea igual que `glossary.json`: se regenera, se revisa en los diffs y se verifica contra desincronización (`python scripts/skills_render.py --check`, integrado en `uv run poe check`) en lugar de editarse a mano |
 
 El valor predeterminado de `<OUTPUT_DIR>` es `narrative-traces` y el de `<APPROVED_DIR>` es
 `test-narratives` (ambos relativos a donde se haya ejecutado la suite, ambos configurables — ver la

@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 58bc1ed9b34b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob c9e26b0afb36 | translated: 2026-09-13 | reviewed: - -->
 
 # Veja um trace em 60 segundos
 
@@ -138,13 +138,14 @@ uv run main.py
 trace: loose hook parks (a1b2c3d)
 
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
-[mossy burr coats] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
-[mossy burr coats] [] ← returned: "ORD-cust-1-prod-42-3"
+[loose hook parks] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+[loose hook parks] [] ← returned: "ORD-cust-1-prod-42-3"
 ```
 
-(o tempo varia — o `0ms` é o que a sua máquina mediu, igual acima; a frase entre colchetes também
-varia — `export_to_logger` reproduz o trace com o seu próprio id novo, sem relação com o fixo
-acima). `traceName` vem preenchido porque há um trace ativo; `runName` está vazio aqui porque esse
+(o tempo varia — o `0ms` é o que a sua máquina mediu, igual acima; a frase entre colchetes é sempre
+a mesma — a repetição do `export_to_logger` carrega o próprio id do trace capturado, então
+`traceName` aqui nomeia o mesmo trace fixado acima, nunca um novo). `traceName` vem preenchido
+porque há um trace ativo; `runName` está vazio aqui porque esse
 script simples não pertence a nenhuma execução de suíte de testes — ele só é preenchido sob o
 fixture do `narrativetrace-pytest` (veja [Guia de configuração, § A execução tem um
 nome](guia-de-configuracao.md#a-execução-tem-um-nome)). O mesmo trace agora chega ao destino de

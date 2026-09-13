@@ -370,6 +370,7 @@ Going deeper:
 
 - [Privacy and Redaction](documentation/privacy-and-redaction.md) — the row-by-row redaction contract, verified against the code
 - [What to Commit](documentation/what-to-commit.md) — which generated files are CI artifacts, and which (if any) are reviewed baselines
+- [Agent Skills](documentation/agent-skills.md) — `narrativetrace-doctor`, a thin, read-only agent skill over `uv run narrativetrace doctor` *(since 0.1.2, unreleased)*
 - [Troubleshooting](documentation/troubleshooting.md) — symptom → cause → fix for the failure modes people actually hit
 - [pytest Guide](documentation/guides/pytest.md) · [FastAPI/ASGI Guide](documentation/guides/fastapi-asgi.md) · [OpenTelemetry Guide](documentation/guides/opentelemetry.md) · [Logging Guide](documentation/guides/logging.md) · [Clarity Guide](documentation/guides/clarity.md)
 - [Feature Guide](documentation/feature-guide.md) — every feature this runtime ships, with tier and status

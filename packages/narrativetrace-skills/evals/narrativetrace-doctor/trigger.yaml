@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Trigger cases: must fire on the positive phrasings, must stay quiet on the negative ones. Gates
+# on rate, target >=90%. Phrasings here are mined (never invented) from
+# documentation/troubleshooting.md's own question-shaped headings -- "No trace output files",
+# "A *args method's parameters show as one args: [...] value" -- plus the doctor genre's own
+# conventions (npm doctor, expo doctor, flutter doctor).
+
+positive:
+  - "no trace output files"
+  - "I don't see the per-test trace in my terminal"
+  - "a *args method's parameters show as one args value"
+  - "why isn't anything being traced"
+  - "my traces aren't showing up"
+  - "check my narrativetrace setup"
+  - "is narrativetrace broken"
+  - "DuplicateConfigurationError on startup"
+  - "is my narrativetrace install okay"
+  - "diagnose my narrativetrace configuration"
+  - "run a pre-flight check on narrativetrace before I wire it into this service"
+  - "narrativetrace doctor"
+
+# Adjacent-but-wrong asks: another skill's job, a different troubleshooting.md entry entirely
+# (async propagation, clarity scoring), or no skill's job at all. Must NOT fire.
+negative:
+  - "add narrative tracing to my service"
+  - "make my tests produce narrative traces"
+  - "rename these unclear method names"
+  - "generate a sequence diagram for this PR"
+  - "summarize hotspots across my captured traces"
+  - "what does trace_object do"
+  - "upgrade narrativetrace to the latest version"
+  - "async trace is missing, or a background task never appears"
+  - "clarity score seems wrong"

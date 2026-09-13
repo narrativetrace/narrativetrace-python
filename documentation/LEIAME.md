@@ -21,6 +21,7 @@ em inglês por convenção e não fazem parte do conjunto traduzido de nenhum id
 | [Privacidade e ocultação](pt-BR/privacidade-e-ocultacao.md) | O contrato de ocultação linha por linha, verificado contra o código |
 | [O que commitar](pt-BR/o-que-commitar.md) | Quais arquivos gerados são artefatos de CI, e quais (se algum) são baselines revisadas |
 | [Formato de trace estrutural](pt-BR/formato-de-trace-estrutural.md) | O artefato `.nt` livre de valores: gramática, nomeação por invocação, baseline verde, modo de aprovação |
+| [Habilidades do agente](pt-BR/habilidades-do-agente.md) | `narrativetrace-doctor` e `add-narrative-tracing` — procedimentos carregáveis por um agente sobre a CLI testada |
 | [Solução de problemas](pt-BR/solucao-de-problemas.md) | Sintoma → causa → correção para os modos de falha que as pessoas realmente encontram |
 
 ## Integrações

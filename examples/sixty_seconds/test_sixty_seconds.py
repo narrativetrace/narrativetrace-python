@@ -86,19 +86,15 @@ def _assert_logger_output(with_logger: str) -> None:
     assert logger_lines[0] == _DEMO_TRACE_HEADER
     assert logger_lines[1] == ""
     assert _TRACE_LINE.match(logger_lines[2])
-    # export_to_logger replays the captured tree through a brand-new context (see its own
-    # docstring), which mints its own fresh trace id rather than adopting the tree's -- so
-    # `traceName` here is a genuinely different, random phrase every run (mask=traceName on the
-    # page's embed); `runName` is empty either way, since this plain script belongs to no
-    # test-suite execution (2026-09-13 ruling, item 2).
-    assert re.match(
-        r"^\[[a-z]+ [a-z]+ [a-z]+\] \[\] → "
-        r'OrderService\.place_order\(customer_id: "cust-1", product_id: "prod-42", quantity: 3\)$',
-        logger_lines[3],
+    # export_to_logger's replay now carries the captured tree's own trace_id (its docstring), so
+    # `traceName` here is the SAME fixed phrase as the console header above -- never random, no
+    # mask needed on the page's embed. `runName` is empty either way, since this plain script
+    # belongs to no test-suite execution (2026-09-13 ruling, item 2).
+    assert logger_lines[3] == (
+        "[loose hook parks] [] → "
+        'OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)'
     )
-    assert re.match(
-        r'^\[[a-z]+ [a-z]+ [a-z]+\] \[\] ← returned: "ORD-cust-1-prod-42-3"$', logger_lines[4]
-    )
+    assert logger_lines[4] == '[loose hook parks] [] ← returned: "ORD-cust-1-prod-42-3"'
 
 
 def _assert_redaction_output(with_redaction: str) -> None:

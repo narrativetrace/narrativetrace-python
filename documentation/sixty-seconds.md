@@ -142,21 +142,22 @@ replay `store.events()` through `LoggingTraceConsumer` by hand instead):
 uv run main.py
 ```
 
-<!-- snippet: examples/sixty_seconds/build/see_a_trace_with_logger.txt mask=duration,traceName -->
+<!-- snippet: examples/sixty_seconds/build/see_a_trace_with_logger.txt mask=duration -->
 ```text
 trace: loose hook parks (a1b2c3d)
 
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
-[mossy burr coats] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
-[mossy burr coats] [] ← returned: "ORD-cust-1-prod-42-3"
+[loose hook parks] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+[loose hook parks] [] ← returned: "ORD-cust-1-prod-42-3"
 ```
 <!-- /snippet -->
 
-(timing varies — `0ms` is whatever your machine measured, same as above; the phrase in brackets
-varies too — `export_to_logger` replays the trace through its own fresh id, unrelated to the fixed
-one above.) `traceName` is populated because a trace is active; `runName` is empty here because
-this plain script belongs to no test-suite execution — it populates only under the
-`narrativetrace-pytest` fixture (see [Configuration Guide, § The run has a
+(timing varies — `0ms` is whatever your machine measured, same as above; the phrase in brackets is
+the same one every time — `export_to_logger`'s replay carries the captured trace's own id, so
+`traceName` here names the very trace this page fixed at the top, not a fresh one.) `traceName` is
+populated because a trace is active; `runName` is empty here because this plain script belongs to
+no test-suite execution — it populates only under the `narrativetrace-pytest` fixture (see
+[Configuration Guide, § The run has a
 name](guides/configuration.md#the-run-has-a-name)). The same trace now lands in the sink you
 already have; the console line is untouched. `structlog` users get the identical key set from
 `narrativetrace-structlog` instead — see the full [Logging Guide](guides/logging.md) for

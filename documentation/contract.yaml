@@ -206,3 +206,11 @@ entries:
     since: "0.1.2"
     documented_default: "true"
     probe: "contract-probe/src/contract_probe/probes/run_name_manifest_field_probe.py"
+
+  - id: config-shape-narrativetrace-doctor
+    kind: config-shape
+    page: "documentation/agent-skills.md#the-narrativetrace-cli"
+    claim: "narrativetrace doctor --json emits a well-formed report: it parses and carries all eleven finding ids"
+    since: "0.1.2"
+    expected_effect: "well-formed"
+    probe: "contract-probe/src/contract_probe/probes/narrativetrace_doctor_probe.py"

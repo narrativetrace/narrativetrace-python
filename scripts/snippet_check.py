@@ -260,17 +260,26 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     """Every `documentation/**/*.md` file that is a source, not a translation (mirrors excluded
     the same way `scripts/translation_check.py` tells the two apart), plus `documentation/llms.txt`
     -- the one non-`.md` page an agent reads first, English-only and outside the translation
-    manifest, whose embedded blocks must be just as drift-proof as any guide's."""
+    manifest, whose embedded blocks must be just as drift-proof as any guide's -- plus
+    `.claude/skills/*/SKILL.md`: rendered BUILD OUTPUT (`scripts/skills_render.py`,
+    `documentation/what-to-commit.md`) whose steps embed real source
+    (`examples/sixty_seconds/*.py`) through this exact `<!-- snippet: path -->` marker convention,
+    never a hand-typed literal in the typed catalogue -- this gate is what proves that, the same
+    way it already proves it for every guide page. `skills_render.py --check`'s own drift check
+    (regenerating the whole file from the catalogue) already covers the identical ground from the
+    other direction; this is the belt to that suspenders, and the one a hand-edit to just the
+    fenced block inside an otherwise-untouched SKILL.md would still catch."""
     translated = {path.resolve() for path in translated_files(repo_root)}
     documentation = repo_root / "documentation"
-    if not documentation.is_dir():
-        return []
-    pages = [
-        path for path in sorted(documentation.rglob("*.md")) if path.resolve() not in translated
-    ]
+    pages = (
+        [path for path in sorted(documentation.rglob("*.md")) if path.resolve() not in translated]
+        if documentation.is_dir()
+        else []
+    )
     llms_txt = documentation / "llms.txt"
     if llms_txt.is_file():
         pages.append(llms_txt)
+    pages.extend(sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md")))
     return pages
 
 

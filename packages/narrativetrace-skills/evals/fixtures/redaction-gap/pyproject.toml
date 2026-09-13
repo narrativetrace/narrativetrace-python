@@ -1,0 +1,11 @@
+[project]
+# Not a uv workspace member (see README.md) -- a standalone fixture the eval runner scaffolds
+# into a scratch directory and installs fresh, the same way a real consumer would.
+name = "redaction-gap-fixture"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["narrativetrace"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

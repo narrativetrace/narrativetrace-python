@@ -1,4 +1,4 @@
-<!-- source: README.md blob 5dccdfda58d6 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: README.md blob 8975d1adeee5 | translated: 2026-09-13 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -390,6 +390,7 @@ Aprofundando:
 
 - [Privacidade e ocultação](documentation/pt-BR/privacidade-e-ocultacao.md) — o contrato de ocultação linha por linha, verificado contra o código
 - [O que commitar](documentation/pt-BR/o-que-commitar.md) — quais arquivos gerados são artefatos de CI, e quais (se algum) são baselines revisadas
+- [Habilidades do agente](documentation/pt-BR/habilidades-do-agente.md) — `narrativetrace-doctor`, uma habilidade de agente simples e somente leitura sobre `uv run narrativetrace doctor` *(since 0.1.2, unreleased)*
 - [Solução de problemas](documentation/pt-BR/solucao-de-problemas.md) — sintoma → causa → correção para os modos de falha que as pessoas realmente encontram
 - [Guia de pytest](documentation/pt-BR/guia-de-pytest.md) · [Guia de FastAPI/ASGI](documentation/pt-BR/guia-de-fastapi-asgi.md) · [Guia de OpenTelemetry](documentation/pt-BR/guia-de-opentelemetry.md) · [Guia de logging](documentation/pt-BR/guia-de-logging.md) · [Guia de clareza](documentation/pt-BR/guia-de-clareza.md)
 - [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md) — cada funcionalidade que esta implementação distribui, com nível e status

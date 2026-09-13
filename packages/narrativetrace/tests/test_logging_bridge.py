@@ -330,6 +330,30 @@ class TestExportToLogger:
             '← returned: "ORD-cust-1"',
         ]
 
+    def test_replay_carries_the_captured_traces_own_id(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        """The replay must name the CAPTURED trace, not a fresh one it mints for itself --
+        otherwise the replayed log lines cannot be correlated back to the capture at all (found
+        while landing the run name: the old replay adopted no id, so `NarrativeContext` minted a
+        random one on first use, and every log line carried a `traceName` unrelated to `trace`)."""
+
+        class OrderService:
+            def place_order(self, customer_id: str) -> str:
+                return f"ORD-{customer_id}"
+
+        context = ContextVarNarrativeContext()
+        context.adopt_trace_id(TRACE)
+        service = trace_object(OrderService(), context)
+        service.place_order("cust-1")
+        trace = context.capture_trace()
+
+        export_to_logger(trace)
+
+        record = captured.records[-1]
+        assert record.__dict__["traceId"] == str(TRACE)
+        assert record.__dict__["traceName"] == trace.trace_id.human_name()  # type: ignore[union-attr]
+
     def test_matches_manual_replay_through_a_dedicated_event_store(
         self, captured: pytest.LogCaptureFixture
     ) -> None:
