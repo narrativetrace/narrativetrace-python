@@ -13,12 +13,14 @@ from narrativetrace.output.paths import (
     trace_file,
 )
 from narrativetrace.output.reporter import ConsoleSummaryReporter
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.output.warnings import TemplateWarning, collect, format_warnings
 from narrativetrace.output.writer import TraceArtifact, WriteResult, write_trace
 
 __all__ = [
     "ArtifactIdentity",
     "ConsoleSummaryReporter",
+    "RunIdentity",
     "TemplateWarning",
     "TraceArtifact",
     "WriteResult",

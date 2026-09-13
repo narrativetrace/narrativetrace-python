@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 932b2f208abd | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 80984b172f68 | translated: 2026-09-13 | reviewed: - -->
 
 # O que commitar
 
@@ -21,7 +21,7 @@ de trabalho do modo de aprovação.
 | **Trace aprovado** *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sim**, uma vez que você opte pelo modo de aprovação | O contrato de comportamento revisado — uma decisão, não uma saída |
 | Trace recebido *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | Não | Gravado em uma divergência (ou quando ainda não há baseline) para revisão; promova com `uv run poe approve` / `narrativetrace-approve`, nunca commite |
 | Trace incompleto *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | Não | Gravado no lugar de um trace recebido quando a própria execução foi incompleta; o verbo approve o ignora pelo nome |
-| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | Não | Regenerado a cada execução — um índice sobre os artefatos acima, não uma baseline em si |
+| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | Não | Regenerado a cada execução — um índice sobre os artefatos acima, não uma baseline em si; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta sessão*, não um cenário, então muda a cada execução mesmo quando mais nada muda |
 | Relatório de clareza da suíte | `<OUTPUT_DIR>/clarity-report.md` | Não | Um relatório gerado, não uma decisão |
 | Resultados de clareza da suíte | `<OUTPUT_DIR>/clarity-results.json` | Não | Gerado junto com o relatório |
 | Saída do scanner independente (CLI `narrativetrace-clarity`) | onde `--output-dir` apontar | Não | Igual ao anterior, gerado sob demanda |

@@ -25,8 +25,11 @@ from narrativetrace.logging_bridge import (
     EventType,
     LoggingTraceConsumer,
     NarrativeContextFilter,
+    current_run_name,
+    current_scope_keys,
     export_to_logger,
     request_log_scope,
+    set_run_name,
 )
 from narrativetrace.metadata import ServiceIdentity
 from narrativetrace.outcomes import Returned, Threw
@@ -56,6 +59,7 @@ def _span(
 def _reset_scope() -> None:
     _SCOPE_STACK.set(None)
     _REQUEST_SCOPE.set(None)
+    set_run_name(None)
 
 
 class TestRequestLogScope:
@@ -93,6 +97,65 @@ class TestRequestLogScope:
             assert record.__dict__["httpMethod"] == "GET"
             assert record.__dict__["traceId"] == "0" * 32
             assert record.__dict__["nt.class"] == "Svc"
+        finally:
+            logger.removeFilter(filt)
+
+
+class TestRunName:
+    """`set_run_name`/`current_run_name` -- the seam a test-suite integration (the pytest plugin's
+    session hook) uses to attach the enclosing run's identity, mirroring Java's `RunListener` SPI
+    attaching to MDC (2026-09-13 ruling, item 2)."""
+
+    def test_current_run_name_is_none_by_default(self) -> None:
+        assert current_run_name() is None
+
+    def test_set_run_name_round_trips(self) -> None:
+        set_run_name("bold elk soars")
+        assert current_run_name() == "bold elk soars"
+
+    def test_set_run_name_none_clears_it(self) -> None:
+        set_run_name("bold elk soars")
+        set_run_name(None)
+        assert current_run_name() is None
+
+    def test_current_scope_keys_carries_the_run_name_with_no_active_span(self) -> None:
+        set_run_name("bold elk soars")
+        assert current_scope_keys() == {"runName": "bold elk soars"}
+
+    def test_current_scope_keys_has_no_run_name_when_unset(self) -> None:
+        assert "runName" not in current_scope_keys()
+
+    def test_span_keys_include_the_run_name_when_a_run_is_active(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        set_run_name("bold elk soars")
+        consumer = LoggingTraceConsumer()
+        consumer.accept(EnterEvent(_span("a"), 0, MethodSignature("Svc", "run", [])))
+        assert captured.records[-1].__dict__["runName"] == "bold elk soars"
+
+    def test_span_keys_have_no_run_name_when_no_run_is_active(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        consumer = LoggingTraceConsumer()
+        consumer.accept(EnterEvent(_span("a"), 0, MethodSignature("Svc", "run", [])))
+        assert "runName" not in captured.records[-1].__dict__
+
+    def test_filter_always_defaults_trace_name_and_run_name_when_absent(self) -> None:
+        record = logging.LogRecord("t", logging.INFO, __file__, 1, "m", None, None)
+        NarrativeContextFilter().filter(record)
+        assert record.__dict__["traceName"] == ""
+        assert record.__dict__["runName"] == ""
+
+    def test_filter_never_overrides_a_real_run_name_with_the_default(
+        self, captured: pytest.LogCaptureFixture
+    ) -> None:
+        set_run_name("bold elk soars")
+        logger = logging.getLogger("narrativetrace")
+        filt = NarrativeContextFilter()
+        logger.addFilter(filt)
+        try:
+            logger.info("business log line")
+            assert captured.records[-1].__dict__["runName"] == "bold elk soars"
         finally:
             logger.removeFilter(filt)
 

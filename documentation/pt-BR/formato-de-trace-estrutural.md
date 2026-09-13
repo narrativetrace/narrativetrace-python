@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 7baee63cf348 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob e980790bc213 | translated: 2026-09-13 | reviewed: - -->
 
 # Formato de trace estrutural (`.nt`)
 
@@ -96,8 +96,11 @@ scenario: Weekend trip settles with three transfers
   a quem o chamou. Trabalho fire-and-forget renderiza como `~ fire-and-forget` + filhos. Nomes/ids
   de thread nunca aparecem.
 - **Excluído por design:** todos os valores de argumento/retorno, mensagens de exceção, durações,
-  timestamps, identidade de thread, ids de trace/span, nomes de trace, resultados de execução, e
-  narração (a narração resolvida embute valores).
+  timestamps, identidade de thread, ids de trace/span, nomes de trace, ids de execução, nomes de
+  execução *(since 0.1.2, unreleased — a execução também tem um nome, veja [Guia de configuração
+  § A execução tem um nome](guia-de-configuracao.md#a-execução-tem-um-nome); nunca entra neste
+  formato, em um trace aprovado ou received, no nome de um artefato, nem em uma chave por cenário
+  do manifesto)*, resultados de execução, e narração (a narração resolvida embute valores).
 - **Codificação:** UTF-8, LF, nova linha final. Identificadores passam por sanitização de
   caracteres de controle.
 

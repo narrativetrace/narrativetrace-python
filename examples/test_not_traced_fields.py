@@ -28,8 +28,18 @@ def test_the_non_redacted_field_still_renders() -> None:
     assert 'username="bob"' in rendered
 
 
+def _without_trace_header(rendered: str) -> str:
+    """Strips the leading `trace: <phrase> (<id>)` header (2026-09-13 ruling, item 4): each call
+    to :func:`run` adopts no fixed trace id, so it names a genuinely different, random trace every
+    time -- the header is exactly the one thing two otherwise-identical calls must differ on."""
+    boundary = rendered.index("\n\n")
+    return rendered[boundary + 2 :]
+
+
 def test_write_artifact_saves_the_same_content_it_returns() -> None:
     """The build artifact `scripts/snippet_check.py` embeds into decorators.md is exactly what
-    a reader running this file for themselves would see."""
+    a reader running this file for themselves would see -- but for the trace header, which names
+    a fresh random trace on every call (`mask=traceName` on the page's own embed)."""
     saved = write_artifact()
-    assert _BUILD_ARTIFACT.read_text(encoding="utf-8") == saved == run()
+    assert _BUILD_ARTIFACT.read_text(encoding="utf-8") == saved
+    assert _without_trace_header(saved) == _without_trace_header(run())

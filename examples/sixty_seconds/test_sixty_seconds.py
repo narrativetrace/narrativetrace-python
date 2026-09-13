@@ -63,35 +63,53 @@ _REDACTED_TRACE_LINE = re.compile(
     r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms$'
 )
 
+# main.py/main_with_logger.py adopt a fixed trace id (DEMO_TRACE_ID) so the page's embedded
+# output always names the same trace (2026-09-13 ruling, item 5) -- the phrase TraceNamer derives
+# from it, and the console renderer's own header line (item 4).
+_DEMO_TRACE_HEADER = "trace: loose hook parks (a1b2c3d)"
 
-def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
-    """Runs the tutorial call through the real traced proxy four ways, once per page/llms.txt
-    section:
+# main_llms.py adopts no fixed id -- its header names a genuinely random trace every run.
+_ANY_TRACE_HEADER = re.compile(r"^trace: [a-z]+ [a-z]+ [a-z]+ \([0-9a-f]{7}\)$")
 
-    - the plain script ("The program" / "Run it"), captured and saved for the snippet embed;
-    - its logger-wired sibling ("Send it to your logger"), same treatment;
-    - its redaction-wired sibling (llms.txt's "Install and first trace" block), same treatment;
-    - the identical call again, through ``narrativetrace-pytest``'s fixture in an isolated
-      subprocess, proving the runtime's own test integration writes the artifact by default.
-    """
-    plain, with_logger, with_redaction = write_artifacts()
 
+def _assert_plain_output(plain: str) -> None:
     plain_lines = plain.splitlines()
-    assert len(plain_lines) == 1
-    assert _TRACE_LINE.match(plain_lines[0])
+    assert len(plain_lines) == 3
+    assert plain_lines[0] == _DEMO_TRACE_HEADER
+    assert plain_lines[1] == ""
+    assert _TRACE_LINE.match(plain_lines[2])
 
+
+def _assert_logger_output(with_logger: str) -> None:
     logger_lines = with_logger.splitlines()
-    assert len(logger_lines) == 3
-    assert _TRACE_LINE.match(logger_lines[0])
-    assert logger_lines[1] == (
-        '→ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)'
+    assert len(logger_lines) == 5
+    assert logger_lines[0] == _DEMO_TRACE_HEADER
+    assert logger_lines[1] == ""
+    assert _TRACE_LINE.match(logger_lines[2])
+    # export_to_logger replays the captured tree through a brand-new context (see its own
+    # docstring), which mints its own fresh trace id rather than adopting the tree's -- so
+    # `traceName` here is a genuinely different, random phrase every run (mask=traceName on the
+    # page's embed); `runName` is empty either way, since this plain script belongs to no
+    # test-suite execution (2026-09-13 ruling, item 2).
+    assert re.match(
+        r"^\[[a-z]+ [a-z]+ [a-z]+\] \[\] → "
+        r'OrderService\.place_order\(customer_id: "cust-1", product_id: "prod-42", quantity: 3\)$',
+        logger_lines[3],
     )
-    assert logger_lines[2] == '← returned: "ORD-cust-1-prod-42-3"'
+    assert re.match(
+        r'^\[[a-z]+ [a-z]+ [a-z]+\] \[\] ← returned: "ORD-cust-1-prod-42-3"$', logger_lines[4]
+    )
 
+
+def _assert_redaction_output(with_redaction: str) -> None:
     redaction_lines = with_redaction.splitlines()
-    assert len(redaction_lines) == 1
-    assert _REDACTED_TRACE_LINE.match(redaction_lines[0])
+    assert len(redaction_lines) == 3
+    assert _ANY_TRACE_HEADER.match(redaction_lines[0])
+    assert redaction_lines[1] == ""
+    assert _REDACTED_TRACE_LINE.match(redaction_lines[2])
 
+
+def _assert_pytest_fixture_writes_an_artifact(pytester: pytest.Pytester) -> None:
     # Built by concatenation, not an indented triple-quoted literal: `_order_service_source()`'s
     # lines have their own (zero) indentation, and splicing them into an indented f-string leaves
     # `pytester.makepyfile`'s `textwrap.dedent` nothing consistent to strip.
@@ -108,3 +126,21 @@ def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
     result.assert_outcomes(passed=1)
     artifacts = list(pytester.path.rglob("test_place_order.md"))
     assert len(artifacts) == 1, "narrativetrace-pytest must write a trace artifact by default"
+
+
+def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
+    """Runs the tutorial call through the real traced proxy four ways, once per page/llms.txt
+    section:
+
+    - the plain script ("The program" / "Run it"), captured and saved for the snippet embed;
+    - its logger-wired sibling ("Send it to your logger"), same treatment;
+    - its redaction-wired sibling (llms.txt's "Install and first trace" block), same treatment;
+    - the identical call again, through ``narrativetrace-pytest``'s fixture in an isolated
+      subprocess, proving the runtime's own test integration writes the artifact by default.
+    """
+    plain, with_logger, with_redaction = write_artifacts()
+
+    _assert_plain_output(plain)
+    _assert_logger_output(with_logger)
+    _assert_redaction_output(with_redaction)
+    _assert_pytest_fixture_writes_an_artifact(pytester)

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob cbdc6dc9fc64 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 72cd91283b7d | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -138,6 +138,13 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
   `<method> #<index>`, nunca con el nombre visible en el que un id de parametrize interpoló sus
   argumentos. Cómo se *llama* el artefacto — su nombre de archivo — es una cuestión distinta; ver la
   no garantía de abajo.
+- **El nombre de una traza y el nombre de una ejecución no llevan ningún dato.** Ambos son una
+  frase determinista de tres palabras derivada de un id aleatorio (consulta [Guía de
+  configuración § La ejecución tiene un
+  nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre) *(since 0.1.2,
+  unreleased)*) — nunca de nada capturado — así que ninguno de los dos puede filtrar un valor en
+  tiempo de ejecución, y ambos se mantienen fuera del artefacto estructural `.nt` por la misma
+  razón que todo lo demás en él.
 
 ## No garantías
 

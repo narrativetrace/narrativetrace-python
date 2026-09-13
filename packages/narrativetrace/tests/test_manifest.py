@@ -11,6 +11,7 @@ from pathlib import Path
 
 from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.manifest import Entry, entry_for, render, write
+from narrativetrace.output.run_identity import RunIdentity
 
 
 class TestEntryFor:
@@ -65,6 +66,45 @@ class TestRender:
         entry = Entry("Customer places order", identity, {})
         write([entry], tmp_path)
         assert (tmp_path / "manifest.json").is_file()
+
+
+class TestRunField:
+    """The top-level `run` object naming the test-suite run a manifest belongs to (2026-09-13
+    ruling, item 2) -- omitted entirely when no `RunIdentity` is given."""
+
+    def _entry(self) -> Entry:
+        identity = ArtifactIdentity.of_method("T", "finds")
+        return Entry("finds", identity, {"trace": "traces/T/finds.md"})
+
+    def test_omits_the_run_object_when_no_run_identity_is_given(self) -> None:
+        document = json.loads(render([self._entry()]))
+        assert "run" not in document
+
+    def test_names_the_run_top_level_when_a_run_identity_is_given(self) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        manifest = render([self._entry()], run)
+        document = json.loads(manifest)
+        assert document["run"] == {"id": "a" * 32, "name": "bold elk soars"}
+        # Top-level, alongside "scenarios" -- not folded into any scenario row.
+        assert manifest.index('"run"') < manifest.index('"scenarios"')
+
+    def test_two_different_run_identities_never_change_a_scenario_row(self) -> None:
+        entry = self._entry()
+        run_one = RunIdentity("a" * 32, "bold elk soars")
+        run_two = RunIdentity("b" * 32, "shy owl waits")
+
+        manifest_one = render([entry], run_one)
+        manifest_two = render([entry], run_two)
+
+        scenarios_one = manifest_one[manifest_one.index('"scenarios"') :]
+        scenarios_two = manifest_two[manifest_two.index('"scenarios"') :]
+        assert scenarios_one == scenarios_two
+
+    def test_write_creates_the_manifest_with_a_run_object(self, tmp_path: Path) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        write([self._entry()], tmp_path, run)
+        document = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+        assert document["run"]["name"] == "bold elk soars"
 
 
 class TestEntryImmutability:

@@ -58,6 +58,17 @@ glossary.json yet, which then creates one). Distinct from ``NARRATIVETRACE_GLOSS
 names *where* the glossary lives for both this hook and the unconditional vocabulary read above;
 harvesting itself always writes the merged glossary/usage report back once it runs, independent of
 ``NARRATIVETRACE_OUTPUT`` (that key gates trace-file artifacts, an unrelated concern).
+
+The run has a name (2026-09-13 ruling): :func:`pytest_sessionstart` generates one
+:class:`~narrativetrace.output.run_identity.RunIdentity` per session — never re-derived — and
+threads it explicitly to the suite footer (``  run: <phrase>``), ``manifest.json``'s top-level
+``run`` object, the ``run:`` line of every Markdown trace document's YAML frontmatter, and the
+stdlib logging bridge's ``runName`` MDC-analog key for the session's whole duration
+(:func:`pytest_sessionfinish` clears it). Invariant, structural rather than a discipline: every
+call site that computes the structural ``.nt`` text, an artifact filename, or a manifest
+per-scenario row takes no ``RunIdentity`` parameter at all, so running the identical suite twice
+with two different run ids produces byte-identical structural artifacts and delta output every
+time — see ``test_run_name_byte_identity.py``.
 """
 
 from __future__ import annotations
@@ -87,11 +98,13 @@ from narrativetrace.config import ConfigResolver
 from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.export import export_document as export_document_json
 from narrativetrace.levels import NarrativeTraceConfig
+from narrativetrace.logging_bridge import set_run_name
 from narrativetrace.loss import TraceLoss
 from narrativetrace.output import approval as approval_mode
 from narrativetrace.output import manifest as scenario_manifest
 from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.reporter import ConsoleSummaryReporter
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.output.structural_delta import ScenarioDelta
 from narrativetrace.output.warnings import collect, format_warnings
 from narrativetrace.output.writer import TraceArtifact, WriteResult, write_trace
@@ -218,6 +231,32 @@ def _accumulator(config: pytest.Config) -> _SuiteAccumulator:
         existing = _SuiteAccumulator()
         config._narrativetrace_acc = existing  # type: ignore[attr-defined]
     return existing
+
+
+def _run_identity(config: pytest.Config) -> RunIdentity | None:
+    """This session's :class:`RunIdentity`, or ``None`` before :func:`pytest_sessionstart` has run
+    (never true for a caller reached through the fixture or the terminal-summary hook, both of
+    which only fire inside a session)."""
+    return cast("RunIdentity | None", getattr(config, "_narrativetrace_run", None))
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Generates ONE :class:`RunIdentity` per pytest session (2026-09-13 ruling, item 2) -- never
+    re-derived, never a process-wide singleton a caller cannot vary, which is exactly what makes
+    running the identical suite twice with two different run ids provable (see
+    ``test_run_name_byte_identity.py``). Threads it into the stdlib logging bridge's MDC-analog
+    context (``runName``, mirroring Java's ``RunListener`` SPI) for the whole session's duration --
+    :func:`pytest_sessionfinish` clears it again.
+    """
+    run = RunIdentity.generate()
+    session.config._narrativetrace_run = run  # type: ignore[attr-defined]
+    set_run_name(run.name)
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """Clears the run name set by :func:`pytest_sessionstart`, so a plain script or a later,
+    untracked ``pytest.main()`` call never inherits a finished session's identity."""
+    set_run_name(None)
 
 
 def _class_name(request: pytest.FixtureRequest) -> str:
@@ -399,7 +438,8 @@ def _write_artifacts(
     """
     if not settings.enabled or tree.is_empty:
         return None
-    metadata = TraceMetadata(scenario, ScenarioResult.of(failed))
+    run = _run_identity(request.config)
+    metadata = TraceMetadata(scenario, ScenarioResult.of(failed), run.name if run else None)
     return write_trace(
         tree,
         metadata,
@@ -426,9 +466,10 @@ def pytest_terminal_summary(terminalreporter: Any) -> None:
     reporter = ConsoleSummaryReporter()
     settings = _output_settings(_resolver(terminalreporter.config))
     scores = [result.overall_score for _, result in accumulator.clarity]
+    run = _run_identity(terminalreporter.config)
     terminalreporter.write_line(
         reporter.format_suite_footer(
-            len(accumulator.scenarios), str(settings.base_dir), scores, accumulator.loss
+            len(accumulator.scenarios), str(settings.base_dir), scores, accumulator.loss, run
         )
     )
     delta_line = reporter.format_delta_line(accumulator.deltas)
@@ -437,7 +478,7 @@ def pytest_terminal_summary(terminalreporter: Any) -> None:
     if settings.enabled and accumulator.clarity:
         _write_clarity_reports(accumulator.clarity, settings.base_dir)
     if settings.enabled and accumulator.manifest_entries:
-        scenario_manifest.write(accumulator.manifest_entries, settings.base_dir)
+        scenario_manifest.write(accumulator.manifest_entries, settings.base_dir, run)
     if accumulator.harvest_trees:
         _run_harvest(
             terminalreporter.config, accumulator.harvest_trees, settings.base_dir, terminalreporter

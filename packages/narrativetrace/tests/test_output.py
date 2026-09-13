@@ -19,6 +19,7 @@ from narrativetrace.output.paths import (
     trace_file,
 )
 from narrativetrace.output.reporter import ConsoleSummaryReporter
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.output.warnings import collect, format_warnings
 from narrativetrace.output.writer import TraceArtifact, write_trace
 from narrativetrace.render.base import TraceMetadata
@@ -59,6 +60,44 @@ class TestReporter:
         footer = ConsoleSummaryReporter().format_suite_footer(2, "/out")
         assert "2 scenarios recorded" in footer
         assert "Reports: /out" in footer
+
+
+class TestSuiteFooterRunLine:
+    """The run's own three-word phrase, on its own line (2026-09-13 ruling, item 2) -- omitted
+    entirely when no `RunIdentity` is given, exactly like the loss line's own convention."""
+
+    def test_no_run_line_when_no_run_is_given(self) -> None:
+        footer = ConsoleSummaryReporter().format_suite_footer(347, "/out")
+        assert "run:" not in footer
+
+    def test_run_line_when_a_run_is_given(self) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        footer = ConsoleSummaryReporter().format_suite_footer(18, "/out", run=run)
+        assert "  run: bold elk soars\n" in footer
+        assert "18 scenarios recorded" in footer
+
+    def test_run_line_with_a_clarity_split(self) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        footer = ConsoleSummaryReporter().format_suite_footer(
+            5, "/out", [0.9, 0.8, 0.7, 0.5, 0.3], run=run
+        )
+        assert "  run: bold elk soars\n" in footer
+        assert "Clarity:" in footer
+
+    def test_the_run_line_sits_above_the_scenario_count(self) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        footer = ConsoleSummaryReporter().format_suite_footer(2, "/out", run=run)
+        assert footer.index("run:") < footer.index("scenarios recorded")
+
+    def test_a_footer_with_a_run_reads_exactly_like_this(self) -> None:
+        run = RunIdentity("a" * 32, "bold elk soars")
+        footer = ConsoleSummaryReporter().format_suite_footer(2, "/out", run=run)
+        assert footer == (
+            "\nNarrativeTrace — Suite complete\n"
+            "  run: bold elk soars\n"
+            "  2 scenarios recorded\n"
+            "  Reports: /out"
+        )
 
 
 class TestSuiteFooterLossLine:

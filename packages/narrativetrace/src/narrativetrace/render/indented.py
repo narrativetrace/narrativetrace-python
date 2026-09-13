@@ -54,11 +54,28 @@ def _sig_key(node: TraceNode) -> str:
     return f"{node.signature.class_name}.{node.signature.method_name}"
 
 
+def _append_trace_header(tree: TraceTree, parts: list[str]) -> None:
+    """Opens with ``trace: bold elk soars (a1b2c3d)`` -- the trace's own three-word phrase plus
+    the first 7 hex characters of its id -- so a console reader can name and locate the trace
+    without cross-referencing a separate identifier line (2026-09-13 ruling, item 4). Silent when
+    :attr:`TraceTree.trace_id` is ``None`` (an empty tree): nothing here is invented.
+
+    This is the trace's OWN name, unrelated to the test-suite run name a caller may thread through
+    a suite footer and manifest -- see :class:`~narrativetrace.output.run_identity.RunIdentity`.
+    Neither ever reaches the structural ``.nt`` text.
+    """
+    trace_id = tree.trace_id
+    if trace_id is None:
+        return
+    parts.append(f"trace: {trace_id.human_name()} ({trace_id.value[:7]})\n\n")
+
+
 class IndentedTextRenderer:
     """Renders a trace tree as an indented ASCII tree."""
 
     def render(self, tree: TraceTree) -> str:
         parts: list[str] = []
+        _append_trace_header(tree, parts)
         walk = TreeWalk()
         for root in tree.roots:
             self._render_node(root, "", "", parts, walk)

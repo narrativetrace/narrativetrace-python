@@ -24,6 +24,7 @@ from pathlib import Path
 
 from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.paths import diagram_file_for, structural_file, trace_artifact
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.output.writer import write_text_artifact
 
 FILE_NAME = "manifest.json"
@@ -89,16 +90,24 @@ def _relative(output_dir: Path, file: Path) -> str:
     return file.relative_to(output_dir).as_posix()
 
 
-def write(entries: list[Entry], output_dir: Path) -> None:
-    """Writes ``manifest.json``; writes nothing at all when the run traced no scenario."""
+def write(entries: list[Entry], output_dir: Path, run: RunIdentity | None = None) -> None:
+    """Writes ``manifest.json``; writes nothing at all when the run traced no scenario.
+
+    ``run``, when given, names the test-suite run this manifest belongs to as a top-level ``run``
+    object beside ``scenarios`` (2026-09-13 ruling, item 2) — omitted entirely when ``run`` is
+    ``None`` (a caller that has not adopted :class:`RunIdentity`).
+    """
     if not entries:
         return
-    write_text_artifact(render(entries), output_dir / FILE_NAME)
+    write_text_artifact(render(entries, run), output_dir / FILE_NAME)
 
 
-def render(entries: list[Entry]) -> str:
-    """The manifest document, rendered."""
-    document = {"schema": _SCHEMA, "scenarios": [_entry_dict(entry) for entry in entries]}
+def render(entries: list[Entry], run: RunIdentity | None = None) -> str:
+    """The manifest document, rendered, naming ``run`` when it is not ``None``."""
+    document: dict[str, object] = {"schema": _SCHEMA}
+    if run is not None:
+        document["run"] = {"id": run.id, "name": run.name}
+    document["scenarios"] = [_entry_dict(entry) for entry in entries]
     return json.dumps(document, indent=2) + "\n"
 
 

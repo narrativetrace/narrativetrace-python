@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob f101581900b6 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 793352c40b97 | translated: 2026-09-13 | reviewed: - -->
 
 # Logging y structlog
 
@@ -14,7 +14,10 @@ Dos piezas:
   caracteres de control depurados).
 - `NarrativeContextFilter` — un `Filter` de logging que estampa las claves del ámbito actual
   (`traceId`, `traceName`, `spanId`, `nt.class`, `nt.method`, `nt.depth`, identidad del servicio,
-  claves de petición/usuario) en cada registro.
+  claves de petición/usuario) en cada registro. `traceName` y `runName` *(since 0.1.2,
+  unreleased)* están siempre presentes una vez que el filtro ha tocado un registro — `""` cuando
+  no hay ninguna traza ni ejecución activa — así que un patrón que referencia cualquiera de las
+  dos nunca lanza una excepción en una línea sin traza.
 
 ```python
 import logging
@@ -74,6 +77,28 @@ de arriba.
 Dentro de una petición HTTP, el middleware de ASGI abre un `request_log_scope(...)` para que las
 claves de la petición (`httpMethod`, `httpRoute`, `clientIp`, identidad del usuario) viajen por
 debajo de cualquier ámbito de método activo.
+
+## La ejecución tiene su propia clave MDC: `runName`
+
+*(since 0.1.2, unreleased)* El hook `pytest_sessionstart` de `narrativetrace-pytest` genera un id
+de ejecución por sesión de pytest — nunca re-derivado — y llama a `set_run_name(run.name)` para
+que `runName` (la frase propia de tres palabras de la ejecución, distinta de la `traceName` de
+cualquier traza) viaje en cada línea de log durante toda la sesión, del mismo modo que
+`request_log_scope` viaja por debajo de un ámbito de método; el hook `pytest_sessionfinish`
+correspondiente la limpia de nuevo. Un patrón que muestra ambas claves:
+
+```python
+import logging
+
+logging.basicConfig(format="%(asctime)s [%(traceName)s] [%(runName)s] %(message)s")
+```
+
+`runName` es `""` fuera de una sesión de pytest rastreada — un script sencillo, o
+`export_to_logger` llamado desde uno — así que el mismo patrón es seguro en todas partes. Consulta
+[Guía de configuración, § La ejecución tiene un
+nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre) para ver dónde más aparece el
+nombre de la ejecución (el pie de página de la suite, `manifest.json`, el frontmatter de todo
+documento Markdown de traza) y su invariante: nunca llega al artefacto estructural `.nt`.
 
 ## structlog
 

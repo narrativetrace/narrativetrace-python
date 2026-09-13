@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob f101581900b6 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 793352c40b97 | translated: 2026-09-13 | reviewed: - -->
 
 # 日志与 structlog
 
@@ -12,6 +12,8 @@ NarrativeTrace 会桥接到标准库的 `logging` 框架以及 `structlog`,并�
   异常(`!! {type}: {message} [{error_context}]`,已做控制字符清理)。
 - `NarrativeContextFilter` —— 一个日志 `Filter`,会把当前作用域的键(`traceId`、`traceName`、
   `spanId`、`nt.class`、`nt.method`、`nt.depth`、服务身份、请求/用户键)盖印到每一条日志记录上。
+  `traceName` 和 `runName` *(since 0.1.2, unreleased)* 一旦被该 filter 处理过,就总是存在——没有
+  活跃追踪/运行时为 `""`——所以引用二者之一的模式串永远不会在一条无追踪的日志行上抛出异常。
 
 ```python
 import logging
@@ -64,6 +66,25 @@ export_to_logger(context.capture_trace())
 
 在一次 HTTP 请求内部,ASGI 中间件会打开一个 `request_log_scope(...)`,让请求相关的键
 (`httpMethod`、`httpRoute`、`clientIp`、用户身份)搭载在任何活跃的方法作用域之下。
+
+## 运行也有自己的 MDC 键:`runName`
+
+*(since 0.1.2, unreleased)* `narrativetrace-pytest` 的 `pytest_sessionstart` 钩子每个 pytest
+会话生成一个运行 id——绝不重新派生——并调用 `set_run_name(run.name)`,让 `runName`(运行自己的
+三词短语,不同于任何追踪自己的 `traceName`)在整个会话期间搭载在每一条日志行上,就像
+`request_log_scope` 搭载在一个方法作用域之下一样;对应的 `pytest_sessionfinish` 钩子会再次
+清除它。一个同时展示两个键的模式串:
+
+```python
+import logging
+
+logging.basicConfig(format="%(asctime)s [%(traceName)s] [%(runName)s] %(message)s")
+```
+
+在被追踪的 pytest 会话之外——一个简单脚本,或者从其中调用的 `export_to_logger`——`runName` 为
+`""`,所以同一个模式串在任何地方都是安全的。运行名称还出现在哪些地方(套件页脚、
+`manifest.json`、每份 Markdown 追踪文档的 frontmatter)以及它的不变式(绝不会进入结构化 `.nt`
+产物),参见[配置指南 § 运行也有名字](配置指南.md#运行也有名字)。
 
 ## structlog
 

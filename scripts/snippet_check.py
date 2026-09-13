@@ -28,10 +28,18 @@ marker pair, invisible on GitHub and in the site's doc viewer::
 - `diff=PATH` — the fenced content is the unified diff from the marker's own path (the "before")
   to `PATH` (the "after"), header-less (no `---`/`+++`/`@@` lines) — the shape a `diff`-fenced
   block showing what a change does to a file already has.
-- `mask=duration` (the only mask, for now) — before comparing, both the page's block and the
-  freshly rendered source have `— \\d+(\\.\\d+)?ms` replaced with `— Nms`, so a real run's timing
-  never fails the build; the page keeps its own "timing varies" sentence and `sync` still writes
-  the *real* measured duration to the page, only the comparison is masked.
+- `mask=duration` or `mask=duration,traceName` (comma-separated, applied in order) — before
+  comparing, both the page's block and the freshly rendered source have each named mask applied:
+  `duration` replaces `— \\d+(\\.\\d+)?ms` with `— Nms`, so a real run's timing never fails the
+  build; `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and,
+  where adjacent, the 7-hex trace-id fragment — wherever a `trace:`/`run:`/`trace_name:`/
+  `runName:` label, a `The trace …:` prose lead-in, or a `## Trace: … —` Markdown title carries
+  one, since every one of those is derived from a randomly generated id and would otherwise make
+  embedded live output fail `snippet-check` on every regeneration. The sixty-seconds quickstart
+  avoids this mask entirely by seeding a fixed trace id instead (see
+  `examples/sixty_seconds/main.py`), so its embed shows one real, stable phrase; `mask=traceName`
+  is for every *other* embed of live command output. `sync` still writes the *real* rendered
+  content to the page in every case — only the comparison is masked.
 
 `check_repository` reports every block whose page content no longer matches what its source
 renders (masked); `sync_repository` rewrites each drifted block in place — English pages only, the
@@ -46,6 +54,7 @@ from __future__ import annotations
 import difflib
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,6 +68,19 @@ _MARKER_CLOSE = "<!-- /snippet -->"
 _FENCE_OPEN_RE = re.compile(r"^```(\S*)\s*$")
 _FENCE_CLOSE = "```"
 _DURATION_RE = re.compile(r"— \d+(\.\d+)?ms")
+
+# A label immediately followed by "adjective noun verb", optionally the "(1234567)" trace-id
+# fragment -- the exact shapes a `trace_name()`-derived phrase appears in across every renderer and
+# frontmatter field this repository writes (2026-09-13 ruling, item 5).
+_TRACE_LABEL_MASK = re.compile(
+    r"(?i)\b(trace_name|traceName|runName|run|trace):(\s*)[a-z]+ [a-z]+ [a-z]+(\s*\([0-9a-f]{7}\))?"
+)
+_TRACE_PROSE_MASK = re.compile(r"The trace [a-z]+ [a-z]+ [a-z]+:")
+_TRACE_TITLE_MASK = re.compile(r"## Trace: [a-z]+ [a-z]+ [a-z]+ — ")
+# A bracketed phrase in a logging pattern's own output, e.g. `[bold elk soars]` from
+# `[%(traceName)s] [%(runName)s]` (guides/logging.md) -- the empty `[]` an unset runName renders
+# as needs no mask; only a genuine three-word phrase does.
+_TRACE_BRACKET_MASK = re.compile(r"\[[a-z]+ [a-z]+ [a-z]+\]")
 _REGION_BEGIN_TEMPLATE = r"^\s*(?:#|//)\s*snippet:begin\s+{name}\s*$"
 _REGION_END_TEMPLATE = r"^\s*(?:#|//)\s*snippet:end\s+{name}\s*$"
 _LICENSE_HEADER_MARKERS = (
@@ -194,9 +216,31 @@ def expected_content(repo_root: Path, span: SnippetSpan) -> str:
     return source_text.rstrip("\n")
 
 
+def _mask_trace_name(text: str) -> str:
+    text = _TRACE_LABEL_MASK.sub(r"\1:\2NAME NAME NAME", text)
+    text = _TRACE_PROSE_MASK.sub("The trace NAME NAME NAME:", text)
+    text = _TRACE_TITLE_MASK.sub("## Trace: NAME NAME NAME — ", text)
+    return _TRACE_BRACKET_MASK.sub("[NAME NAME NAME]", text)
+
+
+_MASKS: dict[str, Callable[[str], str]] = {
+    "duration": lambda text: _DURATION_RE.sub("— Nms", text),
+    "traceName": _mask_trace_name,
+}
+
+
 def _masked(text: str, options: dict[str, str]) -> str:
-    if options.get("mask") == "duration":
-        return _DURATION_RE.sub("— Nms", text)
+    """Applies every comma-separated name in `options["mask"]` (e.g. `duration,traceName`) in
+    order; an unrecognized name is a no-op, same as an absent `mask` option -- unmasked text still
+    compares literally, so a page misspelling a mask name simply gets no masking rather than a
+    silent pass."""
+    names = options.get("mask")
+    if not names:
+        return text
+    for name in names.split(","):
+        masker = _MASKS.get(name)
+        if masker is not None:
+            text = masker(text)
     return text
 
 

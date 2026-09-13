@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob c618d3b8ea67 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 737366970385 | translated: 2026-09-13 | reviewed: - -->
 
 # Configuração
 
@@ -131,13 +131,19 @@ estrutural falha o teste com um diff legível e grava a estrutura atual ao lado 
 `narrativetrace-approve`, que lê essa mesma chave `approved_dir`). Testes que falham nunca são
 verificados — a aprovação só julga um teste que de outra forma teria passado.
 
-Toda execução também grava `<output_dir>/manifest.json`: uma linha por cenário traçado, nomeando
-seu teste, seu número de invocação quando o método rodou mais de uma vez, e cada artefato que
-possui:
+Toda execução também grava `<output_dir>/manifest.json`: um objeto `run` de nível superior
+(`id`, `name` — a frase de três palavras própria da execução, *(since 0.1.2, unreleased)*, veja
+[A execução tem um nome](#a-execução-tem-um-nome) abaixo) seguido de uma linha por cenário
+traçado, nomeando seu teste, seu número de invocação quando o método rodou mais de uma vez, e cada
+artefato que possui:
 
 ```json
 {
   "schema": "narrativetrace/scenario-manifest/1",
+  "run": {
+    "id": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
+    "name": "bold elk soars"
+  },
   "scenarios": [
     {
       "scenario": "find TENT",
@@ -157,6 +163,7 @@ O rodapé da suíte imprime mais uma linha resumindo o status estrutural de cada
 
 ```
 NarrativeTrace — Suite complete
+  run: bold elk soars
   2 scenarios recorded
   Clarity: 100% high | 0% moderate | 0% low
   Reports: narrative-traces
@@ -165,6 +172,29 @@ NarrativeTrace — Suite complete
 
 O relatório de console de um teste que falha imprime o delta estrutural contra o artefato da
 última execução verde em vez do trace completo, quando a estrutura realmente mudou.
+
+### A execução tem um nome
+
+*(since 0.1.2, unreleased)* Um id de execução é gerado por cada sessão do pytest — o próprio hook
+`pytest_sessionstart` do plugin — um id com forma W3C, nunca uma constante compartilhada — e sua
+frase de três palavras (o mesmo gerador de nomes de onde vem o nome de um id de trace) é o **nome
+da execução**. Ele aparece:
+
+- no rodapé da suíte no console (`run: bold elk soars`, acima);
+- no objeto `run` de nível superior do `manifest.json` (`id` e `name`, acima);
+- no frontmatter YAML de todo documento Markdown de trace (`run: bold elk soars`, ao lado de
+  `scenario:`);
+- no contexto análogo ao MDC da ponte de logging da biblioteca padrão como `runName` para toda a
+  sessão (veja o [Guia de logging](guia-de-logging.md)), de modo que um único grep encontra as
+  linhas de log de uma execução.
+
+O nome da execução e o seu id são protegidos pelo mesmo invariante que o próprio nome de um trace:
+**nunca** chegam ao texto estrutural `.nt`, a um trace aprovado ou received, ao nome de um
+artefato, nem às chaves por cenário do manifesto — rodar a mesma suíte duas vezes, com dois nomes
+de execução diferentes, produz arquivos `.nt` idênticos byte a byte e a mesma saída de delta todas
+as vezes. O próprio nome de um trace (`trace: bold elk soars (a1b2c3d)` no renderer de console/
+indentado, `The trace bold elk soars:` em prosa, a frase na linha de título do Markdown) é algo
+*diferente* — um por trace, não um por execução — e está igualmente ausente do texto `.nt`.
 
 ## Identidade do serviço
 

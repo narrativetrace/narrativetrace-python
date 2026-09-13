@@ -124,6 +124,11 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
   `@pytest.mark.parametrize` case is titled `<method> #<index>`, never the display name a
   parametrize id interpolated its arguments into. What the artifact is *called* — its
   filename — is a different question; see the non-guarantee below.
+- **A trace's name and a run's name carry no data.** Both are a deterministic three-word phrase
+  derived from a random id (see [Configuration Guide § The run has a
+  name](guides/configuration.md#the-run-has-a-name) *(since 0.1.2, unreleased)*) — never from
+  anything captured — so neither can leak a runtime value, and both stay out of the structural
+  `.nt` artifact for the same reason everything else in it does.
 
 ## Non-guarantees
 

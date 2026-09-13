@@ -11,7 +11,9 @@ Two pieces:
   `WARNING` (`!! {type}: {message} [{error_context}]`, control-sanitised).
 - `NarrativeContextFilter` — a logging `Filter` that stamps the current scope's keys (`traceId`,
   `traceName`, `spanId`, `nt.class`, `nt.method`, `nt.depth`, service identity, request/user keys)
-  onto every record.
+  onto every record. `traceName` and `runName` *(since 0.1.2, unreleased)* are always present once
+  the filter has touched a record — `""` when no trace/run is active — so a pattern referencing
+  either never raises on an untraced line.
 
 ```python
 import logging
@@ -66,6 +68,26 @@ different threads — never trips the one-consumer-per-stream rule above.
 
 Inside an HTTP request the ASGI middleware opens a `request_log_scope(...)` so request keys
 (`httpMethod`, `httpRoute`, `clientIp`, user identity) ride along beneath any active method scope.
+
+## The run has its own MDC key: `runName`
+
+*(since 0.1.2, unreleased)* `narrativetrace-pytest`'s `pytest_sessionstart` hook generates one
+run id per pytest session — never re-derived — and calls `set_run_name(run.name)` so `runName`
+(the run's own three-word phrase, distinct from any trace's `traceName`) rides along on every log
+line for the whole session, the same way `request_log_scope` rides beneath a method scope; the
+matching `pytest_sessionfinish` hook clears it. A pattern showing both keys:
+
+```python
+import logging
+
+logging.basicConfig(format="%(asctime)s [%(traceName)s] [%(runName)s] %(message)s")
+```
+
+`runName` is `""` outside a tracked pytest session — a plain script, or `export_to_logger` called
+from one — so the same pattern is safe everywhere. See [Configuration Guide, § The run has a
+name](configuration.md#the-run-has-a-name) for where else the run name appears (the suite footer,
+`manifest.json`, every Markdown trace document's frontmatter) and its invariant: it never reaches
+the structural `.nt` artifact.
 
 ## structlog
 

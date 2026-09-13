@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 7baee63cf348 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob e980790bc213 | translated: 2026-09-13 | reviewed: - -->
 
 # Formato de traza estructural (`.nt`)
 
@@ -99,8 +99,13 @@ scenario: Weekend trip settles with three transfers
   quien lo llamó. El trabajo fire-and-forget se renderiza como `~ fire-and-forget` + sus hijos. Los
   nombres/ids de hilo nunca aparecen.
 - **Excluido por diseño:** todos los valores de argumento/retorno, mensajes de excepción,
-  duraciones, marcas de tiempo, identidad de hilo, ids de traza/span, nombres de traza, resultados
-  de ejecución, y la narración (la narración resuelta incrusta valores).
+  duraciones, marcas de tiempo, identidad de hilo, ids de traza/span, nombres de traza, ids de
+  ejecución, nombres de ejecución *(since 0.1.2, unreleased — la ejecución también tiene un
+  nombre, consulta [Guía de configuración § La ejecución tiene un
+  nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre); nunca entra en este
+  formato, en una traza aprobada o recibida, en el nombre de un artefacto, ni en una clave por
+  escenario del manifiesto)*, resultados de ejecución, y la narración (la narración resuelta
+  incrusta valores).
 - **Codificación:** UTF-8, LF, salto de línea final. Los identificadores pasan por saneamiento de
   caracteres de control.
 

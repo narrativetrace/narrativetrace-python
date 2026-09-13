@@ -57,7 +57,12 @@ class TestProcessor:
         assert narrative_context_processor(None, "info", {"event": "hi"}) == {"event": "hi"}
 
     def test_emits_identical_keys_to_stdlib_filter(self) -> None:
-        """The structlog processor and the stdlib filter must produce the same key set."""
+        """The structlog processor and the stdlib filter must produce the same key set, with one
+        documented exception: the stdlib filter also always defaults `traceName`/`runName` to `""`
+        (2026-09-13 ruling) so a `%`-style format string referencing either never raises
+        `KeyError` on a record with no active trace/run -- structlog's event dict needs no such
+        protection, since a missing dict key is never a formatting crash the way an absent
+        LogRecord attribute is."""
         _enter_span()
         with request_log_scope({"httpMethod": "GET"}):
             processor_keys = set(narrative_context_processor(None, "info", {})) - {"event"}
@@ -67,4 +72,4 @@ class TestProcessor:
             base = set(logging.LogRecord("t", logging.INFO, __file__, 1, "m", None, None).__dict__)
             filter_keys = set(record.__dict__) - base
 
-        assert processor_keys == filter_keys
+        assert processor_keys == filter_keys - {"runName"}

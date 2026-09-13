@@ -39,11 +39,27 @@ def _render_params(node: TraceNode) -> str:
     return " ".join(_render_param(p) for p in node.signature.parameters)
 
 
+def _append_trace_header(tree: TraceTree, parts: list[str]) -> None:
+    """Opens in this renderer's own voice -- ``"The trace bold elk soars:"`` -- before the first
+    paragraph (2026-09-13 ruling, item 4). Silent when :attr:`TraceTree.trace_id` is ``None``: an
+    empty tree gets no invented name.
+
+    This is the trace's OWN name, unrelated to the test-suite run name a caller may thread through
+    a suite footer and manifest -- see :class:`~narrativetrace.output.run_identity.RunIdentity`.
+    Neither ever reaches the structural ``.nt`` text.
+    """
+    trace_id = tree.trace_id
+    if trace_id is None:
+        return
+    parts.append(f"The trace {trace_id.human_name()}:\n\n")
+
+
 class ProseRenderer:
     """Renders a trace tree as narrative prose."""
 
     def render(self, tree: TraceTree) -> str:
         parts: list[str] = []
+        _append_trace_header(tree, parts)
         walk = TreeWalk()
         for root in tree.roots:
             self._render_node(root, 0, parts, walk)

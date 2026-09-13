@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 932b2f208abd | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 80984b172f68 | translated: 2026-09-13 | reviewed: - -->
 
 # Qué commitear
 
@@ -21,7 +21,7 @@ gramática completa y el flujo de trabajo del modo de aprobación.
 | **Traza aprobada** *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sí**, en cuanto optas por el modo de aprobación | El contrato de comportamiento revisado — una decisión, no una salida |
 | Traza recibida *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | No | Se escribe ante una discrepancia (o si aún no hay línea base) para su revisión; se promueve con `uv run poe approve` / `narrativetrace-approve`, nunca se commitea |
 | Traza incompleta *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | No | Se escribe en lugar de una traza recibida cuando la propia ejecución fue incompleta; el verbo approve la ignora por nombre |
-| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | No | Se regenera en cada ejecución — un índice sobre los artefactos anteriores, no una línea base en sí misma |
+| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | No | Se regenera en cada ejecución — un índice sobre los artefactos anteriores, no una línea base en sí misma; su objeto `run` de nivel superior (`id`, `name` — la frase de tres palabras propia de la ejecución) nombra *esta sesión*, no un escenario, así que cambia en cada ejecución incluso cuando nada más cambia |
 | Informe de claridad de la suite | `<OUTPUT_DIR>/clarity-report.md` | No | Un informe generado, no una decisión |
 | Resultados de claridad de la suite | `<OUTPUT_DIR>/clarity-results.json` | No | Se genera junto con el informe |
 | Salida del escáner independiente (CLI `narrativetrace-clarity`) | donde apunte `--output-dir` | No | Igual que lo anterior, se genera bajo demanda |

@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob f101581900b6 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 793352c40b97 | translated: 2026-09-13 | reviewed: - -->
 
 # Logging & structlog
 
@@ -14,7 +14,10 @@ Duas peças:
   controle).
 - `NarrativeContextFilter` — um `Filter` de logging que estampa as chaves do escopo atual (`traceId`,
   `traceName`, `spanId`, `nt.class`, `nt.method`, `nt.depth`, identidade do serviço, chaves de
-  requisição/usuário) em todo registro.
+  requisição/usuário) em todo registro. `traceName` e `runName` *(since 0.1.2, unreleased)* estão
+  sempre presentes uma vez que o filtro tocou um registro — `""` quando não há trace/execução
+  ativos — então um padrão que referencia qualquer uma das duas nunca levanta exceção numa linha
+  sem trace.
 
 ```python
 import logging
@@ -74,6 +77,27 @@ stream" acima.
 Dentro de uma requisição HTTP, o middleware ASGI abre um `request_log_scope(...)` para que as chaves
 da requisição (`httpMethod`, `httpRoute`, `clientIp`, identidade do usuário) acompanhem por baixo de
 qualquer escopo de método ativo.
+
+## A execução tem sua própria chave MDC: `runName`
+
+*(since 0.1.2, unreleased)* O hook `pytest_sessionstart` do `narrativetrace-pytest` gera um id de
+execução por sessão do pytest — nunca re-derivado — e chama `set_run_name(run.name)` para que
+`runName` (a frase própria de três palavras da execução, distinta da `traceName` de qualquer
+trace) acompanhe toda linha de log durante a sessão inteira, do mesmo jeito que
+`request_log_scope` acompanha por baixo de um escopo de método; o hook `pytest_sessionfinish`
+correspondente a limpa de novo. Um padrão mostrando as duas chaves:
+
+```python
+import logging
+
+logging.basicConfig(format="%(asctime)s [%(traceName)s] [%(runName)s] %(message)s")
+```
+
+`runName` é `""` fora de uma sessão do pytest rastreada — um script simples, ou `export_to_logger`
+chamado a partir de um — então o mesmo padrão é seguro em todo lugar. Veja [Guia de configuração,
+§ A execução tem um nome](guia-de-configuracao.md#a-execução-tem-um-nome) para onde mais o nome
+da execução aparece (o rodapé da suíte, `manifest.json`, o frontmatter de todo documento Markdown
+de trace) e seu invariante: ele nunca chega ao artefato estrutural `.nt`.
 
 ## structlog
 

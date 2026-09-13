@@ -261,6 +261,88 @@ class TestDurationMasking:
         assert 'says "bye" — 8ms' in page_path.read_text(encoding="utf-8")
 
 
+class TestTraceNameMasking:
+    """`mask=traceName` (2026-09-13 ruling, item 5): a trace/run phrase -- derived from a randomly
+    generated id, so it would otherwise fail this gate on every regeneration -- is neutral for
+    comparison wherever a renderer or MDC-style logging pattern carries one."""
+
+    def test_check_ignores_a_console_header_phrase_difference(self, tmp_path: Path) -> None:
+        _write(tmp_path, "src/thing.txt", "trace: rare relic tells (b4bd61b)\n\nplaceOrder(...)\n")
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=traceName -->\n"
+            "```text\n"
+            "trace: bold elk soars (a1b2c3d)\n\nplaceOrder(...)\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert check_repository(tmp_path) == []
+
+    def test_check_ignores_the_prose_lead_in_and_the_markdown_title_phrase(
+        self, tmp_path: Path
+    ) -> None:
+        _write(
+            tmp_path,
+            "src/thing.txt",
+            "The trace rare relic tells: placeOrder(...)\n"
+            "## Trace: rare relic tells — Order.place\n",
+        )
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=traceName -->\n"
+            "```text\n"
+            "The trace bold elk soars: placeOrder(...)\n## Trace: bold elk soars — Order.place\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert check_repository(tmp_path) == []
+
+    def test_check_ignores_a_bracketed_logging_pattern_phrase(self, tmp_path: Path) -> None:
+        _write(tmp_path, "src/thing.txt", "[rare relic tells] [] → placeOrder(...)\n")
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=traceName -->\n"
+            "```text\n"
+            "[bold elk soars] [] → placeOrder(...)\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert check_repository(tmp_path) == []
+
+    def test_check_still_fails_when_something_else_changed(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path, "src/thing.txt", "trace: rare relic tells (b4bd61b)\n\nplaceOrder(other)\n"
+        )
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=traceName -->\n"
+            "```text\n"
+            "trace: bold elk soars (a1b2c3d)\n\nplaceOrder(...)\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert len(check_repository(tmp_path)) == 1
+
+    def test_multiple_comma_separated_masks_apply_in_order(self, tmp_path: Path) -> None:
+        _write(
+            tmp_path, "src/thing.txt", "trace: rare relic tells (b4bd61b)\n\nplaceOrder() — 17ms\n"
+        )
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=duration,traceName -->\n"
+            "```text\n"
+            "trace: bold elk soars (a1b2c3d)\n\nplaceOrder() — 3ms\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert check_repository(tmp_path) == []
+
+
 class TestCheckAndSyncRepository:
     def test_check_repository_reports_nothing_when_every_block_matches(
         self, tmp_path: Path

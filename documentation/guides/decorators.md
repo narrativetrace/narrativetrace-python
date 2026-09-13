@@ -114,8 +114,10 @@ def run() -> str:
 
 `python -m examples.not_traced_fields` prints (`0ms` varies by machine, like the 60-second page):
 
-<!-- snippet: examples/build/not_traced_fields.txt mask=duration -->
+<!-- snippet: examples/build/not_traced_fields.txt mask=duration,traceName -->
 ```text
+trace: hazy goat ranks (9b254d5)
+
 AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms
 AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms
 ```

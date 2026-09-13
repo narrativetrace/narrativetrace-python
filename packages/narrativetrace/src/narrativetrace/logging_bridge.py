@@ -13,7 +13,13 @@ fire-and-forget lifecycle lines.
 :class:`NarrativeContextFilter` is the MDC analog: a logging ``Filter`` that stamps the canonical
 keys of the current (innermost) traced span onto *every* record. Keys adopt Java's vocabulary:
 ``nt.class``/``nt.method``/``nt.depth`` and ``traceId``/``traceName``/``spanId``/``parentSpanId``/
-``service.name``/``service.version``/``service.environment``.
+``service.name``/``service.version``/``service.environment``. :func:`set_run_name` (the pytest
+plugin's session hook calls it, mirroring Java's ``RunListener`` SPI attaching to MDC) adds
+``runName`` -- the enclosing test-suite run's own three-word phrase, not a per-trace key at all
+(2026-09-13 ruling, item 2) -- to every one of them for the run's whole duration, so one grep finds
+one run's log lines the way ``traceId``/``traceName`` already let one grep find one trace's.
+``traceName``/``runName`` are always present once :class:`NarrativeContextFilter` has touched a
+record, defaulting to ``""`` when no trace/run is active -- see :data:`_ALWAYS_PRESENT_KEYS`.
 
 **One consumer per event stream, many handlers.** Two :class:`LoggingTraceConsumer` instances
 processing the *same* event stream (e.g. both attached as listeners on one pipeline) used to
@@ -64,6 +70,26 @@ _REQUEST_SCOPE: contextvars.ContextVar[dict[str, str] | None] = contextvars.Cont
     "narrativetrace_request_scope", default=None
 )
 
+# The enclosing test-suite run's own phrase (2026-09-13 ruling, item 2) -- a plain module global,
+# not a ContextVar like the scopes above: a run name is the SAME value for the whole process's
+# test-suite execution, on every thread and task, not a value that should vary by call stack. The
+# pytest plugin's session hook sets it once (mirrors Java's RunListener SPI attaching to MDC) and
+# clears it when the session ends.
+_run_name: str | None = None
+
+
+def set_run_name(run_name: str | None) -> None:
+    """Sets ``runName`` for every log line this process emits from now on -- the seam a test-suite
+    integration (the pytest plugin's session hook) uses to attach the run's identity without this
+    module knowing anything about pytest. ``None`` clears it (session end)."""
+    global _run_name  # noqa: PLW0603 - the whole-process run name is deliberately not scoped
+    _run_name = run_name
+
+
+def current_run_name() -> str | None:
+    """The active run's three-word phrase, or ``None`` outside a tracked test-suite execution."""
+    return _run_name
+
 
 def _stack() -> list[dict[str, str]]:
     stack = _SCOPE_STACK.get()
@@ -102,6 +128,8 @@ def current_scope_keys() -> dict[str, str]:
     processor so both emit an identical key set — the single source of MDC vocabulary.
     """
     merged: dict[str, str] = {}
+    if _run_name is not None:
+        merged["runName"] = _run_name
     request_scope = _REQUEST_SCOPE.get()
     if request_scope:
         merged.update(request_scope)
@@ -111,12 +139,21 @@ def current_scope_keys() -> dict[str, str]:
     return merged
 
 
+_ALWAYS_PRESENT_KEYS = ("traceName", "runName")
+"""Defaulted to ``""`` on every record even outside an active scope/run (the Logback pattern-layout
+``%X{}`` convention this port mirrors: printing blank for an absent MDC key rather than raising), so
+a log format string referencing ``%(traceName)s``/``%(runName)s`` never raises ``KeyError`` on a
+record :class:`NarrativeContextFilter` has already touched."""
+
+
 class NarrativeContextFilter(logging.Filter):
     """Stamps the current innermost span's canonical keys onto every log record (MDC analog)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         for key, value in current_scope_keys().items():
             record.__dict__.setdefault(key, value)
+        for key in _ALWAYS_PRESENT_KEYS:
+            record.__dict__.setdefault(key, "")
         return True
 
 
@@ -126,6 +163,8 @@ def _span_keys(span_context: SpanContext) -> dict[str, str]:
         "traceName": span_context.trace_id.human_name(),
         "spanId": str(span_context.span_id),
     }
+    if _run_name is not None:
+        keys["runName"] = _run_name
     if span_context.parent_span_id is not None:
         keys["parentSpanId"] = str(span_context.parent_span_id)
     if span_context.service_name is not None:

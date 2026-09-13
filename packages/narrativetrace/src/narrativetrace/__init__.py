@@ -45,9 +45,11 @@ from narrativetrace.levels import NarrativeTraceConfig, TracingLevel
 from narrativetrace.logging_bridge import (
     LoggingTraceConsumer,
     NarrativeContextFilter,
+    current_run_name,
     current_scope_keys,
     export_to_logger,
     request_log_scope,
+    set_run_name,
 )
 from narrativetrace.loss import TraceLoss
 from narrativetrace.markers import (
@@ -65,6 +67,7 @@ from narrativetrace.metadata import (
 )
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
 from narrativetrace.render import (
     FrontmatterBuilder,
@@ -142,6 +145,7 @@ __all__ = [
     "RedactionPolicy",
     "RenderedValue",
     "Returned",
+    "RunIdentity",
     "ScenarioResult",
     "ServiceIdentity",
     "SessionId",
@@ -163,6 +167,7 @@ __all__ = [
     "__version__",
     "build_trace_tree",
     "control_sanitize",
+    "current_run_name",
     "current_scope_keys",
     "entry_document",
     "entry_from_event",
@@ -180,6 +185,7 @@ __all__ = [
     "not_traced_field",
     "on_error",
     "request_log_scope",
+    "set_run_name",
     "span_id_of",
     "trace_object",
     "traced",

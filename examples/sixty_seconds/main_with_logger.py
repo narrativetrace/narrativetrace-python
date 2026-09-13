@@ -9,6 +9,8 @@ import sys
 from narrativetrace import (
     ContextVarNarrativeContext,
     IndentedTextRenderer,
+    NarrativeContextFilter,
+    TraceId,
     export_to_logger,
     trace_object,
 )
@@ -19,9 +21,23 @@ class OrderService:
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
 
-logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
+# snippet:begin fixedTraceId
+# A fixed trace id, adopted so this page's embedded output always names the same trace. A real
+# run generates a random one every time (never this -- it is this DEMO's own constant, not the
+# library default) via the same TraceId.adopt_trace_id a servlet-style boundary uses for an
+# inbound trace header.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+# snippet:end fixedTraceId
+
+handler = logging.StreamHandler(sys.stdout)
+handler.addFilter(NarrativeContextFilter())
+logging.basicConfig(
+    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
+)
 
 context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 

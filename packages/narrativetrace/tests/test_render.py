@@ -44,6 +44,23 @@ def _tree(*roots: TraceNode) -> TraceTree:
     return TraceTree(list(roots))
 
 
+def _indented_header(tree: TraceTree) -> str:
+    """The `trace: bold elk soars (a1b2c3d)` header every non-empty tree now opens with
+    (2026-09-13 ruling, item 4) -- computed from the tree's own (randomly generated, since none
+    of these fixtures assign one) trace id, so an exact-match assertion stays correct regardless
+    of that randomness."""
+    trace_id = tree.trace_id
+    assert trace_id is not None
+    return f"trace: {trace_id.human_name()} ({trace_id.value[:7]})\n\n"
+
+
+def _prose_header(tree: TraceTree) -> str:
+    """The `The trace bold elk soars:` header every non-empty tree now opens with (item 4)."""
+    trace_id = tree.trace_id
+    assert trace_id is not None
+    return f"The trace {trace_id.human_name()}:\n\n"
+
+
 class TestHelpers:
     def test_to_phrase_camel_and_snake(self) -> None:
         assert to_phrase("OrderService") == "order service"
@@ -143,7 +160,7 @@ class TestMarkdownDocument:
         assert doc.startswith("---\ntype: trace\nscenario: happy path\n")
         assert "entry_point: Svc.run" in doc
         assert "trace_name: red fox runs" in doc
-        assert "## Trace: Svc.run" in doc
+        assert "## Trace: red fox runs — Svc.run" in doc
         # The human-facing spelling — the wire spelling `success` belongs only in JSON.
         assert "**Duration:** 5ms | **Result:** PASSED" in doc
         assert "### Call Flow" in doc
@@ -190,6 +207,22 @@ class TestFrontmatter:
         fm = FrontmatterBuilder().scenario("x").build(_tree())
         assert "method_count: 0" in fm
         assert "entry_point" not in fm
+
+    def test_includes_the_run_field_when_a_run_name_is_given(self) -> None:
+        fm = FrontmatterBuilder().run_name("bold elk soars").build(_tree())
+        assert "run: bold elk soars\n" in fm
+
+    def test_omits_the_run_field_when_no_run_name_is_given(self) -> None:
+        fm = FrontmatterBuilder().build(_tree())
+        assert "run:" not in fm
+
+    def test_run_field_is_yaml_escaped_like_scenario(self) -> None:
+        fm = FrontmatterBuilder().run_name("forged\n# heading").build(_tree())
+        assert 'run: "forged\\n# heading"\n' in fm
+
+    def test_the_run_field_sits_before_the_scenario_field(self) -> None:
+        fm = FrontmatterBuilder().scenario("s").run_name("bold elk soars").build(_tree())
+        assert fm.index("run:") < fm.index("scenario:")
 
     def test_a_leading_indicator_character_is_quoted(self) -> None:
         # Security fuzz suite finding: unquoted, "%s %n %d" is a YAML directive indicator, not a
@@ -272,15 +305,20 @@ class TestIndented:
     def test_tree_with_error(self) -> None:
         child = TraceNode(_sig("Svc", "inner", error_context="bad"), [], Threw(ValueError("boom")))
         parent = TraceNode(_sig("Svc", "outer"), [child], Returned("o"))
-        assert IndentedTextRenderer().render(_tree(parent)) == (
-            "Svc.outer()\n├── Svc.inner() !! ValueError: boom | bad\n└── → o"
+        tree = _tree(parent)
+        assert IndentedTextRenderer().render(tree) == (
+            _indented_header(tree)
+            + "Svc.outer()\n├── Svc.inner() !! ValueError: boom | bad\n└── → o"
         )
 
     def test_redacted_and_void_return(self) -> None:
         node = TraceNode(
             _sig("S", "m", [ParameterCapture("pw", "", redacted=True)]), [], Returned(None)
         )
-        assert IndentedTextRenderer().render(_tree(node)) == "S.m(pw: [REDACTED]) → null"
+        tree = _tree(node)
+        assert IndentedTextRenderer().render(tree) == (
+            _indented_header(tree) + "S.m(pw: [REDACTED]) → null"
+        )
 
     def test_a_newline_in_class_name_adds_no_line(self) -> None:
         # Adversarial-audit mirror (2026-09-02): class_name/method_name/param names were
@@ -316,23 +354,26 @@ class TestProse:
         node = TraceNode(
             _sig("OrderService", "placeOrder", [ParameterCapture("id", "7")]), [], Returned("ok")
         )
-        assert ProseRenderer().render(_tree(node)) == (
-            "The order service place order for id: 7, returning ok."
+        tree = _tree(node)
+        assert ProseRenderer().render(tree) == (
+            _prose_header(tree) + "The order service place order for id: 7, returning ok."
         )
 
     def test_failed_to_phrasing(self) -> None:
         node = TraceNode(
             _sig("Svc", "charge", error_context="no funds"), [], Threw(ValueError("nope"))
         )
-        assert ProseRenderer().render(_tree(node)) == (
-            "The svc failed to charge — ValueError: nope (no funds)."
+        tree = _tree(node)
+        assert ProseRenderer().render(tree) == (
+            _prose_header(tree) + "The svc failed to charge — ValueError: nope (no funds)."
         )
 
     def test_parent_structure_and_closing(self) -> None:
         child = TraceNode(_sig("Svc", "inner"), [], Returned("i"))
         parent = TraceNode(_sig("Svc", "outer"), [child], Returned("o"))
-        assert ProseRenderer().render(_tree(parent)) == (
-            "The svc outer:\n  The svc inner, returning i.\n  Returned o."
+        tree = _tree(parent)
+        assert ProseRenderer().render(tree) == (
+            _prose_header(tree) + "The svc outer:\n  The svc inner, returning i.\n  Returned o."
         )
 
     def test_a_newline_in_parameter_name_adds_no_line(self) -> None:

@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 70bd8901cadf | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 58bc1ed9b34b | translated: 2026-09-13 | reviewed: - -->
 
 # Ve una traza en 60 segundos
 
@@ -16,9 +16,15 @@ uv add narrativetrace
 
 ## 2. El programa
 
+`main.py` adopta un id de traza fijo — el mismo mecanismo que usa una frontera al estilo servlet
+para una cabecera de traza entrante — únicamente para que la salida de esta página siempre nombre
+la misma traza. Tu propio código nunca hace esto: una ejecución real genera un id de traza
+aleatorio cada vez, y el nombre de tres palabras de más abajo se deriva de él, nunca de un nombre
+que tú elijas.
+
 ```python
 # main.py
-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
 
 
 class OrderService:
@@ -26,7 +32,14 @@ class OrderService:
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
 
+# Un id de traza fijo, adoptado para que la salida incrustada de esta página siempre nombre la
+# misma traza. Una ejecución real genera uno aleatorio cada vez (nunca este — es la constante
+# propia de esta DEMO, no el valor por defecto de la librería) mediante el mismo
+# TraceId.adopt_trace_id que usa una frontera al estilo servlet para una cabecera de traza entrante.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
 context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 
@@ -40,6 +53,8 @@ uv run main.py
 ```
 
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
 ```
 
@@ -73,13 +88,16 @@ NarrativeTrace incluye; en la propia `0.1.1` publicada, reproduce `store.events(
 
 ```diff
  # main.py
--from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
+--from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
++-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
 +import logging
 +import sys
 +
 +from narrativetrace import (
 +    ContextVarNarrativeContext,
 +    IndentedTextRenderer,
++    NarrativeContextFilter,
++    TraceId,
 +    export_to_logger,
 +    trace_object,
 +)
@@ -90,9 +108,20 @@ NarrativeTrace incluye; en la propia `0.1.1` publicada, reproduce `store.events(
          return f"ORD-{customer_id}-{product_id}-{quantity}"
  
  
-+logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
+ # Un id de traza fijo, adoptado para que la salida incrustada de esta página siempre nombre la
+ # misma traza. Una ejecución real genera uno aleatorio cada vez (nunca este — es la constante
+ # propia de esta DEMO, no el valor por defecto de la librería) mediante el mismo
+ # TraceId.adopt_trace_id que usa una frontera al estilo servlet para una cabecera de traza entrante.
+ DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
++handler = logging.StreamHandler(sys.stdout)
++handler.addFilter(NarrativeContextFilter())
++logging.basicConfig(
++    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
++)
 +
  context = ContextVarNarrativeContext()
++context.adopt_trace_id(DEMO_TRACE_ID)
  service = trace_object(OrderService(), context)
  service.place_order("cust-1", "prod-42", 3)
  
@@ -108,15 +137,23 @@ uv run main.py
 ```
 
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
-→ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
-← returned: "ORD-cust-1-prod-42-3"
+[mossy burr coats] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+[mossy burr coats] [] ← returned: "ORD-cust-1-prod-42-3"
 ```
 
-(el tiempo varía — el `0ms` es lo que haya medido tu máquina, igual que arriba). La misma traza
-ahora llega al destino de logs que ya tenías; la línea de consola queda intacta. Quien use
-`structlog` obtiene el mismo conjunto de claves desde `narrativetrace-structlog` — consulta la
-[Guía de logging](guia-de-logging.md) completa para `NarrativeContextFilter`, las claves MDC y la
+(el tiempo varía — el `0ms` es lo que haya medido tu máquina, igual que arriba; la frase entre
+corchetes también varía — `export_to_logger` reproduce la traza con su propio id nuevo, sin
+relación con el fijo de arriba). `traceName` aparece poblado porque hay una traza activa;
+`runName` está vacío aquí porque este script sencillo no pertenece a ninguna ejecución de suite de
+pruebas — solo se completa bajo el fixture de `narrativetrace-pytest` (consulta [Guía de
+configuración, § La ejecución tiene un
+nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre)). La misma traza ahora llega al
+destino de logs que ya tenías; la línea de consola queda intacta. Quien use `structlog` obtiene el
+mismo conjunto de claves desde `narrativetrace-structlog` — consulta la [Guía de
+logging](guia-de-logging.md) completa para `NarrativeContextFilter`, las claves MDC y la
 correlación a nivel de request.
 
 ## A continuación

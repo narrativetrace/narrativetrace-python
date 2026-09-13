@@ -70,7 +70,10 @@ class MarkdownRenderer:
 
     def render_document(self, tree: TraceTree, metadata: TraceMetadata) -> str:
         """Renders a full document: frontmatter + header + call flow."""
-        parts: list[str] = [FrontmatterBuilder().scenario(metadata.scenario).build(tree)]
+        frontmatter = (
+            FrontmatterBuilder().scenario(metadata.scenario).run_name(metadata.run_name).build(tree)
+        )
+        parts: list[str] = [frontmatter]
         self._render_header(tree, metadata, parts)
         ctx = _RenderCtx(parts, ValueReferenceIndex.build(tree), TreeWalk())
         for root in tree.roots:
@@ -83,7 +86,7 @@ class MarkdownRenderer:
         sig = tree.roots[0].signature
         duration_ms = tree.roots[0].duration_millis
         heading = f"{markdown_text(sig.class_name)}.{markdown_text(sig.method_name)}"
-        parts.append(f"\n## Trace: {heading}\n\n")
+        parts.append(f"\n## Trace: {_trace_phrase_prefix(tree)}{heading}\n\n")
         parts.append(f"**Scenario:** {markdown_text(metadata.scenario)}\n")
         parts.append(
             f"**Duration:** {duration_ms}ms | **Result:** {metadata.result.display_name}\n\n"
@@ -241,6 +244,15 @@ class MarkdownRenderer:
 
 def _sig_key(node: TraceNode) -> str:
     return f"{node.signature.class_name}.{node.signature.method_name}"
+
+
+def _trace_phrase_prefix(tree: TraceTree) -> str:
+    """The trace's own three-word phrase plus a trailing separator (``"bold elk soars — "``), or
+    empty when :attr:`TraceTree.trace_id` is ``None`` -- the frontmatter already carries the
+    phrase (and the raw id) as ``trace_name:``/``trace_id:``; this is the same phrase in the
+    document's own title line (2026-09-13 ruling, item 4)."""
+    trace_id = tree.trace_id
+    return "" if trace_id is None else f"{trace_id.human_name()} — "
 
 
 def _render_param(param: ParameterCapture, refs: ValueReferenceIndex) -> str:

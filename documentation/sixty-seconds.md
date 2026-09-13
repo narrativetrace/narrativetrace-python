@@ -13,10 +13,15 @@ uv add narrativetrace
 
 ## 2. The program
 
+`main.py` adopts one fixed trace id — the same mechanism a servlet-style boundary uses for an
+inbound trace header — purely so this page's output always names the same trace. Your own code
+never does this: a real run generates a random trace id every time, and the three-word name below
+is derived from it, never from a name you choose.
+
 <!-- snippet: examples/sixty_seconds/main.py -->
 ```python
 # main.py
-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
 
 
 class OrderService:
@@ -24,7 +29,17 @@ class OrderService:
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
 
+# snippet:begin fixedTraceId
+# A fixed trace id, adopted so this page's embedded output always names the same trace. A real
+# run generates a random one every time (never this -- it is this DEMO's own constant, not the
+# library default) via the same TraceId.adopt_trace_id a servlet-style boundary uses for an
+# inbound trace header.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+# snippet:end fixedTraceId
+
 context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 
@@ -40,6 +55,8 @@ uv run main.py
 
 <!-- snippet: examples/sixty_seconds/build/see_a_trace.txt mask=duration -->
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
 ```
 <!-- /snippet -->
@@ -74,13 +91,15 @@ replay `store.events()` through `LoggingTraceConsumer` by hand instead):
 <!-- snippet: examples/sixty_seconds/main.py diff=examples/sixty_seconds/main_with_logger.py -->
 ```diff
  # main.py
--from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
+-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
 +import logging
 +import sys
 +
 +from narrativetrace import (
 +    ContextVarNarrativeContext,
 +    IndentedTextRenderer,
++    NarrativeContextFilter,
++    TraceId,
 +    export_to_logger,
 +    trace_object,
 +)
@@ -91,9 +110,23 @@ replay `store.events()` through `LoggingTraceConsumer` by hand instead):
          return f"ORD-{customer_id}-{product_id}-{quantity}"
  
  
-+logging.basicConfig(level=logging.DEBUG, format="%(message)s", stream=sys.stdout)
+ # snippet:begin fixedTraceId
+ # A fixed trace id, adopted so this page's embedded output always names the same trace. A real
+ # run generates a random one every time (never this -- it is this DEMO's own constant, not the
+ # library default) via the same TraceId.adopt_trace_id a servlet-style boundary uses for an
+ # inbound trace header.
+ DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+ 
+ # snippet:end fixedTraceId
+ 
++handler = logging.StreamHandler(sys.stdout)
++handler.addFilter(NarrativeContextFilter())
++logging.basicConfig(
++    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
++)
 +
  context = ContextVarNarrativeContext()
+ context.adopt_trace_id(DEMO_TRACE_ID)
  service = trace_object(OrderService(), context)
  service.place_order("cust-1", "prod-42", 3)
  
@@ -109,18 +142,25 @@ replay `store.events()` through `LoggingTraceConsumer` by hand instead):
 uv run main.py
 ```
 
-<!-- snippet: examples/sixty_seconds/build/see_a_trace_with_logger.txt mask=duration -->
+<!-- snippet: examples/sixty_seconds/build/see_a_trace_with_logger.txt mask=duration,traceName -->
 ```text
+trace: loose hook parks (a1b2c3d)
+
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
-→ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
-← returned: "ORD-cust-1-prod-42-3"
+[mossy burr coats] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+[mossy burr coats] [] ← returned: "ORD-cust-1-prod-42-3"
 ```
 <!-- /snippet -->
 
-(timing varies — `0ms` is whatever your machine measured, same as above.) The same trace now lands
-in the sink you already have; the console line is untouched. `structlog` users get the identical
-key set from `narrativetrace-structlog` instead — see the full [Logging Guide](guides/logging.md)
-for `NarrativeContextFilter`, MDC keys, and request-scoped correlation.
+(timing varies — `0ms` is whatever your machine measured, same as above; the phrase in brackets
+varies too — `export_to_logger` replays the trace through its own fresh id, unrelated to the fixed
+one above.) `traceName` is populated because a trace is active; `runName` is empty here because
+this plain script belongs to no test-suite execution — it populates only under the
+`narrativetrace-pytest` fixture (see [Configuration Guide, § The run has a
+name](guides/configuration.md#the-run-has-a-name)). The same trace now lands in the sink you
+already have; the console line is untouched. `structlog` users get the identical key set from
+`narrativetrace-structlog` instead — see the full [Logging Guide](guides/logging.md) for
+`NarrativeContextFilter`, MDC keys, and request-scoped correlation.
 
 ## Next
 

@@ -91,32 +91,57 @@ def _count_errors(node: TraceNode, walk: TreeWalk | None = None) -> int:
     return own
 
 
+def _append_root_fields(tree: TraceTree, lines: list[str]) -> None:
+    """``entry_point``, ``duration_ms`` and, when the root carries one, ``trace_id``/
+    ``trace_name`` -- appends nothing on an empty tree. Split out of
+    :meth:`FrontmatterBuilder.build` to keep it under the method-length gate once the run field's
+    two lines landed there (mirrors the reference runtime's identical extraction)."""
+    if not tree.roots:
+        return
+    root = tree.roots[0]
+    sig = root.signature
+    entry_point = f"{sig.class_name}.{sig.method_name}"
+    lines.append(f"entry_point: {yaml_safe(entry_point)}")
+    lines.append(f"duration_ms: {root.duration_millis}")
+    if root.span_context is not None:
+        trace_id = root.span_context.trace_id
+        lines.append(f"trace_id: {trace_id}")
+        lines.append(f"trace_name: {trace_id.human_name()}")
+
+
 class FrontmatterBuilder:
     """Builds the YAML frontmatter block for a trace document."""
 
     def __init__(self) -> None:
         self._scenario: str | None = None
+        self._run_name: str | None = None
 
     def scenario(self, scenario: str) -> FrontmatterBuilder:
         """Sets the scenario line; returns self for chaining."""
         self._scenario = scenario
         return self
 
+    def run_name(self, run_name: str | None) -> FrontmatterBuilder:
+        """Sets the enclosing test-suite run's three-word phrase (2026-09-13 ruling, item 2);
+        returns self for chaining. ``None`` (the default) omits the field entirely — a document
+        rendered outside a tracked run names no run.
+
+        This is the ONLY frontmatter field a
+        :class:`~narrativetrace.output.run_identity.RunIdentity` ever reaches: never folded into
+        ``scenario``, never read back by ``entry_point``/``trace_id``/``trace_name``, and never
+        present on the structural ``.nt`` artifact at all (item 3).
+        """
+        self._run_name = run_name
+        return self
+
     def build(self, tree: TraceTree) -> str:
         """Renders the frontmatter block (delimited by ``---`` lines)."""
         lines = ["---", "type: trace"]
+        if self._run_name is not None:
+            lines.append(f"run: {yaml_safe(self._run_name)}")
         if self._scenario is not None:
             lines.append(f"scenario: {yaml_safe(self._scenario)}")
-        if tree.roots:
-            root = tree.roots[0]
-            sig = root.signature
-            entry_point = f"{sig.class_name}.{sig.method_name}"
-            lines.append(f"entry_point: {yaml_safe(entry_point)}")
-            lines.append(f"duration_ms: {root.duration_millis}")
-            if root.span_context is not None:
-                trace_id = root.span_context.trace_id
-                lines.append(f"trace_id: {trace_id}")
-                lines.append(f"trace_name: {trace_id.human_name()}")
+        _append_root_fields(tree, lines)
         method_count = sum(_count_nodes(root) for root in tree.roots)
         error_count = sum(_count_errors(root) for root in tree.roots)
         lines.append(f"method_count: {method_count}")

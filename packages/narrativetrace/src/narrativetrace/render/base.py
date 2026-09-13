@@ -31,10 +31,18 @@ class TraceMetadata:
     and cannot drift. A string is accepted for compatibility and parsed through
     :meth:`ScenarioResult.from_text`: either spelling is fine, anything else raises here rather
     than reaching an artifact the canonical schema would reject.
+
+    Args:
+        run_name: the enclosing test-suite run's three-word phrase
+            (:attr:`~narrativetrace.output.run_identity.RunIdentity.name`), or ``None`` when this
+            document is not rendered inside a run the caller tracks (2026-09-13 ruling, item 2) —
+            carried into the Markdown frontmatter's ``run:`` field, never into the structural
+            ``.nt`` artifact or a delta computation.
     """
 
     scenario: str
     result: ScenarioResult
+    run_name: str | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.result, str):

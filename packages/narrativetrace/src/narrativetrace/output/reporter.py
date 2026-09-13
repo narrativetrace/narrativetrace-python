@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 
 from narrativetrace.loss import TraceLoss
+from narrativetrace.output.run_identity import RunIdentity
 from narrativetrace.output.structural_delta import Kind, ScenarioDelta
 
 _HIGH_THRESHOLD = 0.7
@@ -61,6 +62,7 @@ class ConsoleSummaryReporter:
         output_path: str,
         clarity_scores: list[float] | None = None,
         loss: TraceLoss | None = None,
+        run: RunIdentity | None = None,
     ) -> str:
         """The suite footer: a clarity split when scores are supplied, and what the run lost.
 
@@ -68,11 +70,17 @@ class ConsoleSummaryReporter:
         there because a short trace must never be indistinguishable from a quiet one: the buffered
         path sheds under load and the adoption cap refuses async scopes, and both are invisible
         without it.
+
+        ``run``, when given, names the enclosing test-suite run on its own ``  run: <phrase>``
+        line (2026-09-13 ruling, item 2) — omitted entirely when ``run`` is ``None`` (a caller
+        that has not adopted :class:`~narrativetrace.output.run_identity.RunIdentity`).
         """
         loss_line = _loss_line(loss)
+        run_line = _run_line(run)
         if clarity_scores is None:
             return (
                 "\nNarrativeTrace — Suite complete\n"
+                f"{run_line}"
                 f"  {scenario_count} scenarios recorded\n"
                 f"{loss_line}"
                 f"  Reports: {output_path}"
@@ -86,6 +94,7 @@ class ConsoleSummaryReporter:
         low_pct = _round_half_up(100 * low / total) if total else 0
         return (
             "\nNarrativeTrace — Suite complete\n"
+            f"{run_line}"
             f"  {scenario_count} scenarios recorded\n"
             f"  Clarity: {high_pct}% high | {moderate_pct}% moderate | {low_pct}% low\n"
             f"{loss_line}"
@@ -142,6 +151,12 @@ def _truncate(scenario: str) -> str:
     if len(scenario) <= _SCENARIO_NAME_CAP:
         return scenario
     return scenario[:_SCENARIO_NAME_CAP].rstrip() + "…"
+
+
+def _run_line(run: RunIdentity | None) -> str:
+    """The run-identity line, or nothing when there is no enclosing run to name -- a caller that
+    has not adopted :class:`RunIdentity` yet, or one rendering a footer standalone."""
+    return "" if run is None else f"  run: {run.name}\n"
 
 
 def _loss_line(loss: TraceLoss | None) -> str:

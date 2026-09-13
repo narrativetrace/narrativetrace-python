@@ -190,3 +190,19 @@ entries:
     since: "0.1.2"
     documented_default: "true"
     probe: "contract-probe/src/contract_probe/probes/manifest_identity_probe.py"
+
+  - id: probed-run-name-console-footer
+    kind: probed-default
+    page: "documentation/guides/configuration.md#the-run-has-a-name"
+    claim: "the console suite footer names the run: a \"run: <phrase>\" line"
+    since: "0.1.2"
+    documented_default: "run: bold elk soars"
+    probe: "contract-probe/src/contract_probe/probes/run_name_console_footer_probe.py"
+
+  - id: probed-run-name-manifest-field
+    kind: probed-default
+    page: "documentation/guides/configuration.md#the-run-has-a-name"
+    claim: "manifest.json carries a top-level run object (id, name) naming the run it belongs to"
+    since: "0.1.2"
+    documented_default: "true"
+    probe: "contract-probe/src/contract_probe/probes/run_name_manifest_field_probe.py"

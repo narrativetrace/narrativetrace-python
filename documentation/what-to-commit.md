@@ -19,7 +19,7 @@ the approval-mode workflow.
 | **Approved trace** *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Yes**, once you opt into approval mode | The reviewed behavioral contract — a decision, not output |
 | Received trace *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | No | Written on a mismatch (or no baseline yet) for review; promote with `uv run poe approve` / `narrativetrace-approve`, never commit |
 | Incomplete trace *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | No | Written instead of a received trace when the run itself was incomplete; the approve verb ignores it by name |
-| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | No | Regenerated every run — an index over the artifacts above, not a baseline itself |
+| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | No | Regenerated every run — an index over the artifacts above, not a baseline itself; its top-level `run` object (`id`, `name` — the run's own three-word phrase) names *this session*, not a scenario, so it changes on every run even when nothing else does |
 | Suite clarity report | `<OUTPUT_DIR>/clarity-report.md` | No | A generated report, not a decision |
 | Suite clarity results | `<OUTPUT_DIR>/clarity-results.json` | No | Generated alongside the report |
 | Standalone scanner output (`narrativetrace-clarity` CLI) | wherever `--output-dir` points | No | Same as above, generated on demand |
