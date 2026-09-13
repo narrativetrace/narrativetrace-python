@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import re
+
 from hypothesis import given
 from hypothesis import strategies as st
 from narrativetrace_diagrams.mermaid import MermaidSequenceDiagramRenderer
@@ -99,6 +101,95 @@ class TestMermaidAliases:
         out = MermaidSequenceDiagramRenderer().render_with_aliases(_tree(root))
         assert "participant OS as OrderService" in out
         assert "participant OS2 as OtherService" in out
+
+
+_BARE_ALIAS = re.compile(r"^[^\s]+$")
+_WORD_ALIAS = re.compile(r"^\w+$", re.UNICODE)
+
+
+class TestMermaidAliasHostileClassNames:
+    """The alias-mode fallback (no uppercase letters to extract) used to pass the raw class name
+    straight through as the bare token on every arrow line and participant declaration -- grammar
+    position, not text position. A space split the arrow into the wrong number of tokens, ``->>``
+    or ``:`` forged a second arrow or an early message boundary, and two names that only differ in
+    a character :func:`~narrativetrace_diagrams.text.identifier` folds later (``"`` vs ``'``)
+    collided into one alias unnoticed, because the collision check ran on the pre-sanitized name.
+    """
+
+    @staticmethod
+    def _alias_of(out: str) -> str:
+        line = next(line for line in out.splitlines() if line.strip().startswith("participant"))
+        return line.strip().removeprefix("participant ").split(" as ", 1)[0]
+
+    def test_arrow_token_in_an_all_lowercase_class_name_does_not_split_the_arrow_line(
+        self,
+    ) -> None:
+        safe = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("svc", "m", Returned("ok")))
+        )
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("a->>b", "m", Returned("ok")))
+        )
+        assert out.count("\n") == safe.count("\n")
+        assert _WORD_ALIAS.match(self._alias_of(out))
+
+    def test_colon_in_an_all_lowercase_class_name_does_not_shift_the_message_boundary(
+        self,
+    ) -> None:
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("a:b", "m", Returned("ok")))
+        )
+        assert _WORD_ALIAS.match(self._alias_of(out))
+        assert "a:b->>a:b" not in out
+
+    def test_space_in_an_all_lowercase_class_name_does_not_split_the_bare_token(self) -> None:
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("a b", "m", Returned("ok")))
+        )
+        assert _BARE_ALIAS.match(self._alias_of(out))
+        assert _WORD_ALIAS.match(self._alias_of(out))
+
+    def test_double_quote_in_an_all_lowercase_class_name_does_not_close_the_display_quote_early(
+        self,
+    ) -> None:
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node('a"b', "m", Returned("ok")))
+        )
+        assert _WORD_ALIAS.match(self._alias_of(out))
+
+    def test_empty_class_name_gets_a_nonempty_bare_alias(self) -> None:
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("", "m", Returned("ok")))
+        )
+        alias = self._alias_of(out)
+        assert alias
+        assert _WORD_ALIAS.match(alias)
+
+    def test_quote_variants_that_sanitize_to_the_same_token_still_get_distinct_aliases(
+        self,
+    ) -> None:
+        # `a"b` and `a'b` both reduce to the bare token `ab`; the collision check must catch this
+        # even though the two raw names look distinct before sanitization.
+        child = _node("a'b", "m2", Returned("y"))
+        root = _node('a"b', "m1", Returned("x"), [child])
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(_tree(root))
+        participant_lines = [
+            line.strip() for line in out.splitlines() if line.strip().startswith("participant")
+        ]
+        aliases = [
+            line.removeprefix("participant ").split(" as ", 1)[0] for line in participant_lines
+        ]
+        assert len(aliases) == 2
+        assert len(set(aliases)) == 2, "distinct classes must not collapse onto one alias"
+
+    def test_mermaid_reserved_word_as_a_class_name_is_a_known_upstream_limitation(self) -> None:
+        # DiagramText.aliasToken (the Java reference this mirrors) restricts the alias's charset
+        # but does not avoid Mermaid's own reserved words (`end`, `participant`, ...) -- ported
+        # as-is for parity. Not a regression from this fix; not claimed safe either.
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("end", "m", Returned("ok")))
+        )
+        assert "participant end as end" in out
 
 
 class TestPlantUml:

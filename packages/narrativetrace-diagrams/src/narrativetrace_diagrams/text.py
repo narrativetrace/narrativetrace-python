@@ -26,6 +26,7 @@ import re
 _SPECIAL_CHARS = frozenset(".-: <>")
 _MAX_IDENTIFIER_LENGTH = 200
 _UNNAMED = "<unnamed>"
+_UNNAMED_ALIAS = "P"
 _PERCENT_RUN = re.compile(r"%%+")
 
 
@@ -70,3 +71,26 @@ def quote_if_needed(name: str) -> str:
     if any(c in _SPECIAL_CHARS for c in safe):
         return f'"{safe}"'
     return safe
+
+
+def alias_token(raw: str) -> str:
+    """A bare Mermaid/PlantUML participant alias: a single unquotable token, safe unquoted both
+    on a ``participant X as Name`` declaration and on every arrow line that names it.
+
+    :func:`identifier` is not enough here -- an alias sits in grammar position, not text
+    position, and its output can still carry a space, a colon, an arrow fragment (``->>``) or a
+    quote, any one of which would split an arrow into the wrong number of tokens or splice a
+    second participant into the line. This reduces the candidate to letters, digits and ``_``
+    (mirrors Java's ``Character.isLetterOrDigit``, so a non-ASCII letter survives, matching the
+    reference's own behavior) and falls back to :data:`_UNNAMED_ALIAS` when nothing survives --
+    never an empty token, which would emit a malformed ``participant `` declaration or collapse
+    an arrow's endpoint entirely. A class name with no uppercase letters and nothing hostile in
+    it keeps its historical alias unchanged: ``scheduler`` stays ``scheduler``.
+
+    Collision detection must run on this function's *output*, not the raw candidate: two
+    distinct raw names that reduce to the same token (``a"b`` and ``a'b`` both fold to ``ab``)
+    are the same participant unless the caller renumbers them apart.
+    """
+    filtered = "".join(c for c in raw if c == "_" or c.isalnum())
+    token = filtered[:_MAX_IDENTIFIER_LENGTH]
+    return token if token else _UNNAMED_ALIAS
