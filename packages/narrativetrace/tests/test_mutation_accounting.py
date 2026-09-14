@@ -124,3 +124,31 @@ class TestMutationAccountingIsComplete:
         assert missing == [], (
             f"[tool.narrativetrace.mutation.tested] ledger path(s) missing on disk: {missing}"
         )
+
+    def test_every_package_dir_override_names_a_tested_package_with_a_mutmut_config(self) -> None:
+        """`[tool.narrativetrace.mutation.package_dir]` (2026-09-13) overrides where `poe
+        mutate-*` actually invokes mutmut for a `tested` package whose run root is a subdirectory
+        of `packages/<name>`, not that directory itself -- see scripts/mutation_gate.py's
+        `_load_packages()`. An override naming a package that isn't `tested`, or a path with no
+        `pyproject.toml` (so no `[tool.mutmut]` section for mutmut to read from there), is the
+        same class of drift as a stale ledger path above."""
+        pyproject = _load_pyproject()
+        mutation_config = _lookup(pyproject, "tool", "narrativetrace", "mutation")
+        tested = set(mutation_config["tested"])
+        overrides: dict[str, str] = mutation_config.get("package_dir", {})
+
+        unknown = sorted(name for name in overrides if name not in tested)
+        assert unknown == [], (
+            "[tool.narrativetrace.mutation.package_dir] name(s) not in "
+            f"[tool.narrativetrace.mutation.tested]: {unknown}"
+        )
+
+        missing_config = sorted(
+            name
+            for name, path in overrides.items()
+            if not (_REPO_ROOT / path / "pyproject.toml").is_file()
+        )
+        assert missing_config == [], (
+            "[tool.narrativetrace.mutation.package_dir] path(s) with no pyproject.toml at that "
+            f"location: {missing_config}"
+        )

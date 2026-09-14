@@ -14,11 +14,12 @@ structural: a :class:`~narrativetrace_diagrams.sequence_grammar.SequenceGrammar`
 declares a ``DiagramLabel`` parameter cannot be called with a raw trace string, sanitized or not,
 because nothing outside this module can produce the construction token the dataclass requires.
 
-:meth:`identifier`, :meth:`quoted_identifier`, :meth:`message` and :meth:`alias` are the only
-routes from untrusted trace metadata into a label -- each delegates to :mod:`text`'s existing
-sanitizer, unchanged. :meth:`with_parameters` and :meth:`aliased_as` compose labels that are
-already sanitized, joining their text with literal punctuation that never came from the trace
-(``(``, ``, ``, ``" as "``) -- so composition can never reopen the hole the sanitizer closed.
+:meth:`identifier`, :meth:`quoted_identifier`, :meth:`plain_token`, :meth:`message` and
+:meth:`alias` are the only routes from untrusted trace metadata into a label -- each delegates to
+:mod:`text`'s existing sanitizer, unchanged. :meth:`with_parameters` and :meth:`aliased_as`
+compose labels that are already sanitized, joining their text with literal punctuation that never
+came from the trace (``(``, ``, ``, ``" as "``) -- so composition can never reopen the hole the
+sanitizer closed.
 """
 
 from __future__ import annotations
@@ -63,6 +64,14 @@ class DiagramLabel:
         an unquoted token -- the label a participant declaration or an arrow endpoint uses. See
         :func:`text.quote_if_needed`."""
         return DiagramLabel(_text.quote_if_needed(raw), _CONSTRUCT)
+
+    @staticmethod
+    def plain_token(raw: str) -> DiagramLabel:
+        """As :meth:`quoted_identifier`, but also quoted when the identifier is itself a bare
+        grammar keyword -- the label a PLAIN-mode participant declaration or arrow endpoint uses,
+        in either grammar. Never use this for an alias-mode ``as`` display name;
+        :meth:`quoted_identifier` is the right call there. See :func:`text.plain_mode_token`."""
+        return DiagramLabel(_text.plain_mode_token(raw), _CONSTRUCT)
 
     @staticmethod
     def message(value: str) -> DiagramLabel:

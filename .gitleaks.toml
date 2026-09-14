@@ -10,10 +10,16 @@ useDefault = true
 # values are redacted, which is only provable with a string that genuinely
 # matches the JWT shape — a synthetic, unsigned vector, valuable to nobody.
 # Scoped to the jwt rule in the two test files.
+#
+# test_rendering.py added 2026-09-14 (ADV-2026-09-14-1, map-key value-shape
+# pin): TestMapKeyValueShapeMasking needs a genuinely JWT-shaped literal used
+# as a bearer token to prove a dict KEY (not just a value) is redacted by
+# shape, same reasoning as above.
 [[allowlists]]
 description = "synthetic JWT fixtures in the redaction tests exist to prove JWT redaction"
 targetRules = ["jwt"]
 paths = [
   '''packages/narrativetrace/tests/test_redaction\.py''',
   '''packages/narrativetrace/tests/test_secret_value_shapes\.py''',
+  '''packages/narrativetrace/tests/test_rendering\.py''',
 ]

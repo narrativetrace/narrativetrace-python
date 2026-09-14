@@ -16,6 +16,11 @@ one of two places: measured (its import name in ``source``), or named with a rea
 ``[tool.coverage.narrativetrace_exempt]``. A package that is neither fails this test by name --
 an absence someone chose and documented is fine; an absence nobody can explain is what this
 closes.
+
+``[tool.coverage.narrativetrace_extra_source]`` (2026-09-13) accounts for the inverse case: a
+``source`` entry that is a bare path rather than a packages/*/ import name, for code that is
+still house-standard production code (test-driven, coverage-gated) but does not live under a
+``src/<name>`` layout -- e.g. ``packages/narrativetrace-skills/evals``, the Tier B eval runner.
 """
 
 from __future__ import annotations
@@ -103,21 +108,45 @@ class TestCoverageSourceListIsComplete:
     def test_every_source_entry_and_exemption_still_names_a_real_package(self) -> None:
         """The inverse direction: a renamed or removed package must not leave a stale entry
         behind claiming to measure, or to have a reason to exempt, something that no longer
-        exists -- which would silently mask the next real gap sitting beside it."""
+        exists -- which would silently mask the next real gap sitting beside it.
+
+        ``[tool.coverage.narrativetrace_extra_source]`` is the one documented exception: a
+        ``source`` entry that is a bare path, not a packages/*/ import name (2026-09-13, the
+        Tier B eval runner under ``packages/narrativetrace-skills/evals/`` -- not a
+        ``src/<name>`` layout, so it has no import name to appear in ``real_names``). Entries
+        there are subtracted before this check, so a *documented* extra path is fine; an
+        undocumented one still fails it.
+        """
         pyproject = _load_pyproject()
         source = set(_lookup(pyproject, "tool", "coverage", "run", "source"))
         exempt = set(_lookup(pyproject, "tool", "coverage", "narrativetrace_exempt"))
+        extra_source = set(_lookup(pyproject, "tool", "coverage", "narrativetrace_extra_source"))
         real_names = {
             name
             for package_dir in _package_directories()
             if (name := _import_name(package_dir)) is not None
         }
 
-        assert source - real_names == set(), (
-            f"[tool.coverage.run] source names no packages/*/ directory declares: "
-            f"{source - real_names}"
+        assert source - real_names - extra_source == set(), (
+            f"[tool.coverage.run] source names no packages/*/ directory declares and no "
+            f"[tool.coverage.narrativetrace_extra_source] entry accounts for: "
+            f"{source - real_names - extra_source}"
         )
         assert exempt - real_names == set(), (
             f"[tool.coverage.narrativetrace_exempt] names no packages/*/ directory declares: "
             f"{exempt - real_names}"
+        )
+
+    def test_every_extra_source_entry_exists_on_disk(self) -> None:
+        """The mutation-accounting sibling check (``test_every_tested_packages_ledger_path_exists``)
+        for this table: a documented extra ``source`` path that doesn't resolve on disk is the
+        same class of drift as a stale name, just quieter -- coverage.py silently measures
+        nothing for a missing directory instead of erroring."""
+        pyproject = _load_pyproject()
+        extra_source = _lookup(pyproject, "tool", "coverage", "narrativetrace_extra_source")
+
+        missing = [path for path in extra_source if not (_REPO_ROOT / path).is_dir()]
+
+        assert missing == [], (
+            f"[tool.coverage.narrativetrace_extra_source] path(s) missing on disk: {missing}"
         )

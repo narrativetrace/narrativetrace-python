@@ -21,7 +21,6 @@ _FIXTURE = "examples/sixty_seconds"
 
 NARRATIVETRACE_DOCTOR = Skill(
     canonical_name="narrativetrace-doctor",
-    claude_segment="doctor",
     skill_class="mechanical",
     description=(
         "Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being "

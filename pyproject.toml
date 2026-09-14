@@ -96,6 +96,15 @@ cmd = "mutmut run"
 cwd = "packages/narrativetrace-glossary"
 help = "Mutation testing for the glossary distribution (config in its own pyproject.toml)"
 
+[tool.poe.tasks.mutate-skills]
+cmd = "mutmut run"
+cwd = "packages/narrativetrace-skills/evals"
+help = """Mutation testing for the Tier B eval runner (run.py, quota.py, platform_presets.py, \
+tier_precondition.py; config in packages/narrativetrace-skills/evals/pyproject.toml -- mutmut \
+runs from evals/ itself, not the package root, to match the runner's flat imports). Case \
+content (prompts, fixtures, graders, trigger sets, YAML/JSON) is data, out of scope by \
+construction -- mutmut only ever mutates the four listed .py files."""
+
 [tool.poe.tasks.mutate-gate]
 # No literal "%" in this string: radon's FileConfig.toml_config() (used by `poe metrics`/xenon)
 # reads the whole [tool] table into a ConfigParser with interpolation enabled, so a bare "%"
@@ -116,6 +125,16 @@ below the floor) -- see mutation/glossary-equivalents.txt for the last measured 
 sequence = [
     { ref = "mutate-glossary" },
     { cmd = "python scripts/mutation_gate.py narrativetrace-glossary" },
+]
+
+[tool.poe.tasks.mutate-skills-gate]
+help = """Mutation kill-rate floor for narrativetrace-skills' eval runner, same 80-of-100 \
+formula as mutate-gate (killed / (total - mutation/skills-evals-equivalents.txt)); scheduled/\
+nightly cadence, not poe check -- see mutation/skills-evals-equivalents.txt for the last \
+measured score."""
+sequence = [
+    { ref = "mutate-skills" },
+    { cmd = "python scripts/mutation_gate.py narrativetrace-skills" },
 ]
 
 [tool.poe.tasks.demo]
@@ -545,6 +564,13 @@ source = [
     # 2026-09-10, real number, not gamed: 98% (162 stmts, 1 miss; 32 branches, 2 partial).
     "narrativetrace_pytest",
     "narrativetrace_skills",
+    # Added 2026-09-13 ("everything a skill invokes is normal source code, held to the full house
+    # standard"). The Tier B eval runner (run.py/quota.py/platform_presets.py/tier_precondition.py)
+    # is deliberately NOT under src/narrativetrace_skills/ (see evals/README.md's layout), so the
+    # "narrativetrace_skills" entry above never reached it -- a bare directory path is this list's
+    # one documented exception; see [tool.coverage.narrativetrace_extra_source] below, which
+    # test_coverage_source_completeness.py reads so this entry can never silently drift.
+    "packages/narrativetrace-skills/evals",
 ]
 branch = true
 # Needed for narrativetrace_pytest's subprocess-measured coverage above: each pytester subprocess
@@ -558,12 +584,24 @@ parallel = true
 # is never imported there by design -- all of its coverage data arrives already-combined from the
 # subprocess-written files instead.
 disable_warnings = ["module-not-imported"]
+# The "packages/narrativetrace-skills/evals" source entry above is a bare directory, unlike every
+# other entry's package-name form, so it would otherwise also measure its own test_*.py files
+# (there is no separate tests/ subdirectory to exclude by omission the way every src/ layout
+# already does). Case content (fixtures/graders/prompts/YAML/JSON under evals/) is never Python,
+# so it needs no entry here.
+omit = ["*/evals/test_*.py"]
 
 [tool.coverage.narrativetrace_exempt]
 # packages/*/ directories with no import name in `source` above, and why -- read by
 # test_coverage_source_completeness.py, which requires every packages/*/ directory to be in
 # exactly one of these two places.
 narrativetrace_security_tests = "src/narrativetrace_security_tests/__init__.py is a 13-line stub; every real line (corpus reader, oracle helpers) lives under tests/, which this repo's convention never treats as production code to measure (2026-09-10)."
+
+[tool.coverage.narrativetrace_extra_source]
+# `[tool.coverage.run] source` entries that are bare paths, not packages/*/ import names, and why
+# each is legitimate -- read by test_coverage_source_completeness.py so that
+# `source - real_names` only ever contains entries accounted for here, never a silent addition.
+"packages/narrativetrace-skills/evals" = "Tier B eval runner code (run.py/quota.py/platform_presets.py/tier_precondition.py), not under src/narrativetrace_skills/ -- see evals/README.md's layout; 2026-09-13 ruling that eval-invoked code is normal source code held to the full house standard."
 
 [tool.coverage.report]
 fail_under = 95  # ratchet toward the Java 98% gate; raise as headroom allows
@@ -595,6 +633,19 @@ exclude_also = [
 [tool.narrativetrace.mutation.tested]
 narrativetrace = "mutation/equivalents.txt"
 narrativetrace-glossary = "mutation/glossary-equivalents.txt"
+# Scoped to the Tier B eval runner only (evals/run.py, quota.py, platform_presets.py,
+# tier_precondition.py -- see packages/narrativetrace-skills/evals/pyproject.toml's
+# [tool.mutmut]); src/narrativetrace_skills/ (catalogue/render) is not yet mutation-tested (same
+# mutmut multi-root limitation the other DEFERRED entries below note) and stays out of that
+# config's source_paths, so it is untouched by `poe mutate-skills`.
+narrativetrace-skills = "mutation/skills-evals-equivalents.txt"
+
+[tool.narrativetrace.mutation.package_dir]
+# Override for a `tested` package whose mutmut run root is a subdirectory of packages/<name>, not
+# packages/<name> itself -- read by scripts/mutation_gate.py's _load_packages(). Every entry here
+# must have a matching `[tool.mutmut]` section at that path, since that is where `poe mutate-*`
+# actually invokes mutmut (see this package's own pyproject.toml comment there for why).
+narrativetrace-skills = "packages/narrativetrace-skills/evals"
 
 [tool.narrativetrace.mutation.exempt]
 # packages/*/ directories with no [tool.mutmut] section/mutate task, and why -- read by
@@ -606,7 +657,6 @@ narrativetrace-clarity = "DEFERRED -- no [tool.mutmut] section/mutate task exist
 narrativetrace-diagrams = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-otel = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-pytest = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
-narrativetrace-skills = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-structlog = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 
 [tool.importlinter]

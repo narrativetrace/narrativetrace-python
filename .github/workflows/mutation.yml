@@ -26,7 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: uv sync --all-packages
-      # Both mutated packages (mutmut has no multi-root mode, so each runs and is floored
-      # independently — see scripts/mutation_gate.py); either failing fails the job.
+      # All three mutated packages (mutmut has no multi-root mode, so each runs and is floored
+      # independently — see scripts/mutation_gate.py); any one failing fails the job.
       - run: uv run poe mutate-gate
       - run: uv run poe mutate-glossary-gate
+      - run: uv run poe mutate-skills-gate

@@ -80,9 +80,12 @@ class ReasonedRule:
 @dataclass(frozen=True, slots=True)
 class Skill:
     canonical_name: str
-    """Globally self-identifying, flat-namespace-safe, e.g. ``narrativetrace-doctor``."""
-    claude_segment: str
-    """The Claude plugin's shortened segment, e.g. ``doctor`` -> ``/narrativetrace:doctor``."""
+    """Globally self-identifying, flat-namespace-safe, e.g. ``narrativetrace-doctor`` -- the
+    single source for every rendered artifact's directory name and frontmatter ``name:``
+    (ruling, skills design, 2026-09-04, reaffirmed 2026-09-13): a shortened segment is legitimate
+    only inside a Claude plugin whose prefix already carries the brand, which nothing in this
+    repo is -- a repo-level ``.claude/skills/`` directory is itself a flat namespace where a
+    shortened name like ``doctor`` would collide with every other vendor's skill of that name."""
     skill_class: SkillClass
     description: str
     """<=1024 chars, third person, WHAT + WHEN with mined trigger phrasings."""

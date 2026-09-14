@@ -34,7 +34,6 @@ _FIXTURE = "examples/sixty_seconds"
 
 ADD_NARRATIVE_TRACING = Skill(
     canonical_name="add-narrative-tracing",
-    claude_segment="add",
     skill_class="mechanical",
     description=(
         "Installs NarrativeTrace into a Python project and gets it to a first trace. Use when "

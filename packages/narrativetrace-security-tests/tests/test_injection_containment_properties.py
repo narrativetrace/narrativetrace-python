@@ -52,7 +52,7 @@ _BENIGN = "order-42"
 """A value with nothing structural in it. Every shape comparison is against this."""
 
 _STRUCTURAL_JSON_FORMATS = ("json-chapter-tree", "json-chapter", "canonical-entries")
-_DIAGRAM_FORMATS = ("mermaid", "plantuml")
+_DIAGRAM_FORMATS = ("mermaid", "mermaid-aliases", "plantuml")
 
 
 def _tree_of(value: str) -> TraceTree:

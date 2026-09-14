@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob c54d6ed07342 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob e2bcca43b6fa | translated: 2026-09-14 | reviewed: - -->
 
 # Habilidades do agente
 
@@ -45,28 +45,41 @@ ocultação está comprovada em um teste, e diffs de traces de aprovação obsol
 ## Instalando-as
 
 - **Claude Code**: os arquivos `SKILL.md` renderizados vivem em
-  [`.claude/skills/add/`](../../.claude/skills/add/SKILL.md) e
-  [`.claude/skills/doctor/`](../../.claude/skills/doctor/SKILL.md) neste repositório. Copie
-  qualquer um dos diretórios para o `.claude/skills/<nome>/` do seu próprio projeto e o Claude o
-  reconhece sozinho, invocável como `/narrativetrace:add` / `/narrativetrace:doctor` uma vez
-  empacotado como plugin, ou pelo nome (`add-narrative-tracing` / `narrativetrace-doctor`)
-  diretamente.
+  [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md) e
+  [`.claude/skills/narrativetrace-doctor/`](../../.claude/skills/narrativetrace-doctor/SKILL.md)
+  neste repositório — o nome do diretório e o `name:` do frontmatter são sempre o id canônico do
+  catálogo, nunca um segmento abreviado: um diretório `.claude/skills/` no nível do repositório é
+  um namespace plano, não um plugin do Claude, então um nome abreviado (`doctor`) colidiria com a
+  habilidade de qualquer outro fornecedor com esse mesmo nome. Copie qualquer um dos diretórios
+  para o `.claude/skills/<nome>/` do seu próprio projeto e o Claude o reconhece sozinho, invocável
+  pelo nome (`add-narrative-tracing` / `narrativetrace-doctor`) diretamente.
+- **Codex CLI**: os arquivos `SKILL.md` renderizados vivem em
+  [`.agents/skills/add-narrative-tracing/`](../../.agents/skills/add-narrative-tracing/SKILL.md) e
+  [`.agents/skills/narrativetrace-doctor/`](../../.agents/skills/narrativetrace-doctor/SKILL.md)
+  neste repositório — a própria documentação de descoberta de habilidades do Codex (verificada em
+  2026-09-14) varre `.agents/skills/<name>/SKILL.md` a partir do diretório de trabalho até a raiz
+  do repositório, então é exatamente aí que ele os encontra, com os mesmos nomes de diretório
+  canônicos do Claude Code acima. O frontmatter carrega apenas `name` e `description` — os dois
+  campos que o Codex documenta — o corpo da página abaixo é idêntico, byte a byte, ao do Claude
+  Code.
 - **Qualquer agente, qualquer plataforma**: todo agente que lê o `AGENTS.md` vê o ponteiro sempre
   ativo que o próprio `AGENTS.md` deste repositório carrega entre seus marcadores
   `<!-- narrativetrace:skills:start -->` — os nomes e descrições de ambas as habilidades, então um
   agente que nunca pensou em procurar por elas ainda assim sabe que existem.
-- **Codex, Gemini e um instalador automático** estão no roteiro mas ainda não foram construídos —
-  hoje, copiar os arquivos renderizados é o caminho.
+- **Gemini e um instalador automático** estão no roteiro mas ainda não foram construídos — hoje,
+  copiar os arquivos renderizados é o caminho para qualquer plataforma sem convenção própria de
+  descoberta.
 
 ## Como são construídas
 
 Nenhuma habilidade é editada manualmente.
 `packages/narrativetrace-skills/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` e
 `.../catalogue/narrativetrace_doctor.py` são as duas fontes da verdade; `python
-scripts/skills_render.py --fix` regenera `.claude/skills/add/SKILL.md`,
-`.claude/skills/doctor/SKILL.md` e a própria seção do `AGENTS.md` deste repositório a partir
-delas, e `python scripts/skills_render.py --check` (integrado ao `uv run poe check`) falha a
-build no momento em que qualquer um dos três se desalinha da fonte tipada. Todo bloco de código
+scripts/skills_render.py --fix` regenera `.claude/skills/add-narrative-tracing/SKILL.md`,
+`.claude/skills/narrativetrace-doctor/SKILL.md`, seus equivalentes de Codex em `.agents/skills/`
+e a própria seção do `AGENTS.md` deste repositório a partir delas, e `python
+scripts/skills_render.py --check` (integrado ao `uv run poe check`) falha a build no momento em
+que qualquer um dos cinco se desalinha da fonte tipada. Todo bloco de código
 que uma página renderizada mostra é incorporado a partir de código-fonte real e testado, através
 da mesma convenção de marcador `<!-- snippet: -->` que o restante da documentação deste
 repositório já usa — nunca um exemplo digitado manualmente. Uma verificação de Tier A mantém

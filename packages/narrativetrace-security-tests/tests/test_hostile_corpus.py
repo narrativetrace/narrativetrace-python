@@ -43,8 +43,10 @@ _ALLOWED_NON_ASCII = "—"  # em-dash, allowed in prose (matches the Java corpus
 class TestMinimumCaseCounts:
     """A corpus that shrank silently is a corpus that stopped testing what it claims to."""
 
-    def test_strings_has_more_than_fifty_cases(self) -> None:
-        assert len(strings()) > 50
+    def test_strings_has_more_than_seventy_cases(self) -> None:
+        # Raised from 50 (mirrors Java's HostileCorpusTest, 2026-09-13): 71 -> 75 cases, the four
+        # `diagram-alias-*` rows added for Mermaid's alias-mode participant derivation.
+        assert len(strings()) > 70
 
     def test_injections_has_more_than_thirty_cases(self) -> None:
         assert len(injections()) > 30

@@ -86,7 +86,7 @@ def _assert_well_formed(name: str, text: str) -> None:
         _assert_json_well_formed(text, CHAPTER_SCHEMA)
     elif name == "canonical-entries":
         _assert_canonical_entries_well_formed(text)
-    elif name in ("mermaid", "plantuml"):
+    elif name in ("mermaid", "mermaid-aliases", "plantuml"):
         _assert_diagram_well_formed(text)
     elif name == "markdown-document":
         _assert_frontmatter_parses_as_yaml(text)
@@ -127,6 +127,7 @@ def test_every_shipped_emitter_is_present_so_a_rename_cannot_silently_drop_one()
         "json-chapter",
         "canonical-entries",
         "mermaid",
+        "mermaid-aliases",
         "plantuml",
         "structural-document",
     }

@@ -50,12 +50,24 @@ def _load_packages() -> dict[str, MutatedPackage]:
     `[tool.narrativetrace.mutation.exempt]`, never neither, never both) is
     `packages/narrativetrace/tests/test_mutation_accounting.py`'s job, not this script's — this
     function only reads what that table says.
+
+    `package_dir` defaults to `packages/<name>` (where `mutmut run` is invoked from and where its
+    working copy/`mutants/` lands) but `[tool.narrativetrace.mutation.package_dir]` overrides it
+    per package: mutmut derives a mutant's key from the path relative to its own cwd, so a
+    package whose eval/tooling code is imported flat (not through its installed package name)
+    must run mutmut from that code's own directory, not the package root -- see
+    packages/narrativetrace-skills/evals/pyproject.toml's [tool.mutmut] comment for the
+    concrete case this exists for.
     """
     with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
         pyproject = tomllib.load(handle)
-    tested: dict[str, str] = pyproject["tool"]["narrativetrace"]["mutation"]["tested"]
+    mutation_config = pyproject["tool"]["narrativetrace"]["mutation"]
+    tested: dict[str, str] = mutation_config["tested"]
+    package_dir_overrides: dict[str, str] = mutation_config.get("package_dir", {})
     return {
-        name: MutatedPackage(REPO_ROOT / "packages" / name, REPO_ROOT / ledger)
+        name: MutatedPackage(
+            REPO_ROOT / package_dir_overrides.get(name, f"packages/{name}"), REPO_ROOT / ledger
+        )
         for name, ledger in tested.items()
     }
 

@@ -33,10 +33,21 @@ evals/
 ├── platform_presets.py        # --platform claude|codex|gemini -> the --agent-command default
 ├── tier_precondition.py       # the sporadic lanes' Tier A/A2-green precondition
 ├── quota.py                   # the sporadic lanes' weekly-allowance guard (ledger/quota.md)
-├── test_platform_presets.py, test_tier_precondition.py, test_quota.py  # unit tests (ride `poe
-│                                                                        # coverage`, not Tier B)
-└── run.py                     # the runner -- see below
+├── run.py                     # the runner -- see below
+├── test_platform_presets.py, test_tier_precondition.py, test_quota.py, test_run.py
+│                             # unit tests for the four files above: pass/fail/crash of the agent,
+│                             # grader exit codes, sporadic-lane refusals, prompt-safety, a
+│                             # week-boundary quota case, etc. -- ride `poe coverage`, not Tier B
+└── pyproject.toml            # [tool.mutmut] for `poe mutate-skills[-gate]`: only the four runner
+                              # files above are ever mutated -- case content (this whole layout
+                              # otherwise) stays data and out of mutation scope by construction
 ```
+
+The four runner files (`run.py`, `quota.py`, `platform_presets.py`, `tier_precondition.py`) are
+ordinary house-standard code, not exempt from anything: test-driven, covered
+(`[tool.coverage.narrativetrace_extra_source]` in the root `pyproject.toml`), and mutation-gated
+(`poe mutate-skills-gate`, scheduled/nightly cadence like the other mutation gates, never `poe
+check`).
 
 ## The sporadic policy (Codex, Gemini)
 
@@ -74,7 +85,10 @@ installed, signed in, and the owner raises the allowance in `ledger/quota.md`.
 requested agent CLI against the prompt with the catalogue loaded, runs the case's grader, and
 appends one row to `ledger/runs.jsonl`. It is never invoked by `check`; the owner runs it by hand
 or from the nightly job. `--platform` fills `--agent-command` with that platform's preset
-(`platform_presets.py`) unless `--agent-command` is passed explicitly:
+(`platform_presets.py`) unless `--agent-command` is passed explicitly. Case and fixture paths are
+always resolved from this module's own location, never from the caller's cwd, so the invocation
+below works unchanged from the repo root (`uv run python packages/narrativetrace-skills/evals/run.py
+...`) or from this package's own directory (as written):
 
 ```bash
 # Claude -- the harness's regular cadence, no quota, no Tier-green precondition.
@@ -95,6 +109,10 @@ run is noted in `ledger/runs.jsonl` regardless of outcome (a codex/gemini trial 
 spend row to `ledger/quota.md`); `ledger/promotion.md` is the regenerated skill × platform matrix
 (`scripts/promotion_render.py`, drift-checked in `poe check` the way `SKILL.md` is), cleared on a
 wording or fixture change.
+
+**Prompt safety.** The prompt is never spliced into a shell command line: it reaches the agent CLI
+as one argv element (built with `subprocess.run`, no `shell=True`), so backticks, `$(...)`, quotes,
+and newlines in it are inert.
 
 ## What gates, what doesn't
 

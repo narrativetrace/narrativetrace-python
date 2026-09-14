@@ -1,0 +1,26 @@
+# Config home for `uv run poe mutate-skills` (cwd = this directory, via
+# [tool.narrativetrace.mutation.package_dir] in the root pyproject.toml) -- deliberately NOT
+# packages/narrativetrace-skills/pyproject.toml itself. Mutmut derives a mutant's key from the
+# path relative to its own cwd (see packages/narrativetrace/pyproject.toml's [tool.mutmut]
+# comment), and this package's eval runner is imported flat (`import quota`, `from
+# tier_precondition import ...`, not a dotted `narrativetrace_skills.evals.*` path) -- run.py's
+# own docstring and README.md both invoke it as `uv run python evals/run.py ...` from the repo
+# root or from here, and the test files match that with plain `import run`/`from quota import
+# ...`. Running mutmut from evals/ itself, not the package root, makes its derived keys
+# ("run.x_...", "quota.x_...") match exactly what those flat imports already produce -- no
+# changes needed to any production or test import.
+#
+# Case content under evals/ (prompts, fixtures, graders, trigger.yaml, case.json) is data and
+# stays out of mutation scope by construction: source_paths below lists only the four runner
+# .py files, so mutmut never walks anything else here.
+[tool.mutmut]
+source_paths = ["run.py", "quota.py", "platform_presets.py", "tier_precondition.py"]
+also_copy = [
+    "test_run.py",
+    "test_quota.py",
+    "test_platform_presets.py",
+    "test_tier_precondition.py",
+]
+# Same reason as packages/narrativetrace/pyproject.toml's identical line: the pytest plugin
+# distribution imports narrativetrace at plugin-load time, before the mutated copy is on sys.path.
+pytest_add_cli_args = ["-p", "no:narrativetrace"]

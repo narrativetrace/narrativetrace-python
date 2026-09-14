@@ -6,7 +6,7 @@
 `reports/verification/<date>.json` + `<date>.md` conforming to the cross-port contract in the
 Java golden repo's `reports/verification/SCHEMA.md` (pro repo TODO §35E).
 
-This is LONG-RUNNING BY DESIGN (mutation testing across two packages, a full coverage run, a
+This is LONG-RUNNING BY DESIGN (mutation testing across three packages, a full coverage run, a
 budgeted fuzz sweep, and — host load permitting — a benchmark suite are each historically
 tens of seconds to tens of minutes on this project's own dev machine). A category's failure
 never aborts the run: every category function below is wrapped in the same top-level safety
@@ -50,6 +50,7 @@ from scripts.verify_all_heavy import (
     run_fuzz_tier_b,
     run_glossary_mutation,
     run_narrativetrace_mutation,
+    run_skills_mutation,
 )
 from scripts.verify_all_schema import (
     CategoryResult,
@@ -273,7 +274,8 @@ def _arch_stress_rows() -> list[CategoryResult]:
 def _mutation_row() -> list[CategoryResult]:
     nt = run_narrativetrace_mutation(REPO_ROOT, LOG_DIR)
     glossary = run_glossary_mutation(REPO_ROOT, LOG_DIR)
-    return [build_mutation_row(nt, glossary)]
+    skills = run_skills_mutation(REPO_ROOT, LOG_DIR)
+    return [build_mutation_row(nt, glossary, skills)]
 
 
 def _fuzz_tier_b_row() -> list[CategoryResult]:

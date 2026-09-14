@@ -22,7 +22,6 @@ from narrativetrace_skills.skill import (
 def _skill(**overrides: object) -> Skill:
     base: dict[str, object] = {
         "canonical_name": "demo-skill",
-        "claude_segment": "demo",
         "skill_class": "mechanical",
         "description": "A demo skill.",
         "fixture": "examples/demo",

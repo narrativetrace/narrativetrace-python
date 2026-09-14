@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob c54d6ed07342 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob e2bcca43b6fa | translated: 2026-09-14 | reviewed: - -->
 
 # Habilidades del agente
 
@@ -45,17 +45,29 @@ probada en una prueba, y diffs de trazas de aprobación obsoletos.
 ## Instalarlas
 
 - **Claude Code**: los archivos `SKILL.md` renderizados viven en
-  [`.claude/skills/add/`](../../.claude/skills/add/SKILL.md) y
-  [`.claude/skills/doctor/`](../../.claude/skills/doctor/SKILL.md) en este repositorio. Copia
+  [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md) y
+  [`.claude/skills/narrativetrace-doctor/`](../../.claude/skills/narrativetrace-doctor/SKILL.md) en
+  este repositorio — el nombre del directorio y el `name:` del frontmatter son siempre el id
+  canónico del catálogo, nunca un segmento abreviado: un directorio `.claude/skills/` a nivel de
+  repositorio es un espacio de nombres plano, no un plugin de Claude, así que un nombre abreviado
+  (`doctor`) colisionaría con la habilidad de cualquier otro proveedor con ese mismo nombre. Copia
   cualquiera de los dos directorios en el `.claude/skills/<nombre>/` de tu propio proyecto y Claude
-  los detecta por sí solo, invocables como `/narrativetrace:add` / `/narrativetrace:doctor` una vez
-  empaquetados como plugin, o por nombre (`add-narrative-tracing` / `narrativetrace-doctor`)
+  los detecta por sí solo, invocables por nombre (`add-narrative-tracing` / `narrativetrace-doctor`)
   directamente.
+- **Codex CLI**: los archivos `SKILL.md` renderizados viven en
+  [`.agents/skills/add-narrative-tracing/`](../../.agents/skills/add-narrative-tracing/SKILL.md) y
+  [`.agents/skills/narrativetrace-doctor/`](../../.agents/skills/narrativetrace-doctor/SKILL.md)
+  en este repositorio — la propia documentación de descubrimiento de habilidades de Codex
+  (verificada el 2026-09-14) escanea `.agents/skills/<name>/SKILL.md` desde el directorio de
+  trabajo hasta la raíz del repositorio, así que esta es exactamente la ruta donde las encuentra,
+  con los mismos nombres de directorio canónicos que los de Claude Code arriba. El frontmatter
+  lleva solo `name` y `description` — los dos campos que documenta Codex — el cuerpo de la página
+  debajo es idéntico byte a byte al de Claude Code.
 - **Cualquier agente, cualquier plataforma**: todo agente que lee `AGENTS.md` ve el puntero
   siempre activo que el propio `AGENTS.md` de este repositorio lleva entre sus marcadores
   `<!-- narrativetrace:skills:start -->` — los nombres y descripciones de ambas habilidades, así
   que un agente que nunca pensó en buscarlas igual sabe que existen.
-- **Codex, Gemini y un instalador automático** están en la hoja de ruta pero aún no construidos —
+- **Gemini y un instalador automático** están en la hoja de ruta pero aún no construidos —
   hoy, copiar los archivos renderizados es el camino.
 
 ## Cómo se construyen
@@ -63,10 +75,11 @@ probada en una prueba, y diffs de trazas de aprobación obsoletos.
 Ninguna habilidad se edita nunca a mano.
 `packages/narrativetrace-skills/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` y
 `.../catalogue/narrativetrace_doctor.py` son las dos fuentes de verdad; `python
-scripts/skills_render.py --fix` regenera `.claude/skills/add/SKILL.md`,
-`.claude/skills/doctor/SKILL.md` y la sección propia de `AGENTS.md` de este repositorio a partir de
-ellas, y `python scripts/skills_render.py --check` (integrado en `uv run poe check`) hace fallar la
-compilación en cuanto cualquiera de los tres se desincroniza de la fuente tipada. Cada bloque de
+scripts/skills_render.py --fix` regenera `.claude/skills/add-narrative-tracing/SKILL.md`,
+`.claude/skills/narrativetrace-doctor/SKILL.md`, sus equivalentes de Codex en `.agents/skills/` y
+la sección propia de `AGENTS.md` de este
+repositorio a partir de ellas, y `python scripts/skills_render.py --check` (integrado en `uv run poe check`) hace fallar la
+compilación en cuanto cualquiera de los cinco se desincroniza de la fuente tipada. Cada bloque de
 código que muestra una página renderizada se incrusta desde código fuente real y probado, mediante
 la misma convención de marcador `<!-- snippet: -->` que usa el resto de la documentación de este
 repositorio — nunca un ejemplo escrito a mano. Una comprobación de Tier A mantiene fuera de ambas

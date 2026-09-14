@@ -674,6 +674,72 @@ class TestValueShapeMaskingParity:
         assert r.render_structured(self._PAN) == StringVal(self._PAN)
 
 
+class TestMapKeyValueShapeMasking:
+    """Family-wide finding, ADV-2026-09-14-1: a dedicated map-key renderer that special-cases
+    string keys to sanitize/cap without running the value-shape detector lets a JWT/PAN/bearer
+    key print in full. Java/TS/.NET/Swift had exactly this gap; Python is NOT AFFECTED --
+    :meth:`ValueRenderer._render_map_key` delegates to :meth:`ValueRenderer._render` ->
+    :meth:`ValueRenderer._render_string`, which already runs
+    :meth:`~narrativetrace.redaction.RedactionPolicy.should_redact_value` -- but nothing pinned
+    it, so a later "fast path for string keys" refactor could reintroduce the family bug
+    silently. Pinned on the flat path, the structured path, and (for parity with
+    ``TestRenderForCapture`` below) ``render_for_capture``, since divergence between paths is
+    this repository's documented top bug source."""
+
+    _JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    # "Bearer" and "JWT" name the same structural shape here (secret_value_shapes.is_jwt_like) --
+    # a bearer token is carried as a JWT, so the shape check that catches one catches the other;
+    # a distinct literal keeps this pin independently readable from the JWT one above.
+    _BEARER = "eyJhbGciOiJIUzI1NiJ9.eyJzY29wZSI6InJlYWQifQ.c2lnbmF0dXJlYnl0ZXM"
+    _PAN = "4111111111111111"
+
+    @pytest.mark.parametrize("secret", [_JWT, _BEARER, _PAN], ids=["jwt", "bearer", "pan"])
+    def test_a_secret_shaped_key_is_masked_on_the_flat_path(
+        self, renderer: ValueRenderer, secret: str
+    ) -> None:
+        rendered = renderer.render({secret: "ok"})
+        assert rendered == '{[REDACTED]="ok"}'
+        assert secret not in rendered
+
+    @pytest.mark.parametrize("secret", [_JWT, _BEARER, _PAN], ids=["jwt", "bearer", "pan"])
+    def test_a_secret_shaped_key_is_masked_on_the_structured_path(
+        self, renderer: ValueRenderer, secret: str
+    ) -> None:
+        result = renderer.render_structured({secret: "ok"})
+        assert result == ObjectVal("Map", {"[REDACTED]": StringVal("ok")})
+        assert secret not in str(result)
+
+    @pytest.mark.parametrize("secret", [_JWT, _BEARER, _PAN], ids=["jwt", "bearer", "pan"])
+    def test_a_secret_shaped_key_is_masked_through_render_for_capture(
+        self, renderer: ValueRenderer, secret: str
+    ) -> None:
+        value = {secret: "ok"}
+        rendered, structured, shape_redacted = renderer.render_for_capture(value)
+        # A dict is not itself a top-level string, so render_for_capture delegates to
+        # render/render_structured unchanged (TestRenderForCapture pins that delegation
+        # generally); this test pins that the delegation still carries the map-key masking
+        # through, not just an ordinary map.
+        assert rendered == renderer.render(value)
+        assert structured == renderer.render_structured(value)
+        assert secret not in rendered
+        assert secret not in str(structured)
+        assert shape_redacted is False  # the redaction is per-leaf, the parameter is a dict
+
+    def test_an_ordinary_key_is_untouched_on_both_paths(self, renderer: ValueRenderer) -> None:
+        assert renderer.render({"note": "hello"}) == '{"note"="hello"}'
+        assert renderer.render_structured({"note": "hello"}) == ObjectVal(
+            "Map", {'"note"': StringVal("hello")}
+        )
+
+    def test_the_key_name_deny_list_still_wins_for_card_number_on_both_paths(
+        self, renderer: ValueRenderer
+    ) -> None:
+        assert renderer.render({"card_number": "not-a-real-card"}) == '{"card_number"=[REDACTED]}'
+        assert renderer.render_structured({"card_number": "not-a-real-card"}) == ObjectVal(
+            "Map", {'"card_number"': StringVal("[REDACTED]")}
+        )
+
+
 class TestRenderForCapture:
     """Unit tests for :meth:`ValueRenderer.render_for_capture`, the capture-oriented seam
     ``trace_object._capture_one`` uses to set ``ParameterCapture.redacted`` truthfully for the

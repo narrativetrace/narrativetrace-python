@@ -29,6 +29,101 @@ _UNNAMED = "<unnamed>"
 _UNNAMED_ALIAS = "P"
 _PERCENT_RUN = re.compile(r"%%+")
 
+_MERMAID_RESERVED_ALIASES = frozenset(
+    {
+        "sequencediagram",
+        "participant",
+        "actor",
+        "create",
+        "destroy",
+        "box",
+        "loop",
+        "rect",
+        "opt",
+        "alt",
+        "else",
+        "par",
+        "par_over",
+        "and",
+        "critical",
+        "option",
+        "break",
+        "end",
+        "links",
+        "link",
+        "properties",
+        "details",
+        "over",
+        "note",
+        "activate",
+        "deactivate",
+        "autonumber",
+        "off",
+        "title",
+    }
+)
+"""Mermaid sequence-diagram keywords a bare alias token must never collide with, matched
+case-insensitively -- the grammar declares ``%options case-insensitive``.
+
+Sourced from every single-word literal lexer rule in ``sequenceDiagram.jison``
+(mermaid-js/mermaid, ``develop`` branch, verified 2026-09-13): the keywords above, plus the
+diagram-opening ``sequenceDiagram`` itself. ``title`` is included defensively -- its lexer rule
+only fires when the keyword is followed by same-line text (``"title"\\s[^#\\n;]+``), so a bare
+``title`` alias does not collide against today's grammar, but a future revision could drop that
+requirement and a suffixed alias costs nothing. Words the grammar only recognizes as part of a
+multi-word phrase (``"left of"``, ``"right of"``) are absent -- :func:`alias_token` can never
+produce a token containing a space."""
+
+_PLANTUML_RESERVED_WORDS = frozenset(
+    {
+        "participant",
+        "actor",
+        "boundary",
+        "control",
+        "entity",
+        "database",
+        "collections",
+        "queue",
+        "alt",
+        "else",
+        "opt",
+        "loop",
+        "par",
+        "break",
+        "critical",
+        "group",
+        "end",
+        "note",
+        "ref",
+        "activate",
+        "deactivate",
+        "destroy",
+        "create",
+        "return",
+        "box",
+        "title",
+        "header",
+        "footer",
+        "newpage",
+        "autonumber",
+        "hide",
+        "show",
+        "skinparam",
+        "mainframe",
+        "partition",
+    }
+)
+"""PlantUML sequence-diagram keywords a bare (unquoted) participant/arrow token risks colliding
+with, matched case-insensitively.
+
+Sourced from plantuml.com/sequence-diagram (verified 2026-09-13): the participant-type keywords,
+the block/control keywords, the messaging keywords, and the structural keywords above. PlantUML's
+own docs demonstrate quoting as the escape for exactly this collision (``participant "I have a
+really\\nlong name" as L``, ``"Bob()" -> "This is very\\nlong" as Long`` -- quoting works in a
+message/arrow line, not only a declaration), which is why :func:`plain_mode_token` closes this
+with the same quoting mechanism :func:`quote_if_needed` already uses for special characters,
+rather than :func:`alias_token`'s suffix."""
+
 
 def _is_iso_control(codepoint: int) -> bool:
     return codepoint <= 0x1F or 0x7F <= codepoint <= 0x9F
@@ -64,13 +159,40 @@ def identifier(name: str) -> str:
     return folded
 
 
+def _needs_quoting_for_a_character(safe: str) -> bool:
+    return any(c in _SPECIAL_CHARS for c in safe)
+
+
+def _is_sequence_diagram_reserved_word(token: str) -> bool:
+    """True when ``token``, compared case-insensitively as a WHOLE, is a bare keyword either
+    grammar reserves -- never merely contains one as a substring (``endpoint`` is an ordinary
+    name)."""
+    lower = token.lower()
+    return lower in _MERMAID_RESERVED_ALIASES or lower in _PLANTUML_RESERVED_WORDS
+
+
 def quote_if_needed(name: str) -> str:
     """Sanitizes ``name`` via :func:`identifier`, then quotes it if it contains ``.``, ``-``,
     ``:``, ``<``, ``>`` or a space."""
     safe = identifier(name)
-    if any(c in _SPECIAL_CHARS for c in safe):
-        return f'"{safe}"'
-    return safe
+    return f'"{safe}"' if _needs_quoting_for_a_character(safe) else safe
+
+
+def plain_mode_token(name: str) -> str:
+    """As :func:`quote_if_needed`, but ALSO quotes when the whole (sanitized) name is a bare
+    grammar keyword -- safe wherever the identifier is used AS the grammar token itself: a
+    PLAIN-mode participant declaration or arrow endpoint, in either grammar.
+
+    Deliberately a separate function from :func:`quote_if_needed`, not a universal change to it:
+    Mermaid's alias mode reuses :func:`quote_if_needed` for the human-readable display name after
+    ``as`` (``participant X as DisplayName``), which is never itself used as a bare token and is
+    documented (see the Mermaid alias-mode tests) to keep a reserved word unescaped there --
+    changing :func:`quote_if_needed` itself would have silently re-quoted that unrelated,
+    already-shipped output.
+    """
+    safe = identifier(name)
+    needs_quoting = _needs_quoting_for_a_character(safe) or _is_sequence_diagram_reserved_word(safe)
+    return f'"{safe}"' if needs_quoting else safe
 
 
 def alias_token(raw: str) -> str:
@@ -90,7 +212,15 @@ def alias_token(raw: str) -> str:
     Collision detection must run on this function's *output*, not the raw candidate: two
     distinct raw names that reduce to the same token (``a"b`` and ``a'b`` both fold to ``ab``)
     are the same participant unless the caller renumbers them apart.
+
+    A token that collides with a Mermaid sequence-diagram keyword, case-insensitively, gets a
+    trailing ``_``: a class literally named ``end`` used to yield that word, unchanged, as its
+    own alias -- a bare token the grammar reserves for closing a block (``end``) or opening a
+    declaration (``participant``), which the parser rejects outright rather than rendering. See
+    :data:`_MERMAID_RESERVED_ALIASES`.
     """
     filtered = "".join(c for c in raw if c == "_" or c.isalnum())
     token = filtered[:_MAX_IDENTIFIER_LENGTH]
-    return token if token else _UNNAMED_ALIAS
+    if not token:
+        return _UNNAMED_ALIAS
+    return f"{token}_" if token.lower() in _MERMAID_RESERVED_ALIASES else token

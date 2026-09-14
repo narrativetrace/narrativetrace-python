@@ -42,24 +42,34 @@ def _package(
 
 
 class TestBuildMutationRow:
-    def test_combines_both_packages_kill_counts_into_one_score(self) -> None:
+    def test_combines_all_three_packages_kill_counts_into_one_score(self) -> None:
         nt = _package("narrativetrace", killed=90, scored=100)
         glossary = _package("narrativetrace-glossary", killed=45, scored=50)
-        row = build_mutation_row(nt, glossary)
+        skills = _package("narrativetrace-skills", killed=27, scored=30)
+        row = build_mutation_row(nt, glossary, skills)
         assert row.status == "passed"
-        assert row.metrics["mutants_killed"] == 135
+        assert row.metrics["mutants_killed"] == 162
         assert row.metrics["mutation_score"] == 90.0
 
-    def test_failed_when_either_packages_gate_exited_nonzero(self) -> None:
+    def test_failed_when_any_packages_gate_exited_nonzero(self) -> None:
         nt = _package("narrativetrace", killed=90, scored=100, exit_code=1)
         glossary = _package("narrativetrace-glossary", killed=45, scored=50)
-        row = build_mutation_row(nt, glossary)
+        skills = _package("narrativetrace-skills", killed=27, scored=30)
+        row = build_mutation_row(nt, glossary, skills)
+        assert row.status == "failed"
+
+    def test_failed_when_the_skills_package_gate_exited_nonzero(self) -> None:
+        nt = _package("narrativetrace", killed=90, scored=100)
+        glossary = _package("narrativetrace-glossary", killed=45, scored=50)
+        skills = _package("narrativetrace-skills", killed=27, scored=30, exit_code=1)
+        row = build_mutation_row(nt, glossary, skills)
         assert row.status == "failed"
 
     def test_a_crashed_package_with_no_score_still_produces_a_row(self) -> None:
         nt = _package("narrativetrace", killed=None, scored=None, exit_code=1)
         glossary = _package("narrativetrace-glossary", killed=45, scored=50)
-        row = build_mutation_row(nt, glossary)
+        skills = _package("narrativetrace-skills", killed=27, scored=30)
+        row = build_mutation_row(nt, glossary, skills)
         assert row.status == "failed"
         assert "mutants_killed" not in row.metrics
         assert row.note is not None

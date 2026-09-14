@@ -2,11 +2,11 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Per-commit gate (wired into ``poe check``): ``.claude/skills/{doctor,add}/SKILL.md`` and this
-repository's own ``AGENTS.md`` managed section are BUILD OUTPUT of the typed catalogue
-(``narrativetrace_skills``) — never hand-edited. Mirrors ``scripts/check_no_license_headers.py``'s
---check/--fix pair: --check fails naming what drifted (run ``python scripts/skills_render.py
---fix`` to fix it); --fix writes it.
+"""Per-commit gate (wired into ``poe check``): ``.claude/skills/**/SKILL.md``,
+``.agents/skills/**/SKILL.md`` and this repository's own ``AGENTS.md`` managed section are BUILD
+OUTPUT of the typed catalogue (``narrativetrace_skills``) — never hand-edited. Mirrors
+``scripts/check_no_license_headers.py``'s --check/--fix pair: --check fails naming what drifted
+(run ``python scripts/skills_render.py --fix`` to fix it); --fix writes it.
 
 ``_strip_license_header`` is ``scripts/snippet_check.py``'s own fix for the same gap this had
 until this module existed: ``add-narrative-tracing``'s steps embed real source
@@ -25,6 +25,7 @@ from narrativetrace_skills import (
     SKILLS,
     render_agents_md_snippet,
     render_claude_skill,
+    render_codex_skill,
     splice_agents_md_section,
 )
 
@@ -41,15 +42,24 @@ def _resolve_snippet(path: str) -> str:
     return content.rstrip("\n")
 
 
-def _skill_md_path(claude_segment: str) -> Path:
-    return REPO_ROOT / ".claude" / "skills" / claude_segment / "SKILL.md"
+def _claude_skill_md_path(canonical_name: str) -> Path:
+    return REPO_ROOT / ".claude" / "skills" / canonical_name / "SKILL.md"
+
+
+def _codex_skill_md_path(canonical_name: str) -> Path:
+    return REPO_ROOT / ".agents" / "skills" / canonical_name / "SKILL.md"
 
 
 def _rendered_skill_files() -> dict[Path, str]:
-    return {
-        _skill_md_path(skill.claude_segment): f"{render_claude_skill(skill, _resolve_snippet)}\n"
-        for skill in SKILLS
-    }
+    rendered: dict[Path, str] = {}
+    for skill in SKILLS:
+        rendered[_claude_skill_md_path(skill.canonical_name)] = (
+            f"{render_claude_skill(skill, _resolve_snippet)}\n"
+        )
+        rendered[_codex_skill_md_path(skill.canonical_name)] = (
+            f"{render_codex_skill(skill, _resolve_snippet)}\n"
+        )
+    return rendered
 
 
 def _rendered_agents_md() -> str:

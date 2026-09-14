@@ -3,10 +3,10 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """Row builders + runners for the four heavy/scheduled-cadence categories: `mutation`
-(`poe mutate-gate` + `poe mutate-glossary-gate`, combined into one row per SCHEMA.md's
-multi-module precedent), `fuzz-tier-b` (`poe fuzz`), `benchmarks`, and `allocation`
-(not-implemented — no allocation-rate/GC-profiler benchmark distinct from wall-clock throughput
-exists in this ecosystem's suite).
+(`poe mutate-gate` + `poe mutate-glossary-gate` + `poe mutate-skills-gate`, combined into one row
+per SCHEMA.md's multi-module precedent), `fuzz-tier-b` (`poe fuzz`), `benchmarks`, and
+`allocation` (not-implemented — no allocation-rate/GC-profiler benchmark distinct from
+wall-clock throughput exists in this ecosystem's suite).
 """
 
 from __future__ import annotations
@@ -84,19 +84,30 @@ def run_glossary_mutation(repo_root: Path, log_dir: Path) -> MutationPackageResu
     )
 
 
-def _sum_optional(a: int | None, b: int | None) -> int | None:
-    return None if a is None or b is None else a + b
+def run_skills_mutation(repo_root: Path, log_dir: Path) -> MutationPackageResult:
+    # mutmut derives a mutant's key from the path relative to its own cwd, so `poe mutate-skills`
+    # runs from packages/narrativetrace-skills/evals (see that directory's own pyproject.toml
+    # [tool.mutmut] comment) -- its mutants/ working copy lands there too, not under the package
+    # root like narrativetrace and narrativetrace-glossary.
+    stats_path = repo_root / "packages/narrativetrace-skills/evals/mutants/mutmut-cicd-stats.json"
+    return run_mutation_package(
+        repo_root, log_dir, "narrativetrace-skills", "mutate-skills-gate", stats_path
+    )
 
 
-def _mutation_metrics(
-    nt: MutationPackageResult, glossary: MutationPackageResult
-) -> dict[str, float | int]:
-    killed = _sum_optional(nt.killed, glossary.killed)
-    scored = _sum_optional(nt.scored, glossary.scored)
-    total = _sum_optional(nt.total, glossary.total)
-    survived = _sum_optional(nt.survived, glossary.survived)
-    no_coverage = _sum_optional(nt.no_tests, glossary.no_tests)
-    timeout = _sum_optional(nt.timeout, glossary.timeout)
+def _sum_optional(*values: int | None) -> int | None:
+    if any(value is None for value in values):
+        return None
+    return sum(values)  # type: ignore[arg-type]
+
+
+def _mutation_metrics(*packages: MutationPackageResult) -> dict[str, float | int]:
+    killed = _sum_optional(*(pkg.killed for pkg in packages))
+    scored = _sum_optional(*(pkg.scored for pkg in packages))
+    total = _sum_optional(*(pkg.total for pkg in packages))
+    survived = _sum_optional(*(pkg.survived for pkg in packages))
+    no_coverage = _sum_optional(*(pkg.no_tests for pkg in packages))
+    timeout = _sum_optional(*(pkg.timeout for pkg in packages))
     metrics: dict[str, float | int] = {}
     if killed is not None:
         metrics["mutants_killed"] = killed
@@ -113,9 +124,9 @@ def _mutation_metrics(
     return metrics
 
 
-def _mutation_note(nt: MutationPackageResult, glossary: MutationPackageResult) -> str | None:
+def _mutation_note(*packages: MutationPackageResult) -> str | None:
     parts = []
-    for pkg in (nt, glossary):
+    for pkg in packages:
         if pkg.killed is None:
             parts.append(
                 f"{pkg.name}: crashed before producing a score (exit {pkg.outcome.exit_code})"
@@ -126,18 +137,20 @@ def _mutation_note(nt: MutationPackageResult, glossary: MutationPackageResult) -
 
 
 def build_mutation_row(
-    nt: MutationPackageResult, glossary: MutationPackageResult
+    nt: MutationPackageResult, glossary: MutationPackageResult, skills: MutationPackageResult
 ) -> CategoryResult:
-    status: Status = (
-        "passed" if nt.outcome.exit_code == 0 and glossary.outcome.exit_code == 0 else "failed"
-    )
-    duration = nt.outcome.seconds + glossary.outcome.seconds
-    note = with_log_hint(_mutation_note(nt, glossary), nt.outcome, status)
+    packages = (nt, glossary, skills)
+    status: Status = "passed" if all(pkg.outcome.exit_code == 0 for pkg in packages) else "failed"
+    duration = sum(pkg.outcome.seconds for pkg in packages)
+    note = with_log_hint(_mutation_note(*packages), nt.outcome, status)
     return CategoryResult(
         category="mutation",
-        tool="mutmut (narrativetrace + narrativetrace-glossary; 80% kill-rate floor each)",
+        tool=(
+            "mutmut (narrativetrace + narrativetrace-glossary + narrativetrace-skills; "
+            "80% kill-rate floor each)"
+        ),
         status=status,
-        metrics=_mutation_metrics(nt, glossary),
+        metrics=_mutation_metrics(*packages),
         duration_seconds=duration,
         note=note,
     )

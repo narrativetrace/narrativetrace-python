@@ -261,8 +261,8 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     the same way `scripts/translation_check.py` tells the two apart), plus `documentation/llms.txt`
     -- the one non-`.md` page an agent reads first, English-only and outside the translation
     manifest, whose embedded blocks must be just as drift-proof as any guide's -- plus
-    `.claude/skills/*/SKILL.md`: rendered BUILD OUTPUT (`scripts/skills_render.py`,
-    `documentation/what-to-commit.md`) whose steps embed real source
+    `.claude/skills/*/SKILL.md` and `.agents/skills/*/SKILL.md`: rendered BUILD OUTPUT
+    (`scripts/skills_render.py`, `documentation/what-to-commit.md`) whose steps embed real source
     (`examples/sixty_seconds/*.py`) through this exact `<!-- snippet: path -->` marker convention,
     never a hand-typed literal in the typed catalogue -- this gate is what proves that, the same
     way it already proves it for every guide page. `skills_render.py --check`'s own drift check
@@ -280,6 +280,7 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     if llms_txt.is_file():
         pages.append(llms_txt)
     pages.extend(sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md")))
+    pages.extend(sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md")))
     return pages
 
 

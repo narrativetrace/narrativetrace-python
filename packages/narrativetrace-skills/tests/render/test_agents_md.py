@@ -18,7 +18,6 @@ from narrativetrace_skills.skill import Skill
 def _skill(canonical_name: str, description: str) -> Skill:
     return Skill(
         canonical_name=canonical_name,
-        claude_segment=canonical_name,
         skill_class="mechanical",
         description=description,
         fixture="examples/demo",

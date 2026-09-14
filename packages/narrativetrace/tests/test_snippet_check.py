@@ -418,6 +418,26 @@ class TestCheckAndSyncRepository:
         )
         assert check_repository(tmp_path) == []
 
+    def test_a_codex_skill_page_is_checked_the_same_as_a_doc_page(self, tmp_path: Path) -> None:
+        """`.agents/skills/*/SKILL.md` -- Codex CLI's own discovery path -- is the identical body
+        `narrativetrace_skills.render.codex` renders from the same catalogue, so it needs the same
+        belt-and-suspenders coverage as `.claude/skills/*/SKILL.md` above."""
+        _write(tmp_path, "src/thing.py", "new content\n")
+        _write(tmp_path, ".agents/skills/add-narrative-tracing/SKILL.md", _SIMPLE_PAGE)
+        failures = check_repository(tmp_path)
+        assert len(failures) == 1
+        assert ".agents/skills/add-narrative-tracing/SKILL.md:3" in failures[0]
+
+    def test_sync_repository_fixes_a_drifted_codex_skill_page(self, tmp_path: Path) -> None:
+        _write(tmp_path, "src/thing.py", "new content\n")
+        page_path = _write(tmp_path, ".agents/skills/narrativetrace-doctor/SKILL.md", _SIMPLE_PAGE)
+        changes = sync_repository(tmp_path)
+        assert len(changes) == 1
+        assert page_path.read_text(encoding="utf-8") == _SIMPLE_PAGE.replace(
+            "old content", "new content"
+        )
+        assert check_repository(tmp_path) == []
+
 
 class TestRealRepository:
     """Exercises the check/sync against this real repository's own documentation and source.

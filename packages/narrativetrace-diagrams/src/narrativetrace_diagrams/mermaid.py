@@ -109,10 +109,10 @@ class MermaidSequenceDiagramRenderer:
         grammar = self._GRAMMAR
         parts = [grammar.header()]
         for participant in collect_participants(tree.roots):
-            parts.append(grammar.participant(DiagramLabel.quoted_identifier(participant)))
+            parts.append(grammar.participant(DiagramLabel.plain_token(participant)))
         walk = TreeWalk()
         for root in tree.roots:
-            render_sequence(root, grammar, DiagramLabel.quoted_identifier, parts, walk)
+            render_sequence(root, grammar, DiagramLabel.plain_token, parts, walk)
         parts.append(grammar.footer())
         return "".join(parts).rstrip()
 

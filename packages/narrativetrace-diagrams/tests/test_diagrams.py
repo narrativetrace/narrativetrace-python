@@ -12,7 +12,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from narrativetrace_diagrams.mermaid import MermaidSequenceDiagramRenderer
 from narrativetrace_diagrams.plantuml import PlantUmlSequenceDiagramRenderer
-from narrativetrace_diagrams.text import diagram_message
+from narrativetrace_diagrams.text import alias_token, diagram_message
 
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
@@ -182,14 +182,28 @@ class TestMermaidAliasHostileClassNames:
         assert len(aliases) == 2
         assert len(set(aliases)) == 2, "distinct classes must not collapse onto one alias"
 
-    def test_mermaid_reserved_word_as_a_class_name_is_a_known_upstream_limitation(self) -> None:
-        # DiagramText.aliasToken (the Java reference this mirrors) restricts the alias's charset
-        # but does not avoid Mermaid's own reserved words (`end`, `participant`, ...) -- ported
-        # as-is for parity. Not a regression from this fix; not claimed safe either.
+    def test_mermaid_reserved_word_as_a_class_name_gets_a_suffixed_alias(self) -> None:
+        # Before the 2026-09-13 fix: a class named `end` (or `participant`, `loop`, ...) yielded
+        # that word, unchanged, as its own alias -- a bare token Mermaid's grammar reserves for
+        # closing a loop/alt/opt/rect/critical/box block or opening a declaration, which the
+        # parser rejects outright rather than renders. `alias_token` now suffixes a trailing `_`
+        # on a case-insensitive collision with the reserved set sourced from
+        # sequenceDiagram.jison (mermaid-js/mermaid, verified 2026-09-13).
         out = MermaidSequenceDiagramRenderer().render_with_aliases(
             _tree(_node("end", "m", Returned("ok")))
         )
-        assert "participant end as end" in out
+        assert "participant end_ as end" in out
+        assert "end_->>end_: m()" in out
+
+    def test_mermaid_reserved_word_alias_collision_is_case_insensitive(self) -> None:
+        # Mermaid's lexer declares `%options case-insensitive`, so `alias_token` (the fallback
+        # `_build_aliases` reaches for a class name with no uppercase letters to extract from)
+        # must match a reserved word regardless of the class name's original case. Exercised
+        # directly: a class name mixing case (e.g. "Loop") has an uppercase letter and takes the
+        # `_extract_upper` path instead, so it never reaches `alias_token`'s reserved-word check.
+        assert alias_token("loop") == "loop_"
+        assert alias_token("LOOP") == "LOOP_"
+        assert alias_token("Loop") == "Loop_"
 
 
 class TestPlantUml:
@@ -243,6 +257,57 @@ class TestQuotingAndSanitising:
     def test_diagram_message_folds_all_controls(self, text: str) -> None:
         out = diagram_message(text)
         assert not any(ord(c) <= 0x1F or 0x7F <= ord(c) <= 0x9F for c in out)
+
+
+class TestPlainModeReservedWords:
+    """Reproduces the OPEN item from the 2026-09-13 alias-mode review, in PLAIN mode: a class
+    named a bare Mermaid or PlantUML sequence-diagram keyword (``end``) used to render as that
+    word, unquoted -- ``quote_if_needed`` quoted only on ``". - : < > " space"``, never on a
+    reserved-word collision, so ``participant end``/``end->>end: run()`` (Mermaid) and
+    ``participant end``/``end -> end: run()`` (PlantUML) reached output the grammar rejects
+    rather than renders.
+
+    Mermaid: verified against ``sequenceDiagram.jison``'s keyword lexer rules (the same set
+    :data:`~narrativetrace_diagrams.text._MERMAID_RESERVED_ALIASES` cites) and the official docs'
+    own guidance for "end" ("one must use parentheses(), quotation marks, or brackets... to
+    enclose the word 'end'" -- mermaid.js.org/syntax/sequenceDiagram.html). PlantUML: verified
+    against plantuml.com/sequence-diagram, which documents quoting as the escape for exactly this
+    collision and shows it used in a message/arrow line, not only a declaration (``"Bob()" ->
+    "This is very\\nlong" as Long``).
+
+    Unlike alias mode's underscore suffix, plain mode keeps the exact class name as the visible
+    token, just quoted -- ``quote_if_needed``'s existing mechanism for any other grammar-breaking
+    character, now shared by ``plain_mode_token``.
+    """
+
+    def test_mermaid_bare_reserved_word_participant_is_quoted(self) -> None:
+        out = MermaidSequenceDiagramRenderer().render(_tree(_node("end", "run", Returned("true"))))
+        assert 'participant "end"' in out
+        assert '"end"->>"end": run()' in out
+        assert "participant end\n" not in out
+
+    def test_plantuml_bare_reserved_word_participant_is_quoted(self) -> None:
+        out = PlantUmlSequenceDiagramRenderer().render(_tree(_node("end", "run", Returned("true"))))
+        assert 'participant "end"' in out
+        assert '"end" -> "end": run()' in out
+        assert "participant end\n" not in out
+
+    def test_plantuml_quotes_a_mermaid_only_reserved_word_too(self) -> None:
+        # "over" is a Mermaid sequence-diagram keyword, not a PlantUML one -- plain_mode_token is
+        # shared by both grammars and applies the union of their hazards, so PlantUML quotes it
+        # too (harmless here, consistent with `identifier`'s own union-of-hazards design).
+        out = PlantUmlSequenceDiagramRenderer().render(
+            _tree(_node("over", "run", Returned("true")))
+        )
+        assert 'participant "over"' in out
+
+    def test_mermaid_alias_mode_display_name_keeps_a_reserved_word_unquoted(self) -> None:
+        # `plain_mode_token` must never leak into alias mode's "as" display name -- that path is
+        # documented (and pinned above) to keep a reserved word unescaped, via `quoted_identifier`.
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(
+            _tree(_node("end", "run", Returned("true")))
+        )
+        assert "participant end_ as end" in out
 
 
 class TestMetadataInjection:

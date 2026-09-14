@@ -71,6 +71,10 @@
     { "id": "long-astral-run-1024", "description": "an astral run long enough to land a surrogate half on a parser's 1024-char read-buffer boundary", "repeat": { "unit": "\ud83d\ude48", "count": 600 } },
     { "id": "long-1mib", "description": "one mebibyte in one value — the bounded-size oracle's worst case", "repeat": { "unit": "x", "count": 1048576 } },
     { "id": "long-newlines", "description": "ten thousand line breaks, one value", "repeat": { "unit": "\n", "count": 10000 } },
-    { "id": "long-quotes", "description": "ten thousand quote characters, one value", "repeat": { "unit": "\"", "count": 10000 } }
+    { "id": "long-quotes", "description": "ten thousand quote characters, one value", "repeat": { "unit": "\"", "count": 10000 } },
+    { "id": "diagram-alias-arrow", "description": "a Mermaid arrow sequence as a class name, feeding Mermaid's alias-mode participant derivation - must never survive into a bare alias token", "value": "a->>b" },
+    { "id": "diagram-alias-quote-collision", "description": "a quote-carrying class name whose apostrophe twin (a'b, its fixed test companion) sanitizes to the same alias - collision disambiguation must still keep them distinct participants", "value": "a\"b" },
+    { "id": "diagram-alias-reserved-word", "description": "a class name that is, verbatim, a Mermaid sequence-diagram reserved word - the bare alias the grammar rejects outright rather than renders", "value": "end" },
+    { "id": "diagram-alias-empty", "description": "a class name that sanitizes to nothing, the alias-token empty-fallback path", "value": "" }
   ]
 }

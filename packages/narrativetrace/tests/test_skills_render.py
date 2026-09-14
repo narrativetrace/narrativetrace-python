@@ -2,11 +2,12 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""`scripts/skills_render.py`: `.claude/skills/{doctor,add}/SKILL.md` and this repository's own
-`AGENTS.md` managed section are BUILD OUTPUT of the typed `narrativetrace_skills` catalogue — this
-drift check is what `poe check`'s own `skills-check` task runs, exercised here too so a plain
-`uv run poe coverage` run also measures and gates it (`scripts/skills_render.py` itself is a CLI
-entry point, not imported by anything else that would otherwise cover it)."""
+"""`scripts/skills_render.py`: `.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/
+SKILL.md`, `.agents/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md` and this
+repository's own `AGENTS.md` managed section are BUILD OUTPUT of the typed `narrativetrace_skills`
+catalogue — this drift check is what `poe check`'s own `skills-check` task runs, exercised here
+too so a plain `uv run poe coverage` run also measures and gates it (`scripts/skills_render.py`
+itself is a CLI entry point, not imported by anything else that would otherwise cover it)."""
 
 from __future__ import annotations
 
@@ -21,6 +22,14 @@ class TestRenderedArtifactsMatchTheTypedCatalogue:
     def test_rendered_skill_files_cover_both_shipped_skills(self) -> None:
         paths = {path.name for path in _rendered_skill_files()}
         assert paths == {"SKILL.md"}
+
+    def test_rendered_skill_files_cover_both_platforms_for_both_skills(self) -> None:
+        # Two shipped skills, two platforms (Claude Code + Codex) rendering the same body under
+        # different frontmatter -- four files, not two.
+        rendered = _rendered_skill_files()
+        assert len(rendered) == 4
+        assert sum(1 for path in rendered if ".claude" in path.parts) == 2
+        assert sum(1 for path in rendered if ".agents" in path.parts) == 2
 
     def test_rendered_agents_md_carries_the_markers(self) -> None:
         rendered = _rendered_agents_md()

@@ -31,3 +31,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/narrativetrace_skills"]
+
+# Mutation config for the Tier B eval runner lives in evals/pyproject.toml, not here -- mutmut
+# runs from evals/ itself (`uv run poe mutate-skills`), not from this package's root, because the
+# runner's cross-imports are flat (`import quota`, not `narrativetrace_skills.evals.quota`) and
+# mutmut derives a mutant's key from the path relative to its own cwd. See that file's own
+# comment, and [tool.narrativetrace.mutation.package_dir] in the root pyproject.toml.

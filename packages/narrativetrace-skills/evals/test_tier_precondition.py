@@ -4,8 +4,20 @@
 # Copyright (c) 2026 Empower Agile
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import pytest
-from tier_precondition import assert_deterministic_tiers_green
+from tier_precondition import assert_deterministic_tiers_green, run_command
+
+
+class TestRunCommand:
+    def test_runs_a_successful_command(self, tmp_path: Path) -> None:
+        run_command(["true"], str(tmp_path))  # must not raise
+
+    def test_raises_on_a_nonzero_exit(self, tmp_path: Path) -> None:
+        with pytest.raises(subprocess.CalledProcessError):
+            run_command(["false"], str(tmp_path))
 
 
 class TestAssertDeterministicTiersGreen:

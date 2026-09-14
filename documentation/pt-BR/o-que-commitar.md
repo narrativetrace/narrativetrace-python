@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob cf18ef2cbfd6 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 5c7675ce63f9 | translated: 2026-09-14 | reviewed: - -->
 
 # O que commitar
 
@@ -26,7 +26,7 @@ de trabalho do modo de aprovação.
 | Resultados de clareza da suíte | `<OUTPUT_DIR>/clarity-results.json` | Não | Gerado junto com o relatório |
 | Saída do scanner independente (CLI `narrativetrace-clarity`) | onde `--output-dir` apontar | Não | Igual ao anterior, gerado sob demanda |
 | `glossary.json` / `glossary.md` | raiz do repositório (ou onde você apontar `NARRATIVETRACE_GLOSSARY_DIR`) | **Sim**, se você o usa | Vocabulário de propriedade humana — o arquivo commitado é o que a pontuação de clareza lê de volta, e nunca é regenerado por uma execução de testes. "Um arquivo, um fluxo de revisão" |
-| `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2, unreleased)* | `.claude/skills/{add,doctor}/SKILL.md`, `AGENTS.md` | **Sim** | Saída gerada a partir do catálogo tipado do `narrativetrace-skills` (`python scripts/skills_render.py --fix`), não saída de uma execução de testes — é commitada da mesma forma que `glossary.json`: regenerada, revisada nos diffs e verificada contra desvio (`python scripts/skills_render.py --check`, integrado ao `uv run poe check`) em vez de editada manualmente |
+| `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2, unreleased)* | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sim** | Saída gerada a partir do catálogo tipado do `narrativetrace-skills` (`python scripts/skills_render.py --fix`), não saída de uma execução de testes — é commitada da mesma forma que `glossary.json`: regenerada, revisada nos diffs e verificada contra desvio (`python scripts/skills_render.py --check`, integrado ao `uv run poe check`) em vez de editada manualmente |
 
 O `<OUTPUT_DIR>` padrão é `narrative-traces` e o `<APPROVED_DIR>` padrão é `test-narratives`
 (ambos relativos a onde a suíte rodou, ambos configuráveis — veja o

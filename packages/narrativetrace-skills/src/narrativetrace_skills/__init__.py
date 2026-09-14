@@ -33,6 +33,7 @@ from narrativetrace_skills.render.agents_md import (
     splice_agents_md_section,
 )
 from narrativetrace_skills.render.claude import render_claude_skill
+from narrativetrace_skills.render.codex import render_codex_skill
 from narrativetrace_skills.replay import StepReplayResult, replay_skill, run_replay_command
 from narrativetrace_skills.skill import (
     COMMAND_VOCABULARY,
@@ -84,6 +85,7 @@ __all__ = [
     "listings_disagreeing_with_feature_guide",
     "render_agents_md_snippet",
     "render_claude_skill",
+    "render_codex_skill",
     "replay_skill",
     "run_replay_command",
     "splice_agents_md_section",

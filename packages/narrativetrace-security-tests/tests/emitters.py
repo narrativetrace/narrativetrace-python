@@ -88,6 +88,9 @@ EMITTERS: dict[str, Emitter] = {
     "json-chapter": lambda tree, meta: export_chapter(tree, meta, clock=lambda: _FIXED_INSTANT),
     "canonical-entries": lambda tree, _meta: export_canonical_entries(tree),
     "mermaid": lambda tree, _meta: MermaidSequenceDiagramRenderer().render(tree),
+    "mermaid-aliases": lambda tree, _meta: MermaidSequenceDiagramRenderer().render_with_aliases(
+        tree
+    ),
     "plantuml": lambda tree, _meta: PlantUmlSequenceDiagramRenderer().render(tree),
     "structural-document": lambda tree, meta: StructuralTraceRenderer().render_document(
         tree, meta.scenario

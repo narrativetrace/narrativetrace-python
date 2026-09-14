@@ -22,7 +22,6 @@ def _resolve(path: str) -> str:
 def _skill(**overrides: object) -> Skill:
     base: dict[str, object] = {
         "canonical_name": "demo-skill",
-        "claude_segment": "demo",
         "skill_class": "mechanical",
         "description": "A demo skill.",
         "fixture": "examples/demo",
@@ -34,9 +33,12 @@ def _skill(**overrides: object) -> Skill:
 
 
 class TestFrontmatter:
-    def test_name_is_the_claude_segment(self) -> None:
-        rendered = render_claude_skill(_skill(claude_segment="doctor"), _resolve)
-        assert "name: doctor" in rendered
+    def test_name_is_the_canonical_name(self) -> None:
+        # No "Claude segment" shortening: the frontmatter `name:` is always the catalogue's
+        # canonical id, since a repo-level `.claude/skills/` directory is a flat namespace too
+        # (ruling, skills design, 2026-09-04, reaffirmed 2026-09-13).
+        rendered = render_claude_skill(_skill(canonical_name="narrativetrace-doctor"), _resolve)
+        assert "name: narrativetrace-doctor" in rendered
 
     def test_description_is_json_quoted(self) -> None:
         rendered = render_claude_skill(_skill(description='Say "hi"'), _resolve)
