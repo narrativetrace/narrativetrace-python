@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 737366970385 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 5ed1cdbfb499 | translated: 2026-09-13 | reviewed: - -->
 
 # Configuración
 
@@ -83,16 +83,16 @@ mayúsculas de minúsculas.
 
 | Clave | Variable de entorno | Significado | Predeterminado |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → escribe artefactos por prueba | activado *(since 0.1.2, unreleased)* |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → escribe artefactos por prueba | activado *(since 0.1.2)* |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | directorio de artefactos | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | nivel de captura para el contexto del fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directorio que contiene el `glossary.json` confirmado en el repositorio, que se lee para puntuar la claridad del vocabulario (ver [guia-de-claridad.md](guia-de-claridad.md)) | directorio de trabajo |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | también escribe el array de entradas `<test>.canonical.json` por prueba | `false` |
-| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica la estructura contra una traza aprobada confirmada en el repositorio *(since 0.1.2, unreleased)* | `false` |
-| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directorio que contiene las trazas `*.approved.nt` confirmadas en el repositorio *(since 0.1.2, unreleased)* | `test-narratives` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica la estructura contra una traza aprobada confirmada en el repositorio *(since 0.1.2)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directorio que contiene las trazas `*.approved.nt` confirmadas en el repositorio *(since 0.1.2)* | `test-narratives` |
 
-`output` está activado por defecto *(since 0.1.2, unreleased)* — la versión publicada en PyPI,
+`output` está activado por defecto *(since 0.1.2)* — la versión publicada en PyPI,
 `0.1.1`, todavía lo trae desactivado: el fixture `narrative_trace` escribe los artefactos de cada
 prueba no vacía bajo `narrative-traces/` sin necesidad de ninguna configuración. Desactívalo con
 `NARRATIVETRACE_OUTPUT=false` (`0`/`no`/`off` también funcionan, sin distinguir mayúsculas de
@@ -118,7 +118,7 @@ plano de entradas canónicas en el esquema `1.2`, un `method_enter` y un
 para máquinas — para otras implementaciones, fixtures de conformidad y traducción — no
 algo para leer después de un fallo.
 
-## Artefacto estructural y modo de aprobación *(since 0.1.2, unreleased)*
+## Artefacto estructural y modo de aprobación *(since 0.1.2)*
 
 La ruta Markdown además escribe un artefacto estructural `.nt` libre de valores junto a la
 narrativa — consulta el [Formato de traza estructural](formato-de-traza-estructural.md) para la
@@ -139,7 +139,7 @@ de consola `narrativetrace-approve`, que lee esta misma clave `approved_dir`). L
 fallan nunca se verifican — la aprobación solo juzga una prueba que de otro modo habría pasado.
 
 Cada ejecución también escribe `<output_dir>/manifest.json`: un objeto `run` de nivel superior
-(`id`, `name` — la frase de tres palabras propia de la ejecución, *(since 0.1.2, unreleased)*,
+(`id`, `name` — la frase de tres palabras propia de la ejecución, *(since 0.1.2)*,
 véase [La ejecución tiene un nombre](#la-ejecución-tiene-un-nombre) más abajo) seguido de una fila
 por escenario trazado, nombrando su prueba, su número de invocación cuando el método se ejecutó
 más de una vez, y cada artefacto que le pertenece:
@@ -182,7 +182,7 @@ la última ejecución en verde en lugar de la traza completa, cuando la estructu
 
 ### La ejecución tiene un nombre
 
-*(since 0.1.2, unreleased)* Se genera un id de ejecución por cada sesión de pytest — el propio
+*(since 0.1.2)* Se genera un id de ejecución por cada sesión de pytest — el propio
 hook `pytest_sessionstart` del plugin — un id con forma W3C, nunca una constante compartida — y su
 frase de tres palabras (el mismo generador de nombres del que sale el nombre de un id de traza) es
 el **nombre de la ejecución**. Aparece en:

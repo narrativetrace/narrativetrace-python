@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-skills"
-version = "0.1.1"
+version = "0.1.2"
 description = "Typed catalogue source for NarrativeTrace's agent skills — renders SKILL.md/AGENTS.md"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,7 +10,13 @@ license = "BUSL-1.1"
 license-files = ["LICENSE"]
 authors = [{ name = "narrativetrace contributors" }]
 keywords = ["tracing", "observability", "agent-skills"]
+# "Private :: Do Not Upload" is the standard PyPI/twine convention for a package that must never
+# reach the index (see packages/narrativetrace-security-tests/pyproject.toml). This is a
+# build-time catalogue source -- it renders SKILL.md/AGENTS.md, never something a consumer
+# installs -- and scripts/verify_publication_packages.py derives "publishable" from the absence
+# of this classifier, so without it the nightly canary would expect this package on PyPI forever.
 classifiers = [
+    "Private :: Do Not Upload",
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",

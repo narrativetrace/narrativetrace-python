@@ -63,6 +63,15 @@ says which way the assertion runs:
 { "id": "curated-tostring-top-level", "description": "a composite carrying a deny-listed field whose native __str__/toString interpolates it directly", "kind": "curatedToString", "canary": "canary-curated-tostring-top-level", "expect": "redacted" }
 ```
 
+A value case's `value` renders as a bare top-level scalar by default. Optional
+`"position": "mapKey"` places it as the KEY of a one-entry map instead (paired
+with an ordinary visible value), so the value-shape axis is asserted in a map
+KEY position and not only where a value ordinarily sits:
+
+```json
+{ "id": "shape-jwt-map-key", "description": "the same JWT, as a map KEY rather than a value", "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk", "position": "mapKey", "expect": "redacted" }
+```
+
 Canaries are unique per row rather than a single shared string, so one row's
 passing output cannot clear another's. The `visible` rows are not decoration:
 a deny-list is only as good as the field it does *not* blank, and a default

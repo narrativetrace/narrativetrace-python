@@ -1,10 +1,10 @@
-<!-- source: documentation/sixty-seconds.md blob c9e26b0afb36 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob 021047e905d7 | translated: 2026-09-16 | reviewed: - -->
 
 # Veja um trace em 60 segundos
 
 Sem linhas `logger.info(...)`, sem framework de testes, nada para abrir depois — um script simples,
 uma execução, e o trace aparece direto no seu terminal. Tudo abaixo foi executado de verdade contra o
-pacote publicado no PyPI (`narrativetrace` 0.1.1) — a saída está colada, não imaginada.
+pacote publicado no PyPI — a saída está colada, não imaginada.
 
 ## 1. Projeto novo, instale o pacote
 
@@ -79,55 +79,53 @@ informação que seu código já tinha.
 ## Envie para o seu logger
 
 A linha no console é boa para um script; em produção você quer o trace no fluxo de logs que você
-já tem. `export_to_logger` envia um trace já capturado para o seu logger em uma única chamada
-*(since 0.1.2, unreleased)* — a ponte para o `logging` da biblioteca padrão que o NarrativeTrace
-já traz; na própria `0.1.1` publicada, reproduza `store.events()` através do
-`LoggingTraceConsumer` manualmente):
+já tem. `export_to_logger` envia um trace já capturado para o seu logger em uma única chamada —
+a ponte para o `logging` da biblioteca padrão que o NarrativeTrace já traz. As linhas comentadas
+abaixo são a mudança em relação ao passo 1; o resto fica igual:
 
-```diff
- # main.py
---from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
-+-from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
-+import logging
-+import sys
-+
-+from narrativetrace import (
-+    ContextVarNarrativeContext,
-+    IndentedTextRenderer,
-+    NarrativeContextFilter,
-+    TraceId,
-+    export_to_logger,
-+    trace_object,
-+)
- 
- 
- class OrderService:
-     def place_order(self, customer_id, product_id, quantity):
-         return f"ORD-{customer_id}-{product_id}-{quantity}"
- 
- 
-+ # Um id de trace fixo, adotado para que a saída incorporada desta página sempre nomeie o mesmo
-+ # trace. Uma execução real gera um aleatório a cada vez (nunca este — é a constante própria desta
-+ # DEMO, não o padrão da biblioteca) pelo mesmo TraceId.adopt_trace_id que uma fronteira ao estilo
-+ # servlet usa para um cabeçalho de trace de entrada.
-+ DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
-+
-+handler = logging.StreamHandler(sys.stdout)
-+handler.addFilter(NarrativeContextFilter())
-+logging.basicConfig(
-+    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
-+)
-+
- context = ContextVarNarrativeContext()
-+context.adopt_trace_id(DEMO_TRACE_ID)
- service = trace_object(OrderService(), context)
- service.place_order("cust-1", "prod-42", 3)
- 
--print(IndentedTextRenderer().render(context.capture_trace()))
-+trace = context.capture_trace()
-+print(IndentedTextRenderer().render(trace))
-+
-+export_to_logger(trace)
+```python
+# main.py
+import logging  # novo: logging da biblioteca padrão -- o destino que este passo usa
+import sys  # novo: destino stdout para o handler abaixo
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    NarrativeContextFilter,  # novo: adiciona traceName/runName a cada registro de log
+    TraceId,
+    export_to_logger,  # novo: reproduz um trace já capturado no seu logger, em uma chamada
+    trace_object,
+)
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+# Um id de trace fixo, adotado para que a saída incorporada desta página sempre nomeie o mesmo
+# trace. Uma execução real gera um aleatório a cada vez (nunca este — é a constante própria desta
+# DEMO, não o padrão da biblioteca) pelo mesmo TraceId.adopt_trace_id que uma fronteira ao estilo
+# servlet usa para um cabeçalho de trace de entrada.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+# novo: uma configuração simples de logging -- a forma que o logging de um app real já tem
+handler = logging.StreamHandler(sys.stdout)
+handler.addFilter(NarrativeContextFilter())  # novo: deixa traceName/runName disponíveis abaixo
+# novo: DEBUG para que os registros de export_to_logger passem o handler; o formato usa o filtro
+logging.basicConfig(
+    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
+)
+
+context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+trace = context.capture_trace()  # novo: captura uma vez, reutilizado pelo print e pelo export
+print(IndentedTextRenderer().render(trace))
+
+export_to_logger(trace)  # novo: envia o mesmo trace capturado pelo logger configurado
 ```
 
 ```bash

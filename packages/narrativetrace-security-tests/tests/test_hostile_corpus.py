@@ -203,6 +203,29 @@ class TestRedactionCasesDeclareExactlyOneSubjectAndOneDirection:
         assert all(c.expect in ("redacted", "visible") for c in redactions())
 
 
+class TestRedactionPositionIsWellFormed:
+    """ADV-2026-09-14-1: ``position`` only ever means "as a map key", and only a value case may
+    declare it -- a name case already renders as a dict, under its own field name, so a second
+    map position on top of that would test nothing new. At least one row must use it, or the
+    map-KEY value-shape axis is back to being asserted nowhere in the corpus."""
+
+    def test_every_declared_position_is_map_key_on_a_value_case(self) -> None:
+        for case in redactions():
+            if case.position is None:
+                continue
+            assert case.position == "mapKey", f"{case.id} declares an unknown position"
+            assert not case.is_name, f"{case.id}: only a value case may declare a map-key position"
+            assert not case.is_kind, f"{case.id}: only a value case may declare a map-key position"
+
+    def test_at_least_one_row_places_its_value_as_a_map_key(self) -> None:
+        assert any(c.is_map_key for c in redactions())
+
+    def test_a_map_key_row_renders_its_value_as_the_key_of_a_one_entry_dict(self) -> None:
+        for case in redactions():
+            if case.is_map_key:
+                assert case.payload == {case.value: "visible-value"}, case.id
+
+
 class TestNoRedactionCanaryIsItselfASecretShape:
     """A name or ``kind`` case whose canary is itself secret-shaped would pass the hidden
     assertion for the wrong reason -- the value axis would catch it whatever the name said."""

@@ -1,11 +1,11 @@
-<!-- source: documentation/what-to-commit.md blob 5c7675ce63f9 | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 2f9e6f68faf8 | translated: 2026-09-14 | reviewed: - -->
 
 # O que commitar
 
 Duas categorias, não uma. Quase tudo o que o NarrativeTrace grava é um **artefato gerado que
 descreve uma execução** — nada sob o seu diretório de saída configurado é código-fonte, então nada
 disso pertence ao controle de versão. A única exceção é o **trace aprovado** (`.approved.nt`)
-*(since 0.1.2, unreleased)*: um humano o revisou e o aceitou como o contrato de comportamento, da
+*(since 0.1.2)*: um humano o revisou e o aceitou como o contrato de comportamento, da
 mesma forma que o golden file de um snapshot test é uma decisão, não uma saída — veja a página
 [Formato de trace estrutural](formato-de-trace-estrutural.md) para a gramática completa e o fluxo
 de trabalho do modo de aprovação.
@@ -17,16 +17,16 @@ de trabalho do modo de aprovação.
 | Documento de cenário JSON (apenas formato Markdown) | `<OUTPUT_DIR>/traces/<Class>/<slug>.json` | Não | O mesmo trace como JSON canônico — regenerado a cada execução |
 | Diagrama Mermaid complementar (apenas formato Markdown) | `<OUTPUT_DIR>/diagrams/<Class>/<slug>.mmd` | Não | Regenerado a cada execução |
 | Array de entradas canônico | `<OUTPUT_DIR>/traces/<Class>/<slug>.canonical.json` | Não | Um artefato para máquinas, usado em conformidade/portes, opt-in via `NARRATIVETRACE_CANONICAL` |
-| Trace estrutural (`.nt`, a última baseline verde) *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/structural/<Class>/<slug>.nt` | Não | Regenerado a cada execução verde — a cópia de trabalho *local*, não a baseline revisada abaixo |
-| **Trace aprovado** *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sim**, uma vez que você opte pelo modo de aprovação | O contrato de comportamento revisado — uma decisão, não uma saída |
-| Trace recebido *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | Não | Gravado em uma divergência (ou quando ainda não há baseline) para revisão; promova com `uv run poe approve` / `narrativetrace-approve`, nunca commite |
-| Trace incompleto *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | Não | Gravado no lugar de um trace recebido quando a própria execução foi incompleta; o verbo approve o ignora pelo nome |
-| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | Não | Regenerado a cada execução — um índice sobre os artefatos acima, não uma baseline em si; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta sessão*, não um cenário, então muda a cada execução mesmo quando mais nada muda |
+| Trace estrutural (`.nt`, a última baseline verde) *(since 0.1.2)* | `<OUTPUT_DIR>/structural/<Class>/<slug>.nt` | Não | Regenerado a cada execução verde — a cópia de trabalho *local*, não a baseline revisada abaixo |
+| **Trace aprovado** *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sim**, uma vez que você opte pelo modo de aprovação | O contrato de comportamento revisado — uma decisão, não uma saída |
+| Trace recebido *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | Não | Gravado em uma divergência (ou quando ainda não há baseline) para revisão; promova com `uv run poe approve` / `narrativetrace-approve`, nunca commite |
+| Trace incompleto *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | Não | Gravado no lugar de um trace recebido quando a própria execução foi incompleta; o verbo approve o ignora pelo nome |
+| `manifest.json` *(since 0.1.2)* | `<OUTPUT_DIR>/manifest.json` | Não | Regenerado a cada execução — um índice sobre os artefatos acima, não uma baseline em si; seu objeto `run` de nível superior (`id`, `name` — a frase de três palavras própria da execução) nomeia *esta sessão*, não um cenário, então muda a cada execução mesmo quando mais nada muda |
 | Relatório de clareza da suíte | `<OUTPUT_DIR>/clarity-report.md` | Não | Um relatório gerado, não uma decisão |
 | Resultados de clareza da suíte | `<OUTPUT_DIR>/clarity-results.json` | Não | Gerado junto com o relatório |
 | Saída do scanner independente (CLI `narrativetrace-clarity`) | onde `--output-dir` apontar | Não | Igual ao anterior, gerado sob demanda |
 | `glossary.json` / `glossary.md` | raiz do repositório (ou onde você apontar `NARRATIVETRACE_GLOSSARY_DIR`) | **Sim**, se você o usa | Vocabulário de propriedade humana — o arquivo commitado é o que a pontuação de clareza lê de volta, e nunca é regenerado por uma execução de testes. "Um arquivo, um fluxo de revisão" |
-| `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2, unreleased)* | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sim** | Saída gerada a partir do catálogo tipado do `narrativetrace-skills` (`python scripts/skills_render.py --fix`), não saída de uma execução de testes — é commitada da mesma forma que `glossary.json`: regenerada, revisada nos diffs e verificada contra desvio (`python scripts/skills_render.py --check`, integrado ao `uv run poe check`) em vez de editada manualmente |
+| `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2)* | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sim** | Saída gerada a partir do catálogo tipado do `narrativetrace-skills` (`python scripts/skills_render.py --fix`), não saída de uma execução de testes — é commitada da mesma forma que `glossary.json`: regenerada, revisada nos diffs e verificada contra desvio (`python scripts/skills_render.py --check`, integrado ao `uv run poe check`) em vez de editada manualmente |
 
 O `<OUTPUT_DIR>` padrão é `narrative-traces` e o `<APPROVED_DIR>` padrão é `test-narratives`
 (ambos relativos a onde a suíte rodou, ambos configuráveis — veja o

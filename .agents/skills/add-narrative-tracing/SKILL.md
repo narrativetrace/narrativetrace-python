@@ -61,15 +61,15 @@ print(IndentedTextRenderer().render(context.capture_trace()))
 <!-- snippet: examples/sixty_seconds/main_with_logger.py -->
 ```python
 # main.py
-import logging
-import sys
+import logging  # new: stdlib logging -- the sink this step sends the trace to
+import sys  # new: stdout target for the handler below
 
 from narrativetrace import (
     ContextVarNarrativeContext,
     IndentedTextRenderer,
-    NarrativeContextFilter,
+    NarrativeContextFilter,  # new: injects traceName/runName onto every log record
     TraceId,
-    export_to_logger,
+    export_to_logger,  # new: replays an already-captured trace through your logger, one call
     trace_object,
 )
 
@@ -88,8 +88,10 @@ DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
 
 # snippet:end fixedTraceId
 
+# new: a plain stdlib logging setup -- the shape a real app's own logging config already has
 handler = logging.StreamHandler(sys.stdout)
-handler.addFilter(NarrativeContextFilter())
+handler.addFilter(NarrativeContextFilter())  # new: makes traceName/runName available below
+# new: DEBUG so export_to_logger's records pass the handler; the format reads the filter's keys
 logging.basicConfig(
     level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
 )
@@ -99,10 +101,10 @@ context.adopt_trace_id(DEMO_TRACE_ID)
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 
-trace = context.capture_trace()
+trace = context.capture_trace()  # new: capture once, reuse for both the print and the export
 print(IndentedTextRenderer().render(trace))
 
-export_to_logger(trace)
+export_to_logger(trace)  # new: sends the same captured trace through the configured logger
 ```
 <!-- /snippet -->
 

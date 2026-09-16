@@ -16,15 +16,15 @@ def test_place_order(narrative_trace):
 - **Failure narratives** — a failing test prints a framed `Scenario: …` block with the indented
   execution trace, so the call path *is* the diagnosis.
 - **Template warnings** — unresolved `@narrated`/`@on_error` tokens are reported once per run.
-- **Artifacts** — on by default *(since 0.1.2, unreleased)*: each non-empty test writes a trace
+- **Artifacts** — on by default *(since 0.1.2)*: each non-empty test writes a trace
   file — and, for markdown, a `.json` scenario document, `diagrams/<Class>/<slug>.mmd`, and a
-  value-free `structural/<Class>/<slug>.nt` artifact *(since 0.1.2, unreleased)* — under
+  value-free `structural/<Class>/<slug>.nt` artifact *(since 0.1.2)* — under
   `NARRATIVETRACE_OUTPUT_DIR` (default `narrative-traces`; gitignore it, see
   [what-to-commit.md](../what-to-commit.md)). The scenario result is `PASSED` or `FAILED`. Opt out
   with `NARRATIVETRACE_OUTPUT=false` (or `output = false` in a config file, see
   [configuration.md](configuration.md)). PyPI's published `narrativetrace-pytest==0.1.1` still
   ships with it off; set `NARRATIVETRACE_OUTPUT=true` explicitly on that version.
-- **Structural delta + approval mode** *(since 0.1.2, unreleased)* — the `.nt` file on disk is the
+- **Structural delta + approval mode** *(since 0.1.2)* — the `.nt` file on disk is the
   last-green baseline; the suite footer prints a `Since last green: …` summary, and a failing
   test's report prints its structural delta instead of the full trace when the shape changed. Turn
   on `NARRATIVETRACE_APPROVAL=true` to fail a test against a committed `.approved.nt` trace
@@ -38,7 +38,7 @@ def test_place_order(narrative_trace):
 > *filename* and `scenario:`/`**Scenario:**` header, and `manifest.json`, exactly as before —
 > never stripped or redacted. The value-free structural `.nt` artifact is the one place this *is*
 > handled for you: one invocation's structural header is titled by the method and its invocation
-> index, never by the parametrize id *(since 0.1.2, unreleased)* — see
+> index, never by the parametrize id *(since 0.1.2)* — see
 > [Structural Trace Format](../structural-trace-format.md). Keep secrets out of `parametrize`
 > ids regardless; see
 > [Privacy and Redaction § Non-guarantees](../privacy-and-redaction.md#non-guarantees).

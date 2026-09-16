@@ -11,7 +11,7 @@ Two pieces:
   `WARNING` (`!! {type}: {message} [{error_context}]`, control-sanitised).
 - `NarrativeContextFilter` — a logging `Filter` that stamps the current scope's keys (`traceId`,
   `traceName`, `spanId`, `nt.class`, `nt.method`, `nt.depth`, service identity, request/user keys)
-  onto every record. `traceName` and `runName` *(since 0.1.2, unreleased)* are always present once
+  onto every record. `traceName` and `runName` *(since 0.1.2)* are always present once
   the filter has touched a record — `""` when no trace/run is active — so a pattern referencing
   either never raises on an untraced line.
 
@@ -26,8 +26,7 @@ logging.getLogger().addHandler(handler)
 
 ## One consumer per stream, many handlers
 
-`nt.depth` is a private counter on each `LoggingTraceConsumer` instance *(since 0.1.2,
-unreleased)*, so two of them replaying the *same* event stream (say, both attached as listeners on
+`nt.depth` is a private counter on each `LoggingTraceConsumer` instance *(since 0.1.2)*, so two of them replaying the *same* event stream (say, both attached as listeners on
 one pipeline) each report their own correct depth — one no longer corrupts the other's count.
 `NarrativeContextFilter` and the
 `structlog` processor are unaffected either way: they read the shared class/method/trace identity
@@ -45,7 +44,7 @@ logger.addHandler(logging.FileHandler("trace.log"))  # second destination, same 
 
 ## `export_to_logger` — one call
 
-*(since 0.1.2, unreleased)* — on PyPI's published `0.1.1`, replay `store.events()` through a
+*(since 0.1.2)* — on PyPI's published `0.1.1`, replay `store.events()` through a
 `LoggingTraceConsumer` by hand instead.
 
 `export_to_logger(trace, logger=None)` replays an already-captured `TraceTree` through a private
@@ -71,7 +70,7 @@ Inside an HTTP request the ASGI middleware opens a `request_log_scope(...)` so r
 
 ## The run has its own MDC key: `runName`
 
-*(since 0.1.2, unreleased)* `narrativetrace-pytest`'s `pytest_sessionstart` hook generates one
+*(since 0.1.2)* `narrativetrace-pytest`'s `pytest_sessionstart` hook generates one
 run id per pytest session — never re-derived — and calls `set_run_name(run.name)` so `runName`
 (the run's own three-word phrase, distinct from any trace's `traceName`) rides along on every log
 line for the whole session, the same way `request_log_scope` rides beneath a method scope; the

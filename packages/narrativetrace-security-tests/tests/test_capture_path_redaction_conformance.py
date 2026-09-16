@@ -5,7 +5,7 @@
 """Replays the shared hostile redaction corpus through the REAL capture path -- ``trace_object``,
 the entry point an application actually uses -- not through ``ValueRenderer`` directly.
 
-**Why this file exists.** ``redaction.json``'s 92 rows (multilingual name spellings, accented/
+**Why this file exists.** ``redaction.json``'s 93 rows (multilingual name spellings, accented/
 decomposed/folded forms, value shapes, four composite ``kind`` shapes added 2026-09-11, and a
 false-positive half) were never the problem: every existing consumer of the corpus -- this
 package's own :mod:`test_redaction_vocabulary_properties`,
@@ -280,7 +280,7 @@ class TestHostileCorpusKindCasesThroughRealCapturePath:
 
 
 def test_every_corpus_row_ran_and_none_was_skipped() -> None:
-    """Counts, reported rather than assumed: the corpus has 92 rows; every one of them is
+    """Counts, reported rather than assumed: the corpus has 93 rows; every one of them is
     parametrized into ``test_name_case``/``test_value_case``/``test_kind_case`` above, and none
     ever calls ``pytest.skip`` -- there is no row this suite silently ran nothing for."""
     total = len(redactions())
@@ -288,4 +288,4 @@ def test_every_corpus_row_ran_and_none_was_skipped() -> None:
     value_count = len(_value_cases())
     kind_count = len(_kind_cases())
     assert name_count + value_count + kind_count == total
-    assert total == 92, f"expected the shared corpus to hold 92 rows, found {total}"
+    assert total == 93, f"expected the shared corpus to hold 93 rows, found {total}"

@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob 793352c40b97 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob efe471740251 | translated: 2026-09-13 | reviewed: - -->
 
 # 日志与 structlog
 
@@ -12,7 +12,7 @@ NarrativeTrace 会桥接到标准库的 `logging` 框架以及 `structlog`,并�
   异常(`!! {type}: {message} [{error_context}]`,已做控制字符清理)。
 - `NarrativeContextFilter` —— 一个日志 `Filter`,会把当前作用域的键(`traceId`、`traceName`、
   `spanId`、`nt.class`、`nt.method`、`nt.depth`、服务身份、请求/用户键)盖印到每一条日志记录上。
-  `traceName` 和 `runName` *(since 0.1.2, unreleased)* 一旦被该 filter 处理过,就总是存在——没有
+  `traceName` 和 `runName` *(since 0.1.2)* 一旦被该 filter 处理过,就总是存在——没有
   活跃追踪/运行时为 `""`——所以引用二者之一的模式串永远不会在一条无追踪的日志行上抛出异常。
 
 ```python
@@ -26,7 +26,7 @@ logging.getLogger().addHandler(handler)
 
 ## 一个流一个消费者,多个 handler
 
-`nt.depth` 现在是每个 `LoggingTraceConsumer` 实例自己私有的计数器 *(since 0.1.2, unreleased)*,
+`nt.depth` 现在是每个 `LoggingTraceConsumer` 实例自己私有的计数器 *(since 0.1.2)*,
 所以两个实例重放*同一个*
 事件流时(比如都作为 listener 挂在同一条流水线上)会各自报告正确的深度——一个不会再破坏另一个的
 计数。`NarrativeContextFilter` 和 `structlog` 处理器完全不受影响:它们读取的是最内层帧共享的
@@ -43,7 +43,7 @@ logger.addHandler(logging.FileHandler("trace.log"))  # second destination, same 
 
 ## `export_to_logger` —— 一次调用搞定
 
-*(since 0.1.2, unreleased)*——在 PyPI 上发布的 `0.1.1` 中,请改为手动通过
+*(since 0.1.2)*——在 PyPI 上发布的 `0.1.1` 中,请改为手动通过
 `LoggingTraceConsumer` 重放 `store.events()`。
 
 `export_to_logger(trace, logger=None)` 会把一个已经捕获好的追踪,通过一个私有的
@@ -69,7 +69,7 @@ export_to_logger(context.capture_trace())
 
 ## 运行也有自己的 MDC 键:`runName`
 
-*(since 0.1.2, unreleased)* `narrativetrace-pytest` 的 `pytest_sessionstart` 钩子每个 pytest
+*(since 0.1.2)* `narrativetrace-pytest` 的 `pytest_sessionstart` 钩子每个 pytest
 会话生成一个运行 id——绝不重新派生——并调用 `set_run_name(run.name)`,让 `runName`(运行自己的
 三词短语,不同于任何追踪自己的 `traceName`)在整个会话期间搭载在每一条日志行上,就像
 `request_log_scope` 搭载在一个方法作用域之下一样;对应的 `pytest_sessionfinish` 钩子会再次

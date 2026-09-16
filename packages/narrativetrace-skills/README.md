@@ -1,7 +1,6 @@
 # narrativetrace-skills
 
-Typed catalogue source for [narrativetrace](../narrativetrace)'s agent skills *(since 0.1.2,
-unreleased)* — the single source of truth `.claude/skills/{doctor,add}/SKILL.md` and this
+Typed catalogue source for [narrativetrace](../narrativetrace)'s agent skills *(since 0.1.2)* — the single source of truth `.claude/skills/{doctor,add}/SKILL.md` and this
 repository's own `AGENTS.md` managed section are generated from, never hand-edited.
 
 * `narrativetrace_skills.SKILLS` — the two free skills (`narrativetrace-doctor`,

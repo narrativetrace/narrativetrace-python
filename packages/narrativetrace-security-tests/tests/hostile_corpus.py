@@ -21,6 +21,7 @@ from typing import Any
 from hostile_redaction_kinds import build as _build_kind_payload
 
 _CORPUS_DIR = Path(__file__).parent / "resources" / "hostile-corpus"
+_MAP_KEY_POSITION = "mapKey"
 
 
 def _materialize(case: dict[str, Any], literal_field: str) -> str:
@@ -113,6 +114,13 @@ class RedactionCase:
     (``value``, which is its own canary because the shape *is* the secret), or a ``kind`` (plus
     the ``canary`` the named builder plants somewhere in the composite it returns) -- never more
     than one, never none; ``expect`` says which way the assertion runs.
+
+    ADV-2026-09-14-1: a value case's ``position`` defaults to a bare top-level scalar. Every name
+    case already places its canary behind a field name in a one-entry ``dict`` (``payload``), so
+    without this field the corpus could only ever put a value-shaped secret where the renderer's
+    value-shape axis was already known to look -- never in a dict KEY position, which is exactly
+    where a dedicated map-key renderer was found (family-wide) to skip that axis. ``"mapKey"``
+    places ``value`` as the key of a one-entry ``dict`` instead; ``None`` for every other row.
     """
 
     id: str
@@ -122,6 +130,7 @@ class RedactionCase:
     canary: str | None
     expect: str
     kind: str | None = None
+    position: str | None = None
 
     @property
     def expects_redaction(self) -> bool:
@@ -138,6 +147,11 @@ class RedactionCase:
         return self.kind is not None
 
     @property
+    def is_map_key(self) -> bool:
+        """Whether a value case places ``value`` as a dict key rather than rendering it bare."""
+        return self.position == _MAP_KEY_POSITION
+
+    @property
     def secret(self) -> str:
         """The string the oracle looks for: the canary for a name or ``kind`` case, the value
         itself for a value case."""
@@ -147,13 +161,20 @@ class RedactionCase:
 
     @property
     def payload(self) -> object:
-        """The object to render: the value alone, a one-entry mapping under the sensitive field
-        name, or (for a ``kind`` row) the live composite ``hostile_redaction_kinds.build``
-        returns."""
+        """The object to render: the value alone, the value as a dict key, a one-entry mapping
+        under the sensitive field name, or (for a ``kind`` row) the live composite
+        ``hostile_redaction_kinds.build`` returns.
+
+        A ``dict`` is the vehicle for name cases because these names are data, not identifiers
+        (two spellings of the same Spanish word differing only by Unicode normalization form). A
+        value case opts into the same vehicle, as the KEY rather than the value, via
+        ``is_map_key``."""
         if self.is_kind:
             assert self.kind is not None  # narrows for mypy; is_kind already guarantees this
             return _build_kind_payload(self.kind, self.canary or "")
-        return {self.name: self.canary} if self.is_name else self.value
+        if self.is_name:
+            return {self.name: self.canary}
+        return {self.value: "visible-value"} if self.is_map_key else self.value
 
     def __str__(self) -> str:
         return self.id
@@ -205,6 +226,7 @@ def _redaction_case(node: dict[str, Any]) -> RedactionCase:
         node.get("canary"),
         node["expect"],
         node.get("kind"),
+        node.get("position"),
     )
 
 

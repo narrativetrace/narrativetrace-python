@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/pytest.md blob 58aa4f70d42a | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/pytest.md blob 6de3eecda087 | translated: 2026-09-12 | reviewed: - -->
 
 # Plugin do pytest
 
@@ -19,16 +19,16 @@ def test_place_order(narrative_trace):
   de execução indentado, então o caminho da chamada *é* o diagnóstico.
 - **Avisos de template** — tokens `@narrated`/`@on_error` não resolvidos são reportados uma vez por
   execução.
-- **Artefatos** — ativados por padrão *(since 0.1.2, unreleased)*: cada teste não vazio grava um
+- **Artefatos** — ativados por padrão *(since 0.1.2)*: cada teste não vazio grava um
   arquivo de trace — e, para markdown, um documento de cenário `.json`, `diagrams/<Class>/<slug>.mmd`,
-  e um artefato `structural/<Class>/<slug>.nt` livre de valores *(since 0.1.2, unreleased)* — sob
+  e um artefato `structural/<Class>/<slug>.nt` livre de valores *(since 0.1.2)* — sob
   `NARRATIVETRACE_OUTPUT_DIR` (padrão `narrative-traces`; coloque no seu `.gitignore`, veja
   [o-que-commitar.md](o-que-commitar.md)). O resultado do cenário é `PASSED` ou `FAILED`. Desative
   com `NARRATIVETRACE_OUTPUT=false` (ou `output = false` em um arquivo de configuração, veja
   [guia-de-configuracao.md](guia-de-configuracao.md)). A versão publicada no PyPI,
   `narrativetrace-pytest==0.1.1`, ainda vem desativada; nela, ative
   `NARRATIVETRACE_OUTPUT=true` explicitamente.
-- **Delta estrutural + modo de aprovação** *(since 0.1.2, unreleased)* — o arquivo `.nt` em disco é
+- **Delta estrutural + modo de aprovação** *(since 0.1.2)* — o arquivo `.nt` em disco é
   a última baseline verde; o rodapé da suíte imprime um resumo `Since last green: …`, e o relatório
   de um teste que falha imprime seu delta estrutural em vez do trace completo quando a forma mudou.
   Ligue `NARRATIVETRACE_APPROVAL=true` para em vez disso falhar um teste contra um trace
@@ -43,7 +43,7 @@ def test_place_order(narrative_trace):
 > `manifest.json`, exatamente como antes — nunca é cortado ou ocultado. O artefato estrutural `.nt`
 > livre de valores é o único lugar onde isso *é* resolvido para você: o cabeçalho estrutural de uma
 > invocação é intitulado pelo método e seu índice de invocação, nunca pelo id de parametrize
-> *(since 0.1.2, unreleased)* — veja o
+> *(since 0.1.2)* — veja o
 > [Formato de trace estrutural](formato-de-trace-estrutural.md). Mantenha segredos fora dos ids de
 > `parametrize` de qualquer forma; veja
 > [Privacidade e ocultação § Não garantias](privacidade-e-ocultacao.md#não-garantias).

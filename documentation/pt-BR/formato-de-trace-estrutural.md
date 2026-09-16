@@ -1,8 +1,8 @@
-<!-- source: documentation/structural-trace-format.md blob e980790bc213 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob 49cc120389ad | translated: 2026-09-13 | reviewed: - -->
 
 # Formato de trace estrutural (`.nt`)
 
-*(since 0.1.2, unreleased)*. O artefato de trace estrutural seguro para IA (ADR-002 do produto):
+*(since 0.1.2)*. O artefato de trace estrutural seguro para IA (ADR-002 do produto):
 um arquivo por cenário de teste contendo apenas a *forma* do comportamento autorada pelo
 desenvolvedor — zero valores de tempo de execução. Este formato é **multiplataforma**: toda
 implementação do NarrativeTrace emite o formato idêntico, o que é o que permite que traces

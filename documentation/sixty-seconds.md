@@ -2,7 +2,7 @@
 
 No `logger.info(...)` lines, no test framework, nothing to open afterward — a plain script, one
 run, and the trace prints straight to your terminal. Everything below was run for real against the
-published package on PyPI (`narrativetrace` 0.1.1) — the output is pasted, not imagined.
+published package on PyPI — the output is pasted, not imagined.
 
 ## 1. New project, install the package
 
@@ -84,57 +84,57 @@ information your code already had.
 ## Send it to your logger
 
 The console line is nice for a script; production wants the trace in the log stream you already
-have. `export_to_logger` sends an already-captured trace to your logger in one call *(since 0.1.2,
-unreleased)* — the stdlib `logging` bridge NarrativeTrace ships; on published `0.1.1` itself,
-replay `store.events()` through `LoggingTraceConsumer` by hand instead):
+have. `export_to_logger` sends an already-captured trace to your logger in one call — the stdlib
+`logging` bridge NarrativeTrace ships. The commented lines below are the change from step 1; the
+rest is untouched:
 
-<!-- snippet: examples/sixty_seconds/main.py diff=examples/sixty_seconds/main_with_logger.py -->
-```diff
- # main.py
--from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceId, trace_object
-+import logging
-+import sys
-+
-+from narrativetrace import (
-+    ContextVarNarrativeContext,
-+    IndentedTextRenderer,
-+    NarrativeContextFilter,
-+    TraceId,
-+    export_to_logger,
-+    trace_object,
-+)
- 
- 
- class OrderService:
-     def place_order(self, customer_id, product_id, quantity):
-         return f"ORD-{customer_id}-{product_id}-{quantity}"
- 
- 
- # snippet:begin fixedTraceId
- # A fixed trace id, adopted so this page's embedded output always names the same trace. A real
- # run generates a random one every time (never this -- it is this DEMO's own constant, not the
- # library default) via the same TraceId.adopt_trace_id a servlet-style boundary uses for an
- # inbound trace header.
- DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
- 
- # snippet:end fixedTraceId
- 
-+handler = logging.StreamHandler(sys.stdout)
-+handler.addFilter(NarrativeContextFilter())
-+logging.basicConfig(
-+    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
-+)
-+
- context = ContextVarNarrativeContext()
- context.adopt_trace_id(DEMO_TRACE_ID)
- service = trace_object(OrderService(), context)
- service.place_order("cust-1", "prod-42", 3)
- 
--print(IndentedTextRenderer().render(context.capture_trace()))
-+trace = context.capture_trace()
-+print(IndentedTextRenderer().render(trace))
-+
-+export_to_logger(trace)
+<!-- snippet: examples/sixty_seconds/main_with_logger.py -->
+```python
+# main.py
+import logging  # new: stdlib logging -- the sink this step sends the trace to
+import sys  # new: stdout target for the handler below
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    NarrativeContextFilter,  # new: injects traceName/runName onto every log record
+    TraceId,
+    export_to_logger,  # new: replays an already-captured trace through your logger, one call
+    trace_object,
+)
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+# snippet:begin fixedTraceId
+# A fixed trace id, adopted so this page's embedded output always names the same trace. A real
+# run generates a random one every time (never this -- it is this DEMO's own constant, not the
+# library default) via the same TraceId.adopt_trace_id a servlet-style boundary uses for an
+# inbound trace header.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+# snippet:end fixedTraceId
+
+# new: a plain stdlib logging setup -- the shape a real app's own logging config already has
+handler = logging.StreamHandler(sys.stdout)
+handler.addFilter(NarrativeContextFilter())  # new: makes traceName/runName available below
+# new: DEBUG so export_to_logger's records pass the handler; the format reads the filter's keys
+logging.basicConfig(
+    level=logging.DEBUG, format="[%(traceName)s] [%(runName)s] %(message)s", handlers=[handler]
+)
+
+context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+trace = context.capture_trace()  # new: capture once, reuse for both the print and the export
+print(IndentedTextRenderer().render(trace))
+
+export_to_logger(trace)  # new: sends the same captured trace through the configured logger
 ```
 <!-- /snippet -->
 

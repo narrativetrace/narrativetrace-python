@@ -170,7 +170,7 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Run the suite — artifacts are written by default** *(since 0.1.2, unreleased)* — PyPI's
+**3. Run the suite — artifacts are written by default** *(since 0.1.2)* — PyPI's
 published `0.1.1` still ships this off; set `NARRATIVETRACE_OUTPUT=true` explicitly on that
 version:
 
@@ -290,11 +290,11 @@ see [Privacy and Redaction](documentation/privacy-and-redaction.md) for the exac
   only members NarrativeTrace invokes are a curated `@narrative_summary` method, a custom
   `__str__` when the type carries no fields at all or is platform-defined, and property paths named
   in a `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A
-  composite's own `__str__` is otherwise never trusted *(since 0.1.2, unreleased)*: any object
+  composite's own `__str__` is otherwise never trusted *(since 0.1.2)*: any object
   carrying instance state is introspected field-by-field regardless of a custom `__str__`, so a
   hand-written one cannot bypass redaction, directly or via a nested object — a dict/map key goes
   through the same check. The one exception is a type the platform itself defines
-  *(since 0.1.2, unreleased)* — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
+  *(since 0.1.2)* — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
   `fractions.Fraction`, `ipaddress.*` — decided by origin (its `__module__`, never a name prefix),
   so a lookalike or a subclass is still walked. A raising summary/`__str__`/getter renders
   `<error: TypeName>` for that one part, never the exception's own message.
@@ -370,7 +370,7 @@ Going deeper:
 
 - [Privacy and Redaction](documentation/privacy-and-redaction.md) — the row-by-row redaction contract, verified against the code
 - [What to Commit](documentation/what-to-commit.md) — which generated files are CI artifacts, and which (if any) are reviewed baselines
-- [Agent Skills](documentation/agent-skills.md) — `narrativetrace-doctor`, a thin, read-only agent skill over `uv run narrativetrace doctor` *(since 0.1.2, unreleased)*
+- [Agent Skills](documentation/agent-skills.md) — `narrativetrace-doctor`, a thin, read-only agent skill over `uv run narrativetrace doctor` *(since 0.1.2)*
 - [Troubleshooting](documentation/troubleshooting.md) — symptom → cause → fix for the failure modes people actually hit
 - [pytest Guide](documentation/guides/pytest.md) · [FastAPI/ASGI Guide](documentation/guides/fastapi-asgi.md) · [OpenTelemetry Guide](documentation/guides/opentelemetry.md) · [Logging Guide](documentation/guides/logging.md) · [Clarity Guide](documentation/guides/clarity.md)
 - [Feature Guide](documentation/feature-guide.md) — every feature this runtime ships, with tier and status

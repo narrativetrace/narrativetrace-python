@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 737366970385 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 5ed1cdbfb499 | translated: 2026-09-13 | reviewed: - -->
 
 # Configuração
 
@@ -79,16 +79,16 @@ Os nomes de nível não diferenciam maiúsculas de minúsculas.
 
 | Chave | Variável de ambiente | Significado | Padrão |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → grava artefatos por teste | ligado *(since 0.1.2, unreleased)* |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → grava artefatos por teste | ligado *(since 0.1.2)* |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | diretório de artefatos | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | nível de captura para o contexto da fixture | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | diretório com o `glossary.json` commitado, lido como o vocabulário para a pontuação de clareza (ver [guia-de-clareza.md](guia-de-clareza.md)) | diretório de trabalho |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | também grava o array de entradas `<test>.canonical.json` por teste | `false` |
-| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica a estrutura contra um trace aprovado commitado *(since 0.1.2, unreleased)* | `false` |
-| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | diretório com os traces `*.approved.nt` commitados *(since 0.1.2, unreleased)* | `test-narratives` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verifica a estrutura contra um trace aprovado commitado *(since 0.1.2)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | diretório com os traces `*.approved.nt` commitados *(since 0.1.2)* | `test-narratives` |
 
-`output` vem ligado por padrão *(since 0.1.2, unreleased)* — a versão publicada no PyPI, `0.1.1`,
+`output` vem ligado por padrão *(since 0.1.2)* — a versão publicada no PyPI, `0.1.1`,
 ainda vem desligada: a fixture `narrative_trace` grava os artefatos de cada teste não vazio sob
 `narrative-traces/` sem nenhuma configuração. Desative com `NARRATIVETRACE_OUTPUT=false`
 (`0`/`no`/`off` também funcionam, sem diferenciar maiúsculas de minúsculas) ou `output = false` em
@@ -112,7 +112,7 @@ traçada, cada uma válida contra `entry.schema.json`. Vem desligado por
 padrão porque é um artefato para máquinas — para outras implementações, fixtures de
 conformidade e tradução — não algo para ler depois de uma falha.
 
-## Artefato estrutural e modo de aprovação *(since 0.1.2, unreleased)*
+## Artefato estrutural e modo de aprovação *(since 0.1.2)*
 
 O caminho Markdown também grava um artefato estrutural `.nt` livre de valores ao lado da
 narrativa — veja o [Formato de trace estrutural](formato-de-trace-estrutural.md) para a gramática.
@@ -132,7 +132,7 @@ estrutural falha o teste com um diff legível e grava a estrutura atual ao lado 
 verificados — a aprovação só julga um teste que de outra forma teria passado.
 
 Toda execução também grava `<output_dir>/manifest.json`: um objeto `run` de nível superior
-(`id`, `name` — a frase de três palavras própria da execução, *(since 0.1.2, unreleased)*, veja
+(`id`, `name` — a frase de três palavras própria da execução, *(since 0.1.2)*, veja
 [A execução tem um nome](#a-execução-tem-um-nome) abaixo) seguido de uma linha por cenário
 traçado, nomeando seu teste, seu número de invocação quando o método rodou mais de uma vez, e cada
 artefato que possui:
@@ -175,7 +175,7 @@ O relatório de console de um teste que falha imprime o delta estrutural contra 
 
 ### A execução tem um nome
 
-*(since 0.1.2, unreleased)* Um id de execução é gerado por cada sessão do pytest — o próprio hook
+*(since 0.1.2)* Um id de execução é gerado por cada sessão do pytest — o próprio hook
 `pytest_sessionstart` do plugin — um id com forma W3C, nunca uma constante compartilhada — e sua
 frase de três palavras (o mesmo gerador de nomes de onde vem o nome de um id de trace) é o **nome
 da execução**. Ele aparece:

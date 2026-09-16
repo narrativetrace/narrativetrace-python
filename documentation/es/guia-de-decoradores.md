@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob d8177db2bf28 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob fac5da0e1054 | translated: 2026-09-13 | reviewed: - -->
 
 # Guía de decoradores
 
@@ -195,8 +195,7 @@ Qué se invoca y qué no:
   introspección. Un `NamedTuple` se introspecciona por nombre de campo en lugar de renderizarse
   como una lista anónima de valores posicionales, de modo que un campo oculto permanece oculto de
   la misma manera que un campo de dataclass.
-- **Un `__str__` personalizado solo es de confianza para una hoja genuina** *(since 0.1.2,
-  unreleased)*. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`,
+- **Un `__str__` personalizado solo es de confianza para una hoja genuina** *(since 0.1.2)*. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`,
   o un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin
   importar si además define `__str__`/`__repr__`; ese método escrito a mano nunca se consulta,
   igual que nunca se consultaba en una dataclass. Solo un valor sin ningún estado de instancia (un
@@ -211,7 +210,7 @@ Qué se invoca y qué no:
   del predeterminado campo por campo — ese mecanismo no se ve afectado y sigue siendo la forma
   admitida de controlar exactamente qué se muestra.
 - **Un resumen, `__str__` o getter que lanza excepción renderiza un marcador de error tipado,
-  nunca su propio mensaje** *(since 0.1.2, unreleased)*. `<error: ValueError>`, `<error: RecursionError>`, y así sucesivamente
+  nunca su propio mensaje** *(since 0.1.2)*. `<error: ValueError>`, `<error: RecursionError>`, y así sucesivamente
   — el nombre del propio TIPO de la excepción de la parte que falla, sustituido solo para esa
   parte (nunca toda la traza, nunca un `<error>` desnudo). El *mensaje* de la excepción
   deliberadamente nunca se renderiza: un mensaje puede llevar el mismo valor que falló al

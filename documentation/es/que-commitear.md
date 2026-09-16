@@ -1,11 +1,11 @@
-<!-- source: documentation/what-to-commit.md blob 5c7675ce63f9 | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 2f9e6f68faf8 | translated: 2026-09-14 | reviewed: - -->
 
 # Qué commitear
 
 Dos categorías, no una. Casi todo lo que escribe NarrativeTrace es un **artefacto generado que
 describe una ejecución** — nada bajo tu directorio de salida configurado es código fuente, así que
 nada de eso pertenece al control de versiones. La única excepción es la **traza aprobada**
-(`.approved.nt`) *(since 0.1.2, unreleased)*: un humano la revisó y la aceptó como el contrato de
+(`.approved.nt`) *(since 0.1.2)*: un humano la revisó y la aceptó como el contrato de
 comportamiento, de la misma forma que el golden file de un snapshot test es una decisión, no una
 salida — consulta la página [Formato de traza estructural](formato-de-traza-estructural.md) para la
 gramática completa y el flujo de trabajo del modo de aprobación.
@@ -17,16 +17,16 @@ gramática completa y el flujo de trabajo del modo de aprobación.
 | Documento de escenario JSON (solo formato Markdown) | `<OUTPUT_DIR>/traces/<Class>/<slug>.json` | No | La misma traza que el JSON canónico — se regenera en cada ejecución |
 | Diagrama Mermaid complementario (solo formato Markdown) | `<OUTPUT_DIR>/diagrams/<Class>/<slug>.mmd` | No | Se regenera en cada ejecución |
 | Array canónico de entradas | `<OUTPUT_DIR>/traces/<Class>/<slug>.canonical.json` | No | Un artefacto para máquinas usado en conformidad/portado, opcional mediante `NARRATIVETRACE_CANONICAL` |
-| Traza estructural (`.nt`, la última línea base en verde) *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/structural/<Class>/<slug>.nt` | No | Se regenera en cada ejecución en verde — la copia de trabajo *local*, no la línea base revisada de abajo |
-| **Traza aprobada** *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sí**, en cuanto optas por el modo de aprobación | El contrato de comportamiento revisado — una decisión, no una salida |
-| Traza recibida *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | No | Se escribe ante una discrepancia (o si aún no hay línea base) para su revisión; se promueve con `uv run poe approve` / `narrativetrace-approve`, nunca se commitea |
-| Traza incompleta *(since 0.1.2, unreleased)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | No | Se escribe en lugar de una traza recibida cuando la propia ejecución fue incompleta; el verbo approve la ignora por nombre |
-| `manifest.json` *(since 0.1.2, unreleased)* | `<OUTPUT_DIR>/manifest.json` | No | Se regenera en cada ejecución — un índice sobre los artefactos anteriores, no una línea base en sí misma; su objeto `run` de nivel superior (`id`, `name` — la frase de tres palabras propia de la ejecución) nombra *esta sesión*, no un escenario, así que cambia en cada ejecución incluso cuando nada más cambia |
+| Traza estructural (`.nt`, la última línea base en verde) *(since 0.1.2)* | `<OUTPUT_DIR>/structural/<Class>/<slug>.nt` | No | Se regenera en cada ejecución en verde — la copia de trabajo *local*, no la línea base revisada de abajo |
+| **Traza aprobada** *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.approved.nt` | **Sí**, en cuanto optas por el modo de aprobación | El contrato de comportamiento revisado — una decisión, no una salida |
+| Traza recibida *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.received.nt` | No | Se escribe ante una discrepancia (o si aún no hay línea base) para su revisión; se promueve con `uv run poe approve` / `narrativetrace-approve`, nunca se commitea |
+| Traza incompleta *(since 0.1.2)* | `<APPROVED_DIR>/<Class>/<slug>.incomplete.nt` | No | Se escribe en lugar de una traza recibida cuando la propia ejecución fue incompleta; el verbo approve la ignora por nombre |
+| `manifest.json` *(since 0.1.2)* | `<OUTPUT_DIR>/manifest.json` | No | Se regenera en cada ejecución — un índice sobre los artefactos anteriores, no una línea base en sí misma; su objeto `run` de nivel superior (`id`, `name` — la frase de tres palabras propia de la ejecución) nombra *esta sesión*, no un escenario, así que cambia en cada ejecución incluso cuando nada más cambia |
 | Informe de claridad de la suite | `<OUTPUT_DIR>/clarity-report.md` | No | Un informe generado, no una decisión |
 | Resultados de claridad de la suite | `<OUTPUT_DIR>/clarity-results.json` | No | Se genera junto con el informe |
 | Salida del escáner independiente (CLI `narrativetrace-clarity`) | donde apunte `--output-dir` | No | Igual que lo anterior, se genera bajo demanda |
 | `glossary.json` / `glossary.md` | raíz del repositorio (o donde apuntes `NARRATIVETRACE_GLOSSARY_DIR`) | **Sí**, si lo usas | Vocabulario de propiedad humana — el archivo commiteado es lo que lee la puntuación de claridad, y nunca se regenera con una ejecución de pruebas. "Un archivo, un flujo de revisión" |
-| `.claude/skills/**/SKILL.md`, la sección `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2, unreleased)* | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sí** | Salida generada a partir del catálogo tipado de `narrativetrace-skills` (`python scripts/skills_render.py --fix`), no salida de una ejecución de pruebas — se commitea igual que `glossary.json`: se regenera, se revisa en los diffs y se verifica contra desincronización (`python scripts/skills_render.py --check`, integrado en `uv run poe check`) en lugar de editarse a mano |
+| `.claude/skills/**/SKILL.md`, la sección `<!-- narrativetrace:skills:* -->` de `AGENTS.md` *(since 0.1.2)* | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sí** | Salida generada a partir del catálogo tipado de `narrativetrace-skills` (`python scripts/skills_render.py --fix`), no salida de una ejecución de pruebas — se commitea igual que `glossary.json`: se regenera, se revisa en los diffs y se verifica contra desincronización (`python scripts/skills_render.py --check`, integrado en `uv run poe check`) en lugar de editarse a mano |
 
 El valor predeterminado de `<OUTPUT_DIR>` es `narrative-traces` y el de `<APPROVED_DIR>` es
 `test-narratives` (ambos relativos a donde se haya ejecutado la suite, ambos configurables — ver la

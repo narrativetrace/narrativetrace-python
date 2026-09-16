@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/installation.md blob 6155e178c221 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/installation.md blob f42e3e987a39 | translated: 2026-09-12 | reviewed: - -->
 
 # Instalação
 
@@ -20,7 +20,7 @@ uv add narrativetrace-glossary        # glossário de domínio + tradução de t
 não carrega dependências de terceiros. Todos os pacotes acima estão no PyPI, publicados na
 versão `0.1.1`.
 
-`narrativetrace-structlog` traz `structlog` como dependência própria *(since 0.1.2, unreleased)*
+`narrativetrace-structlog` traz `structlog` como dependência própria *(since 0.1.2)*
 — na versão publicada no PyPI, `0.1.1`, ela é um extra opcional, então `uv add
 narrativetrace-structlog` sozinho não instala `structlog`; adicione-o explicitamente (`uv add
 structlog`) nessa versão.

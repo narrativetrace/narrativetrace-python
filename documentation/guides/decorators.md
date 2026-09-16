@@ -197,7 +197,7 @@ What is invoked, and what is not:
   lazily load) is never enumerated and never runs during introspection. A `NamedTuple` is
   introspected by field name rather than rendered as an anonymous list of positional values,
   so a redacted field stays hidden the same way a dataclass field does.
-- **A custom `__str__` is trusted only for a genuine leaf** *(since 0.1.2, unreleased)*. Any object
+- **A custom `__str__` is trusted only for a genuine leaf** *(since 0.1.2)*. Any object
   carrying instance state — a dataclass, an attrs class, a `NamedTuple`, or a plain object
   with a populated `__dict__`/`__slots__` — is introspected field-by-field regardless of
   whether it also defines `__str__`/`__repr__`; that hand-written method is never consulted,
@@ -212,7 +212,7 @@ What is invoked, and what is not:
   instead of the field-by-field default — that mechanism is unaffected and still the
   supported way to control exactly what is shown.
 - **A raising summary, `__str__`, or getter renders a typed error marker, never its own
-  message** *(since 0.1.2, unreleased)*. `<error: ValueError>`, `<error: RecursionError>` and so on — the failing part's
+  message** *(since 0.1.2)*. `<error: ValueError>`, `<error: RecursionError>` and so on — the failing part's
   own exception TYPE name, substituted for that one part only (never the whole trace, never a
   bare `<error>`). The exception's *message* is deliberately never rendered: a message can
   carry the very value that failed to render (`"summary failed for {token}"` would otherwise

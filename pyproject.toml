@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.1.1"
+version = "0.1.2"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.

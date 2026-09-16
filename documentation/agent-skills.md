@@ -1,6 +1,6 @@
 # Agent skills
 
-*(since 0.1.2, unreleased)*
+*(since 0.1.2)*
 
 NarrativeTrace ships **skills**: agent-loadable procedures that run tested commands and gate
 completion on a `verify` step, rather than docs an agent might or might not read. A skill is thin

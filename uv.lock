@@ -1169,12 +1169,12 @@ wheels = [
 
 [[package]]
 name = "narrativetrace"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace" }
 
 [[package]]
 name = "narrativetrace-asgi"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-asgi" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1208,7 +1208,7 @@ dev = [
 
 [[package]]
 name = "narrativetrace-clarity"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-clarity" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1219,7 +1219,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-diagrams"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-diagrams" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1230,7 +1230,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-glossary"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-glossary" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1245,7 +1245,7 @@ requires-dist = [
 
 [[package]]
 name = "narrativetrace-otel"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-otel" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1268,7 +1268,7 @@ dev = [{ name = "opentelemetry-sdk", specifier = ">=1.20" }]
 
 [[package]]
 name = "narrativetrace-pytest"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-pytest" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1314,12 +1314,12 @@ dev = [{ name = "pyyaml", specifier = ">=6" }]
 
 [[package]]
 name = "narrativetrace-skills"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-skills" }
 
 [[package]]
 name = "narrativetrace-structlog"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/narrativetrace-structlog" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1334,7 +1334,7 @@ requires-dist = [
 
 [[package]]
 name = "narrativetrace-workspace"
-version = "0.1.1"
+version = "0.1.2"
 source = { virtual = "." }
 
 [package.dev-dependencies]

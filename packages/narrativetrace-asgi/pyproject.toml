@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-asgi"
-version = "0.1.1"
+version = "0.1.2"
 description = "ASGI middleware (Starlette/FastAPI) for narrativetrace request tracing"
 readme = "README.md"
 requires-python = ">=3.12"

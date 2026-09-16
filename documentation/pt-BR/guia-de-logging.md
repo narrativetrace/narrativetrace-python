@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob 793352c40b97 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob efe471740251 | translated: 2026-09-13 | reviewed: - -->
 
 # Logging & structlog
 
@@ -14,7 +14,7 @@ Duas peças:
   controle).
 - `NarrativeContextFilter` — um `Filter` de logging que estampa as chaves do escopo atual (`traceId`,
   `traceName`, `spanId`, `nt.class`, `nt.method`, `nt.depth`, identidade do serviço, chaves de
-  requisição/usuário) em todo registro. `traceName` e `runName` *(since 0.1.2, unreleased)* estão
+  requisição/usuário) em todo registro. `traceName` e `runName` *(since 0.1.2)* estão
   sempre presentes uma vez que o filtro tocou um registro — `""` quando não há trace/execução
   ativos — então um padrão que referencia qualquer uma das duas nunca levanta exceção numa linha
   sem trace.
@@ -30,8 +30,7 @@ logging.getLogger().addHandler(handler)
 
 ## Um consumidor por stream, vários handlers
 
-`nt.depth` é um contador privado de cada instância de `LoggingTraceConsumer` *(since 0.1.2,
-unreleased)*, então duas delas
+`nt.depth` é um contador privado de cada instância de `LoggingTraceConsumer` *(since 0.1.2)*, então duas delas
 reproduzindo o *mesmo* stream de eventos (digamos, ambas conectadas como listeners num mesmo
 pipeline) reportam cada uma a sua própria profundidade correta — uma não corrompe mais a
 contagem da outra. O `NarrativeContextFilter` e o processador do `structlog` não são afetados de
@@ -51,7 +50,7 @@ logger.addHandler(logging.FileHandler("trace.log"))  # second destination, same 
 
 ## `export_to_logger` — uma única chamada
 
-*(since 0.1.2, unreleased)* — na versão publicada no PyPI, `0.1.1`, reproduza
+*(since 0.1.2)* — na versão publicada no PyPI, `0.1.1`, reproduza
 `store.events()` através de um `LoggingTraceConsumer` na mão em vez disso.
 
 `export_to_logger(trace, logger=None)` reproduz um trace já capturado através de um
@@ -80,7 +79,7 @@ qualquer escopo de método ativo.
 
 ## A execução tem sua própria chave MDC: `runName`
 
-*(since 0.1.2, unreleased)* O hook `pytest_sessionstart` do `narrativetrace-pytest` gera um id de
+*(since 0.1.2)* O hook `pytest_sessionstart` do `narrativetrace-pytest` gera um id de
 execução por sessão do pytest — nunca re-derivado — e chama `set_run_name(run.name)` para que
 `runName` (a frase própria de três palavras da execução, distinta da `traceName` de qualquer
 trace) acompanhe toda linha de log durante a sessão inteira, do mesmo jeito que

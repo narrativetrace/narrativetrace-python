@@ -1,8 +1,8 @@
-<!-- source: documentation/agent-skills.md blob e2bcca43b6fa | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob d443a71a2d4a | translated: 2026-09-14 | reviewed: - -->
 
 # Habilidades do agente
 
-*(since 0.1.2, unreleased)*
+*(since 0.1.2)*
 
 O NarrativeTrace inclui **habilidades** (*skills*): procedimentos carregáveis por um agente que
 executam comandos testados e condicionam sua conclusão a um passo `verify`, em vez de

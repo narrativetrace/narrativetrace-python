@@ -1,6 +1,6 @@
 # Structural Trace Format (`.nt`)
 
-*(since 0.1.2, unreleased)*. The AI-safe structural trace artifact (product ADR-002): one
+*(since 0.1.2)*. The AI-safe structural trace artifact (product ADR-002): one
 file per test scenario containing only the developer-authored *shape* of the behavior —
 zero runtime values. This format is **cross-platform**: every NarrativeTrace runtime emits
 the identical format, which is what lets approved traces and conformance fixtures travel

@@ -1,4 +1,4 @@
-<!-- source: README.md blob 8975d1adeee5 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: README.md blob 9e8209f7c6f1 | translated: 2026-09-13 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -177,7 +177,7 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Ejecuta la suite — los artefactos se escriben por defecto** *(since 0.1.2, unreleased)* — la
+**3. Ejecuta la suite — los artefactos se escriben por defecto** *(since 0.1.2)* — la
 versión publicada en PyPI, `0.1.1`, todavía los trae desactivados; activa
 `NARRATIVETRACE_OUTPUT=true` explícitamente en esa versión:
 
@@ -306,11 +306,11 @@ ocultación](documentation/es/privacidad-y-ocultacion.md) para conocer el alcanc
   curado, un `__str__` personalizado cuando el tipo no porta ningún campo o está definido por la
   plataforma, y las rutas de propiedades nombradas en una plantilla `@narrated`/`@on_error` —
   mantenlos puros, como lo harías para un depurador. El propio `__str__` de un compuesto de otro
-  modo nunca es de confianza *(since 0.1.2, unreleased)*: cualquier objeto que porte estado de
+  modo nunca es de confianza *(since 0.1.2)*: cualquier objeto que porte estado de
   instancia se introspecciona campo por campo sin importar si define un `__str__` personalizado,
   así que uno escrito a mano no puede sortear la ocultación, ni directamente ni a través de un
   objeto anidado — una clave de dict/map pasa por la misma comprobación. La única excepción es un
-  tipo que la propia plataforma define *(since 0.1.2, unreleased)* — `pathlib.Path`, `datetime`,
+  tipo que la propia plataforma define *(since 0.1.2)* — `pathlib.Path`, `datetime`,
   `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*` — decidido por origen (su
   `__module__`, nunca un prefijo de nombre), así que un impostor o una subclase se siguen
   introspeccionando. Un resumen/`__str__`/getter que lanza excepción renderiza `<error: TypeName>`
@@ -393,7 +393,7 @@ Para profundizar:
 
 - [Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md) — el contrato de ocultación fila por fila, verificado contra el código
 - [Qué commitear](documentation/es/que-commitear.md) — qué archivos generados son artefactos de CI, y cuáles (si los hay) son líneas base revisadas
-- [Habilidades del agente](documentation/es/habilidades-del-agente.md) — `narrativetrace-doctor`, una habilidad de agente sencilla y de solo lectura sobre `uv run narrativetrace doctor` *(since 0.1.2, unreleased)*
+- [Habilidades del agente](documentation/es/habilidades-del-agente.md) — `narrativetrace-doctor`, una habilidad de agente sencilla y de solo lectura sobre `uv run narrativetrace doctor` *(since 0.1.2)*
 - [Solución de problemas](documentation/es/solucion-de-problemas.md) — síntoma → causa → arreglo para los fallos que la gente realmente encuentra
 - [Guía de pytest](documentation/es/guia-de-pytest.md) · [Guía de FastAPI/ASGI](documentation/es/guia-de-fastapi-asgi.md) · [Guía de OpenTelemetry](documentation/es/guia-de-opentelemetry.md) · [Guía de logging](documentation/es/guia-de-logging.md) · [Guía de claridad](documentation/es/guia-de-claridad.md)
 - [Guía de funcionalidades](documentation/es/guia-de-funcionalidades.md) — cada funcionalidad que esta implementación publica, con nivel y estado

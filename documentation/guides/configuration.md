@@ -75,16 +75,16 @@ case-insensitive.
 
 | Key | Environment variable | Meaning | Default |
 |---|---|---|---|
-| `output` | `NARRATIVETRACE_OUTPUT` | truthy → write per-test artifacts | on *(since 0.1.2, unreleased)* |
+| `output` | `NARRATIVETRACE_OUTPUT` | truthy → write per-test artifacts | on *(since 0.1.2)* |
 | `output_dir` | `NARRATIVETRACE_OUTPUT_DIR` | artifact directory | `narrative-traces` |
 | `format` | `NARRATIVETRACE_FORMAT` | `markdown` / `text` / `mermaid` / `plantuml` | `markdown` |
 | `level` | `NARRATIVETRACE_LEVEL` | capture level for the fixture's context | `DETAIL` |
 | `glossary_dir` | `NARRATIVETRACE_GLOSSARY_DIR` | directory holding the committed `glossary.json`, read as the vocabulary clarity scores with ([guides/clarity.md](clarity.md)) | working directory |
 | `canonical` | `NARRATIVETRACE_CANONICAL` | also write the per-test `<test>.canonical.json` entry array | `false` |
-| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verify structure against a committed approved trace *(since 0.1.2, unreleased)* | `false` |
-| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directory holding committed `*.approved.nt` traces *(since 0.1.2, unreleased)* | `test-narratives` |
+| `approval` | `NARRATIVETRACE_APPROVAL` | truthy → verify structure against a committed approved trace *(since 0.1.2)* | `false` |
+| `approved_dir` | `NARRATIVETRACE_APPROVED_DIR` | directory holding committed `*.approved.nt` traces *(since 0.1.2)* | `test-narratives` |
 
-`output` is on by default *(since 0.1.2, unreleased)* — PyPI's published `0.1.1` still ships it
+`output` is on by default *(since 0.1.2)* — PyPI's published `0.1.1` still ships it
 off: the `narrative_trace` fixture writes every non-empty test's artifacts under
 `narrative-traces/` without any configuration at all. Opt out with `NARRATIVETRACE_OUTPUT=false`
 (`0`/`no`/`off` all work too, case-insensitively) or `output = false` in a config file — see
@@ -106,7 +106,7 @@ one `method_exit` per traced call, each valid against `entry.schema.json`. It is
 off by default because it is a machine artifact — for other runtimes, conformance
 fixtures and translation — not something to read after a failure.
 
-## Structural artifact and approval mode *(since 0.1.2, unreleased)*
+## Structural artifact and approval mode *(since 0.1.2)*
 
 The Markdown path additionally writes a value-free `.nt` structural artifact beside the
 narrative — see [Structural Trace Format](../structural-trace-format.md) for the grammar.
@@ -126,7 +126,7 @@ baseline as `*.received.nt`. Review it, then promote with `uv run poe approve` (
 tests are never verified — approval only judges a test that would otherwise have passed.
 
 Every run also writes `<output_dir>/manifest.json`: a top-level `run` object (`id`, `name` —
-the run's own three-word phrase, *(since 0.1.2, unreleased)*, see [The run has a
+the run's own three-word phrase, *(since 0.1.2)*, see [The run has a
 name](#the-run-has-a-name) below) followed by one row per traced scenario, naming its
 test, its invocation number when the method ran more than once, and every artifact it owns:
 
@@ -168,7 +168,7 @@ artifact instead of the full trace, when the structure actually changed.
 
 ### The run has a name
 
-*(since 0.1.2, unreleased)* One run id is generated per pytest session — the plugin's own
+*(since 0.1.2)* One run id is generated per pytest session — the plugin's own
 `pytest_sessionstart` hook, a W3C-shaped id, never a shared constant — and its three-word
 phrase (the same namer a trace id's name comes from) is the **run name**. It appears in:
 

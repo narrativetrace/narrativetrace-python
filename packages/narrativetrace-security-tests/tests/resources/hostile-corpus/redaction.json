@@ -73,6 +73,7 @@
     { "id": "shape-cn-id-numeric", "description": "a Chinese resident id whose check character is a digit", "value": "440301199001010012", "expect": "redacted" },
     { "id": "shape-pan", "description": "the Luhn-valid card number the earlier audit added, kept so the axis stays whole", "value": "4111111111111111", "expect": "redacted" },
     { "id": "shape-jwt", "description": "a JWT, the same axis and the same oracle", "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk", "expect": "redacted" },
+    { "id": "shape-jwt-map-key", "description": "ADV-2026-09-14-1: the same JWT, used as a map KEY rather than a value — renderMapKey skipped the value-shape check every other string path applies", "value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk", "position": "mapKey", "expect": "redacted" },
     { "id": "fp-cpf-bad-check", "description": "a CPF whose last check digit is wrong", "value": "52998224726", "expect": "visible" },
     { "id": "fp-cpf-repeated", "description": "eleven ones: satisfies both CPF check digits and is not a document", "value": "11111111111", "expect": "visible" },
     { "id": "fp-cpf-repeated-nines", "description": "the same placeholder written with nines", "value": "99999999999", "expect": "visible" },

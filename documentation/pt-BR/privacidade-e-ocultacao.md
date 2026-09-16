@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 6e0cdedcb7b1 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 433100a99e4b | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -76,7 +76,7 @@ decoradores](guia-de-decoradores.md).
 | Processador de structlog / ponte de logging da stdlib | Não |
 | Um `ValueRenderer` personalizado que seu próprio código constrói | Sim — apenas passando `RedactionPolicy.DISABLED` para `trace_object(obj, context, renderer=ValueRenderer(redaction_policy=RedactionPolicy.DISABLED))` explicitamente |
 | `@not_traced` / `not_traced_field(...)` | Não aplicável — é o que faz a ocultação acontecer, e sempre vence |
-| Artefato estrutural `.nt` *(since 0.1.2, unreleased)* | Não aplicável — ele não carrega nenhum valor para ocultar, de saída |
+| Artefato estrutural `.nt` *(since 0.1.2)* | Não aplicável — ele não carrega nenhum valor para ocultar, de saída |
 
 Toda integração distribuída renderiza valores através do mesmo mecanismo `ValueRenderer`/
 `RedactionPolicy` que o `trace_object` usa por padrão (`RedactionPolicy.DEFAULT`) — nenhuma delas
@@ -114,8 +114,7 @@ dataclass — a ocultação sobrevive um nível de container. E ela vence sobre 
 que o nomeia: `{param.property}` em `@narrated`/`@on_error` resolve um caminho até um membro oculto
 como `[REDACTED]`, em toda profundidade do caminho, nunca com o valor literal.
 
-**O próprio `__str__`/`__repr__` de um tipo composto nunca é confiável** *(since 0.1.2,
-unreleased)*. Qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um `NamedTuple`, ou um
+**O próprio `__str__`/`__repr__` de um tipo composto nunca é confiável** *(since 0.1.2)*. Qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um `NamedTuple`, ou um
 objeto simples com `__dict__`/`__slots__` preenchido — é introspectado campo a campo independente
 de também definir um `__str__`/`__repr__` personalizado; esse método escrito à mão nunca é
 consultado para ele. Antes dessa correção, o `ValueRenderer` confiava no `__str__` próprio de uma
@@ -131,7 +130,7 @@ ainda confia no seu próprio `str()`. `@narrative_summary` não é afetado e con
 suportada de dar a um composto um resumo curado de uma linha em vez do padrão campo a campo.
 
 **Um tipo definido pela plataforma é confiável para seu próprio `str()` mesmo carregando estado**
-*(since 0.1.2, unreleased)*. A regra acima é correta para tipos de aplicação, mas era ampla demais
+*(since 0.1.2)*. A regra acima é correta para tipos de aplicação, mas era ampla demais
 para os próprios tipos de valor da biblioteca padrão — `pathlib.Path`, `datetime`,
 `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction` e `ipaddress.*` carregam todos estado de
 instância e estavam sendo introspectados campo a campo até virar uma saída ilegível ou inacessível
@@ -151,7 +150,7 @@ tipo de plataforma não pode carregar um campo de aplicação da lista de negaç
 seu texto é ao mesmo tempo a resposta legível e a segura.
 
 Quando um método `@narrative_summary`, um `__str__` personalizado, ou o próprio getter de um campo
-lança uma exceção *(since 0.1.2, unreleased)*, essa parte é renderizada como `<error: <TypeName>>` — o nome do TIPO da exceção
+lança uma exceção *(since 0.1.2)*, essa parte é renderizada como `<error: <TypeName>>` — o nome do TIPO da exceção
 (`<error: ValueError>`, `<error: RecursionError>`) substituído só para aquela parte. A *mensagem* da
 exceção deliberadamente nunca é renderizada, porque uma mensagem pode carregar o próprio valor que
 falhou ao renderizar; só o nome do tipo chega à saída, nunca `str(exc)`.
@@ -186,8 +185,7 @@ Detalhe completo e exemplos trabalhados: [Guia de decoradores](guia-de-decorador
   `dataclasses.fields()`, metadados do attrs, o `_fields` de um `NamedTuple`, ou o
   `__dict__`/`__slots__` da instância — um getter de `@property` calculado nunca é enumerado nem
   executado durante a introspecção.
-- **O artefato estrutural `.nt` não carrega nenhum valor de tempo de execução** *(since 0.1.2,
-  unreleased)*. Apenas nomes, hierarquia de chamadas e tipos de desfecho — zero superfície de
+- **O artefato estrutural `.nt` não carrega nenhum valor de tempo de execução** *(since 0.1.2)*. Apenas nomes, hierarquia de chamadas e tipos de desfecho — zero superfície de
   injeção de prompt, fixado por um teste de conformidade byte a byte contra o formato de
   referência, não uma política que alguém poderia esquecer de aplicar. Seu cabeçalho `scenario:` é
   coberto por essa mesma garantia: uma invocação de um caso `@pytest.mark.parametrize` é intitulada
@@ -196,8 +194,7 @@ Detalhe completo e exemplos trabalhados: [Guia de decoradores](guia-de-decorador
   não garantia abaixo.
 - **O nome de um trace e o nome de uma execução não carregam dado algum.** Ambos são uma frase
   determinística de três palavras derivada de um id aleatório (veja [Guia de configuração § A
-  execução tem um nome](guia-de-configuracao.md#a-execução-tem-um-nome) *(since 0.1.2,
-  unreleased)*) — nunca a partir de nada capturado — então nenhum dos dois pode vazar um valor de
+  execução tem um nome](guia-de-configuracao.md#a-execução-tem-um-nome) *(since 0.1.2)*) — nunca a partir de nada capturado — então nenhum dos dois pode vazar um valor de
   runtime, e ambos ficam fora do artefato estrutural `.nt` pela mesma razão que tudo o mais nele
   fica.
 
@@ -223,7 +220,7 @@ Detalhe completo e exemplos trabalhados: [Guia de decoradores](guia-de-decorador
   `scenario:`/`**Scenario:**` Markdown/JSON e no seu nome de arquivo, e o `manifest.json` nomeia o
   cenário da mesma forma. Nenhuma lista de negação é consultada para ele, e isso é proposital
   (contrato multiplataforma do cabeçalho estrutural) — o único lugar onde isso *é* resolvido para
-  você é o artefato `.nt` livre de valores *(since 0.1.2, unreleased)*: o cabeçalho estrutural de
+  você é o artefato `.nt` livre de valores *(since 0.1.2)*: o cabeçalho estrutural de
   uma invocação é intitulado pelo método e seu índice de invocação, nunca pelo nome de exibição no
   qual um id de parametrize interpolou argumentos (veja a garantia acima e o
   [Formato de trace estrutural](formato-de-trace-estrutural.md)). Mantenha segredos fora dos ids de
