@@ -23,8 +23,10 @@ on:
   push:
     tags: ["v*"]
   # A manual run still passes the `release` environment, whose deployment policy admits v*
-  # tags only — a dispatch from a branch is refused at the gate, and the tag assertion below
-  # refuses it again.
+  # tags only — a dispatch from a branch is refused at the gate, the "refuse a dispatch off
+  # the release tag" step below refuses it again by ref type, and the tag-vs-version
+  # assertion refuses it a third time by content. Always dispatch on the tag ref (`gh
+  # workflow run publish.yml --ref v<version>`), never on `main`.
   workflow_dispatch:
     inputs:
       packages:
@@ -34,7 +36,9 @@ on:
           release can legitimately reach the names that already exist before the rest.
           Every name must still be one of the eight below; publishing a subset is safe
           because the dependency direction is one-way (every package depends on
-          narrativetrace, nothing depends on the optional integrations).
+          narrativetrace, nothing depends on the optional integrations). Dispatch this
+          workflow on the release tag (e.g. `--ref v0.1.2`), never on `main` — the job
+          refuses any other ref.
         required: false
         default: ""
 
@@ -64,6 +68,20 @@ jobs:
       # pypi.org in exchange for a temporary upload credential, per project.
       id-token: write
     steps:
+      # A dispatch's GITHUB_REF_NAME/GITHUB_REF_TYPE are whatever ref the dispatch chose — the
+      # `release` environment's deployment policy admits v* tags only, so a dispatch from a
+      # branch is refused at the gate too, but this fails loudly with a clear reason before
+      # anything else runs rather than leaving the person who dispatched it to read the tag
+      # assertion's unrelated-looking error below.
+      - name: Refuse a dispatch off the release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}" in
+              tag:v*) ;;
+              *) echo "dispatch this workflow on the release tag, not a branch"; exit 1 ;;
+          esac
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -73,10 +91,26 @@ jobs:
       # Same check the (private) release pipeline already applies before it will create a tag
       # (detect_version + the *-SNAPSHOT*/*-dev*/0.0.0 refusal) — repeated here because the
       # tag is what actually triggers this job, and the workflow must not trust that the tag
-      # it was handed is one the script produced.
+      # it was handed is one the script produced. Every publishable package's own pyproject.toml
+      # is read (not just the root one): the eight distributions are versioned in lockstep, and
+      # a sibling that drifted out of step must fail the release, not publish silently apart
+      # from what the tag claims.
       - name: Assert tag matches the workspace version
         run: |
-          version="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)"
+          set -euo pipefail
+          version=""
+          for pkg in $PUBLISHABLE_PACKAGES; do
+            pkg_version="$(sed -n 's/^version = "\(.*\)"/\1/p' "packages/$pkg/pyproject.toml" | head -1)"
+            [ -n "$pkg_version" ] || {
+              echo "could not read a version from packages/$pkg/pyproject.toml"; exit 1; }
+            if [ -z "$version" ]; then
+              version="$pkg_version"
+            elif [ "$pkg_version" != "$version" ]; then
+              echo "publishable packages disagree on version: $pkg is $pkg_version, expected $version"
+              exit 1
+            fi
+          done
+          [ -n "$version" ] || { echo "no publishable package versions found"; exit 1; }
           [ "v$version" = "${GITHUB_REF_NAME}" ] || {
             echo "tag ${GITHUB_REF_NAME} does not match workspace version $version"; exit 1; }
           case "$version" in
