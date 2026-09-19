@@ -59,6 +59,10 @@ jobs:
           # history to be found.
           fetch-depth: 0
 
+      # this container job's checkout is owned by a different uid than the one running these
+      # steps, so git refuses every command in it ("dubious ownership") until told this workspace
+      # is trusted -- without this, _git_tags' `git tag --list` silently reads as "no tags".
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: uv sync --all-packages
 
       - name: Verify the latest release resolves and the documented quickstart traces

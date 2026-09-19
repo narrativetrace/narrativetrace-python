@@ -17,6 +17,7 @@ from __future__ import annotations
 import subprocess  # nosec B404 -- fixed argv fixtures, no shell, no untrusted input
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from scripts import tree_writes_guard
@@ -217,12 +218,16 @@ class TestContentSnapshotRespectsGitignore:
 class TestGuardMode:
     def test_a_git_checkout_uses_git(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        assert tree_writes_guard.guard_mode(repo) == "git"
+        mode, reason = tree_writes_guard.guard_mode(repo)
+        assert mode == "git"
+        assert reason == ""
 
     def test_a_checkout_with_no_git_falls_back_to_a_content_snapshot(self, tmp_path: Path) -> None:
         repo = tmp_path / "snapshot"
         repo.mkdir()
-        assert tree_writes_guard.guard_mode(repo) == "content snapshot"
+        mode, reason = tree_writes_guard.guard_mode(repo)
+        assert mode == "content snapshot"
+        assert "not a git repository" in reason
 
 
 class TestContentSnapshotFallback:
@@ -246,7 +251,9 @@ class TestContentSnapshotFallback:
         assert run_guarded([sys.executable, "-c", script]) == 1
         err = capsys.readouterr().err
         assert "scripts/tracked.py" in err
-        assert "tree-writes-guard: content snapshot (no .git)" in err
+        assert (
+            "tree-writes-guard: content snapshot (git refused: fatal: not a git repository" in err
+        )
 
     def test_detects_a_new_file_the_wrapped_command_creates(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -268,7 +275,10 @@ class TestContentSnapshotFallback:
         repo = _init_no_git_scope(tmp_path)
         monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
         assert run_guarded([sys.executable, "-c", "import sys; sys.exit(0)"]) == 0
-        assert "tree-writes-guard: content snapshot (no .git)" in capsys.readouterr().err
+        assert (
+            "tree-writes-guard: content snapshot (git refused: fatal: not a git repository"
+            in capsys.readouterr().err
+        )
 
     def test_a_clean_command_still_returns_its_own_exit_code(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -276,6 +286,68 @@ class TestContentSnapshotFallback:
         repo = _init_no_git_scope(tmp_path)
         monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
         assert run_guarded([sys.executable, "-c", "import sys; sys.exit(3)"]) == 3
+
+
+_REAL_SUBPROCESS_RUN = subprocess.run
+
+DUBIOUS_OWNERSHIP_STDERR = (
+    "fatal: detected dubious ownership in repository at '/repo'\n"
+    "To add an exception for this directory, call:\n\n"
+    "\tgit config --global --add safe.directory /repo\n"
+)
+
+
+def _fake_run_refusing_git(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+    """Stands in for `subprocess.run`: answers a `git` invocation the way a checkout git refuses
+    to read does (rc 128, dubious-ownership stderr -- B-57's exact container failure), and
+    otherwise defers to the real `subprocess.run` so the wrapped command under test still
+    actually runs."""
+    if argv[:1] == ["git"]:
+        return subprocess.CompletedProcess(
+            argv, returncode=128, stdout="", stderr=DUBIOUS_OWNERSHIP_STDERR
+        )
+    return _REAL_SUBPROCESS_RUN(argv, **kwargs)
+
+
+class TestGuardModeSurvivesGitRefusing:
+    """B-57: `.git` existing is not proof git can answer for it -- a checkout git refuses to
+    read (dubious ownership in a container whose checkout is owned by another uid) must fall
+    back to the content-snapshot mode rather than raise the way `working_tree_status` does."""
+
+    def test_guard_mode_falls_back_when_git_refuses(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_repo(tmp_path)
+        monkeypatch.setattr(subprocess, "run", _fake_run_refusing_git)
+        mode, reason = tree_writes_guard.guard_mode(repo)
+        assert mode == tree_writes_guard.CONTENT_SNAPSHOT_MODE
+        assert "dubious ownership" in reason
+
+    def test_printed_mode_line_names_gits_reason(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        repo = _init_repo(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        monkeypatch.setattr(subprocess, "run", _fake_run_refusing_git)
+        run_guarded([sys.executable, "-c", "import sys; sys.exit(0)"])
+        err = capsys.readouterr().err
+        assert (
+            "tree-writes-guard: content snapshot (git refused: "
+            "fatal: detected dubious ownership" in err
+        )
+
+    def test_a_write_is_still_caught_when_git_refuses(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_repo(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        monkeypatch.setattr(subprocess, "run", _fake_run_refusing_git)
+        target = repo / "tracked.md"
+        script = (
+            f"from pathlib import Path; "
+            f"Path({str(target)!r}).write_text('rewritten\\n', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 1
 
 
 class TestGitModeAnnouncesItsModeOnce:

@@ -75,12 +75,31 @@ def new_working_tree_entries(before: list[str], after: list[str]) -> list[str]:
     return [line for line in after if line not in seen]
 
 
-def guard_mode(repo_root: Path) -> str:
-    """`GIT_MODE` when `repo_root` is a git checkout `git status` can answer for, else
-    `CONTENT_SNAPSHOT_MODE` -- the fallback the (private) publish pipeline's `git archive`
-    snapshot needs (see the module docstring). Checked once by `run_guarded` so the printed mode
-    line and the baseline it actually computes never disagree."""
-    return GIT_MODE if (repo_root / ".git").exists() else CONTENT_SNAPSHOT_MODE
+def guard_mode(repo_root: Path) -> tuple[str, str]:
+    """`(GIT_MODE, "")` when `repo_root` is a git checkout `git status` can answer for, else
+    `(CONTENT_SNAPSHOT_MODE, reason)` -- the fallback the (private) publish pipeline's `git
+    archive` snapshot needs (see the module docstring), also reached by a checkout `git` itself
+    refuses to read (a container checkout owned by another uid raises "dubious ownership") and by
+    a missing `git` binary. `.git` existing on disk is not proof git can answer for it, so this
+    asks git once (`git -C repo_root status --porcelain`) rather than only checking presence --
+    rc 0 means git mode; anything else, including git not being installed at all, falls back,
+    paired with the reason (git's first stderr line, or the missing-binary message) so the
+    printed mode line `run_guarded` builds from it and the baseline it actually computes never
+    disagree about why. Checked once by `run_guarded`."""
+    try:
+        result = subprocess.run(  # nosec B603, B607 -- fixed argv, no shell, no untrusted input
+            ["git", "-C", str(repo_root), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return CONTENT_SNAPSHOT_MODE, f"git not found: {exc}"
+    if result.returncode == 0:
+        return GIT_MODE, ""
+    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+    reason = stderr_lines[0] if stderr_lines else f"git status exited {result.returncode}"
+    return CONTENT_SNAPSHOT_MODE, reason
 
 
 def _gitignore_exclusions(repo_root: Path) -> tuple[frozenset[str], list[str]]:
@@ -200,8 +219,8 @@ def run_guarded(argv: list[str]) -> int:
     if not argv:
         print("Usage: python scripts/tree_writes_guard.py <command> [args...]", file=sys.stderr)
         return 1
-    mode = guard_mode(REPO_ROOT)
-    suffix = " (no .git)" if mode == CONTENT_SNAPSHOT_MODE else ""
+    mode, reason = guard_mode(REPO_ROOT)
+    suffix = f" (git refused: {reason})" if mode == CONTENT_SNAPSHOT_MODE else ""
     print(f"tree-writes-guard: {mode}{suffix}", file=sys.stderr)
     if mode == GIT_MODE:
         before_git = working_tree_status()

@@ -25,6 +25,11 @@ jobs:
     container: ghcr.io/astral-sh/uv:python3.12-bookworm
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # this container job's checkout is owned by a different uid than the one running these
+      # steps, so git refuses every command in it ("dubious ownership") until told this workspace
+      # is trusted -- without this, poe mutate-gate's tree-writes guard runs in its weaker
+      # fallback mode.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: uv sync --all-packages
       # All three mutated packages (mutmut has no multi-root mode, so each runs and is floored
       # independently — see scripts/mutation_gate.py); any one failing fails the job.
