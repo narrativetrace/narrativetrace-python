@@ -8,7 +8,7 @@ never breaks these tests."""
 
 from __future__ import annotations
 
-import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -109,22 +109,26 @@ class TestBuildSnapshot:
         snapshot = build_snapshot(str(tmp_path), {})
         assert snapshot.source_files == {"broken.py": ""}
 
-    @pytest.mark.skipif(
-        hasattr(os, "geteuid") and os.geteuid() == 0,
-        reason="root ignores directory permission bits, so this can't be exercised as root",
-    )
-    def test_an_unreadable_directory_is_skipped_not_a_crash(self, tmp_path: Path) -> None:
+    def test_an_unreadable_directory_is_skipped_not_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A chmod-000 directory does not reproduce this for a root-run CI job -- root lists it
+        # anyway -- so the failure is injected instead of relied on from the filesystem, holding
+        # the assertion for root and non-root runners alike (same fix as the tree-writes-guard
+        # unreadable-file test).
         blocked = tmp_path / "blocked"
         blocked.mkdir()
         _write(blocked / "app.py", "print(1)")
         _write(tmp_path / "app.py", "print(1)")
-        os.chmod(blocked, 0o000)
-        try:
-            snapshot = build_snapshot(str(tmp_path), {})
-        finally:
-            # Restoring permissions on a locked-down tmp_path directory so pytest can clean it up
-            # afterward -- not a real filesystem this permission mask reaches beyond the test.
-            os.chmod(blocked, 0o755)  # nosec B103
+        real_iterdir = Path.iterdir
+
+        def _fake_iterdir(self: Path) -> Iterator[Path]:
+            if self == blocked:
+                raise PermissionError(13, "Permission denied", str(blocked))
+            return real_iterdir(self)
+
+        monkeypatch.setattr(Path, "iterdir", _fake_iterdir)
+        snapshot = build_snapshot(str(tmp_path), {})
         assert snapshot.source_files == {"app.py": "print(1)"}
 
     def test_the_file_bound_stops_the_walk_rather_than_hanging(

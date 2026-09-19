@@ -373,14 +373,21 @@ class TestBaselineNeverSkipsSilently:
     def test_an_unreadable_scoped_file_fails_naming_why(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # A chmod-000 file does not reproduce this for a root-run CI job -- root reads it anyway
+        # -- so the failure is injected instead of relied on from the filesystem, holding the
+        # assertion for root and non-root runners alike.
         repo = _init_no_git_scope(tmp_path)
         target = repo / "scripts" / "tracked.py"
-        target.chmod(0o000)
-        try:
-            with pytest.raises(RuntimeError, match=r"tracked\.py"):
-                tree_writes_guard.content_snapshot(repo)
-        finally:
-            target.chmod(0o644)
+        real_read_bytes = Path.read_bytes
+
+        def _fake_read_bytes(self: Path) -> bytes:
+            if self == target:
+                raise PermissionError(13, "Permission denied", str(target))
+            return real_read_bytes(self)
+
+        monkeypatch.setattr(Path, "read_bytes", _fake_read_bytes)
+        with pytest.raises(RuntimeError, match=r"tracked\.py"):
+            tree_writes_guard.content_snapshot(repo)
 
 
 class TestMain:
