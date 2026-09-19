@@ -9,8 +9,8 @@ downstream systems (exporters, OpenTelemetry bridges): it packages span identity
 service, request, and user fields known at capture time.
 
 Values are captured when the span is created; changing request or user context later does not
-retroactively mutate existing instances. The Java builder is replaced by keyword construction
-plus :func:`dataclasses.replace` — the idiomatic Python equivalent.
+retroactively mutate existing instances -- keyword construction plus :func:`dataclasses.replace`
+covers rebinding without a builder type.
 """
 
 from __future__ import annotations

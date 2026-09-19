@@ -159,6 +159,14 @@ entries:
     documented_default: "field-walked-not-str"
     probe: "contract-probe/src/contract_probe/probes/native_stringification_not_trusted_probe.py"
 
+  - id: probed-fieldless-value-not-trusted
+    kind: probed-default
+    page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
+    claim: "a value carrying no state reflection can read -- a ctypes.Structure subclass, an extension type, a class keeping its state outside the instance -- renders as its type name, never through its own __str__/__repr__"
+    since: "0.1.3"
+    documented_default: "type-name-not-repr"
+    probe: "contract-probe/src/contract_probe/probes/fieldless_value_not_trusted_probe.py"
+
   - id: probed-platform-type-carveout
     kind: probed-default
     page: "documentation/privacy-and-redaction.md#what-the-deny-list-catches-and-what-outranks-it"
@@ -196,7 +204,7 @@ entries:
     page: "documentation/guides/configuration.md#the-run-has-a-name"
     claim: "the console suite footer names the run: a \"run: <phrase>\" line"
     since: "0.1.2"
-    documented_default: "run: bold elk soars"
+    documented_default: "true"
     probe: "contract-probe/src/contract_probe/probes/run_name_console_footer_probe.py"
 
   - id: probed-run-name-manifest-field
@@ -214,3 +222,11 @@ entries:
     since: "0.1.2"
     expected_effect: "well-formed"
     probe: "contract-probe/src/contract_probe/probes/narrativetrace_doctor_probe.py"
+
+  - id: config-shape-logger-threshold-does-not-shrink-capture
+    kind: config-shape
+    page: "documentation/faq.md#two-dials-two-paths"
+    claim: "raising the narrativetrace logger's level never shrinks what capture_trace() returns — the captured trace and the log line are two independent readers of the same captured events"
+    since: "0.1.2"
+    expected_effect: "complete"
+    probe: "contract-probe/src/contract_probe/probes/logger_threshold_does_not_shrink_capture_probe.py"

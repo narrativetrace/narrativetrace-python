@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 5ed1cdbfb499 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob bfd3d507ba8f | translated: 2026-09-18 | reviewed: - -->
 
 # Configuración
 
@@ -79,6 +79,80 @@ predeterminado en lugar de lanzar una excepción — una mala configuración
 nunca debe tumbar la captura consigo. Los nombres de nivel no distinguen
 mayúsculas de minúsculas.
 
+## Dos diales, dos rutas
+
+**Configuré el nivel de tracing en `DETAIL` pero no aparece nada en mis logs. O: configuré mi
+logger en `WARNING` y la traza sigue apareciendo en mis artefactos de pytest. ¿Qué ajuste gana?**
+
+Ambos, porque responden preguntas distintas. NarrativeTrace tiene dos diales, y llevar una traza
+capturada a tu logger es un paso aparte de capturarla siquiera.
+
+**Dial 1, el nivel de tracing, decide qué se captura.** `OFF`, `ERRORS`, `SUMMARY`, `NARRATIVE`,
+`DETAIL` — acumulativos, cada uno incluye todo lo que está por debajo (la tabla de arriba). Es el
+propio ajuste de NarrativeTrace, y actúa en dos puntos distintos, no en uno solo: en `OFF`,
+`context.is_active()` es `False` y el wrapper de `trace_object` se salta la interceptación por
+completo — la llamada envuelta se ejecuta sin tocar nada de la maquinaria de captura, y nada se
+convierte en un evento, para ningún consumidor. Desde `ERRORS` en adelante, toda llamada *sí* se
+intercepta y se registra — `ERRORS` y `SUMMARY` no se saltan la interceptación, podan el árbol
+resultante *después* de la captura (descartando rutas sin error, colapsando frames intermedios);
+solo por debajo de `DETAIL` los valores de los parámetros se omiten en el momento de la captura, y
+no se pueden recuperar después, sin importar lo que haga el logger. Ningún otro ajuste puede
+recuperar lo que `OFF` se saltó o lo que solo `DETAIL` captura.
+
+**Dial 2, el nivel de tu logger, decide qué se imprime — una vez que una traza llega a tu
+logger.** Por defecto, no llega ninguna: NarrativeTrace no escribe nada en `logging.getLogger
+("narrativetrace")` (el nombre de logger que usa `LoggingTraceConsumer`) a menos que tú mismo
+envíes una traza allí. Cuando lo haces, cada tipo de línea tiene su propio nivel por defecto: una
+entrada y un retorno en `DEBUG` (la biblioteca estándar `logging` de Python no tiene un nivel
+`TRACE` que refleje el de Java), una excepción en `WARNING` como `!! {type}: {message}
+[{error_context}]`. El umbral de tu logger entonces hace lo que siempre hace — subirlo silencia
+líneas. Nunca captura más, y nunca captura menos.
+
+**Ahora las dos rutas, que es de donde viene la confusión.** La traza capturada — todo lo que
+devuelve `capture_trace()`, y todo lo que depende de ella: los artefactos por prueba del plugin de
+pytest, la línea base de aprobación `.nt`, el informe de claridad, la exportación por lotes de
+OpenTelemetry de `TraceSpanExporter`, la narrativa renderizada — se escribe directamente en el
+almacén de eventos propio del contexto en el momento en que cada método entra y sale. Esa
+escritura nunca consulta tu logger, en ninguna dirección: un logger `narrativetrace` en `CRITICAL`
+no la reduce, y tampoco lo hace la ausencia total de logger.
+
+Enviar una traza capturada a tu logger es un paso aparte y explícito, a través de
+`LoggingTraceConsumer`, y hay dos formas de hacerlo:
+
+- **Repetición tras la captura** — `export_to_logger(trace)` envía un `TraceTree` ya terminado a
+  través de un `LoggingTraceConsumer` privado en una sola llamada. Este es el camino que usan el
+  [tutorial de 60 segundos](sesenta-segundos.md#envíala-a-tu-logger) y cada guía de este
+  repositorio.
+- **En vivo, a medida que ocurren los eventos** — adjunta un `LoggingTraceConsumer` como el
+  listener síncrono de un `DualPathPipeline` que ensambles tú mismo, normalmente junto a un
+  `BufferedEventConsumer` como su ruta de mejor esfuerzo (un anillo acotado, 65.536 eventos por
+  defecto, con descarte de carga bajo presión, cada pérdida contabilizada — consulta
+  [Concurrencia](../../README.md#concurrency)) para cualquier otro consumidor en vivo, incluido un
+  `OtelTraceEventListener`, alimentado por el mismo flujo de eventos.
+
+En cualquier caso, la línea de log y el artefacto de traza son dos lectores independientes de los
+mismos eventos capturados. Subir el nivel del logger `narrativetrace` silencia líneas de log; no
+puede tocar la salida de `capture_trace()`, porque esa salida nunca pasó por el logger.
+
+**Dónde vive cada dial.**
+
+| Dial | Dónde vive |
+|---|---|
+| Nivel de tracing | Variable de entorno `NARRATIVETRACE_LEVEL`; `level` en `narrativetrace.toml` o `[tool.narrativetrace]` en `pyproject.toml`; `NarrativeTraceConfig(level=TracingLevel.X)` en código |
+| Umbral del logger | Configuración ordinaria de `logging` sobre `logging.getLogger("narrativetrace")` — el nombre que usa `LoggingTraceConsumer` por defecto |
+| Nivel por tipo de línea | `LoggingTraceConsumer(levels={EventType.ENTRY: ..., EventType.RETURN: ..., EventType.EXCEPTION: ...})`, o el mismo argumento `levels=` pasado a través de `export_to_logger(trace, levels=...)` |
+
+**Reglas prácticas.** Para reducir el volumen de logs, sube el umbral del logger
+`narrativetrace`; la traza capturada queda intacta. Para reducir el tamaño de la traza, baja el
+nivel de tracing — `ERRORS`/`SUMMARY` la podan después de la captura. Para reducir el overhead,
+baja el nivel de tracing hasta `OFF`: ese es el único paso que se salta la interceptación en sí;
+`ERRORS`, `SUMMARY` y `NARRATIVE` siguen interceptando y registrando cada llamada igual que
+`DETAIL`, solo que renderizan menos valores y podan más después. El umbral del logger no cambia
+nada en el coste de captura, a ningún nivel. Para mantener el tracing activo en producción pero
+fuera de los logs, deja el nivel de tracing en `SUMMARY` o superior y, o bien no envíes trazas a
+tu logger en absoluto, o envíalas y pon el logger `narrativetrace` en `WARNING`: en cualquier
+caso, `capture_trace()` y todo lo que depende de ella permanecen completos.
+
 ## Ajustes de salida (plugin de pytest)
 
 | Clave | Variable de entorno | Significado | Predeterminado |
@@ -118,7 +192,9 @@ plano de entradas canónicas en el esquema `1.2`, un `method_enter` y un
 para máquinas — para otras implementaciones, fixtures de conformidad y traducción — no
 algo para leer después de un fallo.
 
-## Artefacto estructural y modo de aprobación *(since 0.1.2)*
+## Artefacto estructural y modo de aprobación
+
+*(since 0.1.2)*
 
 La ruta Markdown además escribe un artefacto estructural `.nt` libre de valores junto a la
 narrativa — consulta el [Formato de traza estructural](formato-de-traza-estructural.md) para la

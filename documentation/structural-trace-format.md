@@ -42,8 +42,9 @@ by another:
 - The name is stable across runs, machines and processes, which is what lets one
   invocation's `.approved.nt` be committed at all. Where a name exceeds the 255-byte
   path-element limit the *method* half is truncated and given eight hex characters of the
-  Java `String.hashCode` of the full slug — specified, therefore identical everywhere; a
-  per-process hash would silently invalidate every baseline it touched.
+  canonical `String.hashCode` of the full slug — specified, therefore identical across
+  NarrativeTrace runtimes; a per-process hash would silently invalidate every baseline it
+  touched.
 
 Because artifact names are derived rather than announced, a run also writes
 `<output_dir>/manifest.json`: one row per traced scenario naming its test, its invocation

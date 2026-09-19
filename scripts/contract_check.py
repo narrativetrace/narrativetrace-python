@@ -116,33 +116,48 @@ def _print_dry_run(version: str, source: str, out_path: Path) -> None:
     print("  " + " ".join(_probe_command(version, out_path)))
 
 
-def _fresh_environment(cache_dir: Path) -> dict[str, str]:
+def _fresh_environment(cache_dir: Path, venv_dir: Path) -> dict[str, str]:
     """Copies the current environment (`PATH`, `HOME`, ... -- uv and its own toolchain discovery
-    need them) and overrides only `UV_CACHE_DIR`, so this run can never reuse a wheel or
-    resolution already warmed by this checkout's own development work -- the one thing that must
-    be fresh. `VIRTUAL_ENV` is dropped: a caller that itself ran under `uv run` (this repository's
-    own workspace venv) would otherwise leak a path that does not match `contract-probe`'s own
-    project venv, which uv only warns about and ignores -- dropping it avoids the spurious
-    warning entirely."""
-    env = {**os.environ, "UV_CACHE_DIR": str(cache_dir)}
+    need them) and overrides `UV_CACHE_DIR` *and* `UV_PROJECT_ENVIRONMENT`, so this run can never
+    reuse a wheel, a resolution, OR an ALREADY-INSTALLED PACKAGE left behind by an earlier
+    invocation. `contract-probe/.venv` (uv's default target for `--project contract-probe`) is a
+    path inside this checkout that survives between runs; once any earlier run -- or a manual
+    rehearsal, or a stale checkout -- had left a `narrativetrace==<version>` already installed
+    there, `uv run --with narrativetrace==<version>` sees the constraint already satisfied and
+    skips reinstalling it, silently reading through whatever that install actually is instead of
+    the real PyPI wheel (proved by installing a decoy `narrativetrace==0.1.2` into that venv by
+    hand: with only `UV_CACHE_DIR` freshened, the decoy answered; pointing `UV_PROJECT_ENVIRONMENT`
+    at a fresh directory too made uv rebuild the venv and fetch the real published wheel instead).
+    Routing the venv into the same per-run temporary directory as the cache closes that gap -- both
+    the download cache and the installed environment are now single-invocation ephemeral, matching
+    this module's own "never this checkout's own .venv" promise. `VIRTUAL_ENV` is dropped: a caller
+    that itself ran under `uv run` (this repository's own workspace venv) would otherwise leak a
+    path that does not match the fresh project venv, which uv only warns about and ignores --
+    dropping it avoids the spurious warning entirely."""
+    env = {
+        **os.environ,
+        "UV_CACHE_DIR": str(cache_dir),
+        "UV_PROJECT_ENVIRONMENT": str(venv_dir),
+    }
     env.pop("VIRTUAL_ENV", None)
     return env
 
 
-def run_contract_probe(version: str, out_path: Path, *, cache_dir: Path) -> int:
+def run_contract_probe(version: str, out_path: Path, *, cache_dir: Path, venv_dir: Path) -> int:
     """Installs every publishable package at `version` into a FRESH environment (an isolated uv
-    cache directory -- never this checkout's own `~/.cache/uv`, never a locally-built wheel of the
-    same version standing in for the real registry answer) and runs `contract-probe`'s runner
-    against it. Returns the runner's own exit code (0 only if every applicable entry holds)."""
+    cache directory AND an isolated project venv -- never this checkout's own `~/.cache/uv`, never
+    `contract-probe/.venv`, never a locally-built wheel of the same version standing in for the
+    real registry answer) and runs `contract-probe`'s runner against it. Returns the runner's own
+    exit code (0 only if every applicable entry holds)."""
     print(
         f">> installing every publishable package at {version} into a fresh uv cache and "
-        "running contract-probe",
+        "a fresh project venv, then running contract-probe",
         file=sys.stderr,
     )
     result = subprocess.run(  # nosec B603 - fixed program name ("uv"), argv built entirely above
         _probe_command(version, out_path),
         cwd=REPO_ROOT,
-        env=_fresh_environment(cache_dir),
+        env=_fresh_environment(cache_dir, venv_dir),
         check=False,
     )
     return result.returncode
@@ -184,7 +199,8 @@ def main(argv: list[str] | None = None) -> int:
             _print_dry_run(version, source, out_path)
             return 0
         cache_dir = work_path / "uv-cache"
-        status = run_contract_probe(version, out_path, cache_dir=cache_dir)
+        venv_dir = work_path / "uv-project-venv"
+        status = run_contract_probe(version, out_path, cache_dir=cache_dir, venv_dir=venv_dir)
         if out_path.is_file():
             print(f">> result JSON: {out_path.name}", file=sys.stderr)
             print(out_path.read_text(encoding="utf-8"))

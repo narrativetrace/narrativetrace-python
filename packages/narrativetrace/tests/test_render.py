@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 import types
 
+import pytest
+
 from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
 from narrativetrace.ids import SpanId, TraceId
 from narrativetrace.nodes import TraceNode
@@ -293,6 +295,13 @@ class TestFrontmatter:
         fm = FrontmatterBuilder().scenario("s").build(_tree(root))
         assert "method_count: " in fm
 
+    # Builds a 10,000-deep chain and builds its frontmatter. HANG GUARD, not a timing assertion --
+    # the test only checks the frontmatter carries a method count, never a duration, so the
+    # budget is the documented 10s floor, not a multiple of a timing sample (release
+    # retrospective rule 3 refinement, Pro ledger #129: "5x a contended sample" still makes
+    # wall-clock a test input -- TestParseCacheIsBounded went red under scheduler starvation at a
+    # 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_does_not_overflow_the_stack(self) -> None:
         node = TraceNode(_sig("S", "leaf"), [], Returned("x"))
         for _ in range(10_000):
@@ -489,6 +498,13 @@ class TestDepthAndCycleBounds:
             out = renderer.render(_tree(node))  # must not raise RecursionError
             assert CYCLE_MARKER in out, name
 
+    # Builds and walks a 10,000-deep chain under a raised recursion limit. HANG GUARD, not a
+    # timing assertion -- the test only checks the depth-limit marker, never a duration, so the
+    # budget is the documented 10s floor, not a multiple of a timing sample (release
+    # retrospective rule 3 refinement, Pro ledger #129: "5x a contended sample" still makes
+    # wall-clock a test input -- TestParseCacheIsBounded went red under scheduler starvation at a
+    # 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
         """Same mutmut-headroom trap as ``test_a_chain_at_the_depth_cap_survives_a_constrained_
         call_stack`` below: the guard still recurses natively up to ``MAX_DEPTH`` frames before

@@ -4,9 +4,8 @@
 # Copyright (c) 2026 Empower Agile
 """Event pipeline: buffered, bounded, fail-safe event routing and retention.
 
-The Java ``narrativetrace-core`` pipeline package. ``observability failure never becomes an
-application failure`` is the guiding invariant. Multi-invocation aggregation was relocated to the
-paid tier per Phase 31a (2026-07-12).
+``observability failure never becomes an application failure`` is the guiding invariant.
+Multi-invocation aggregation was relocated to the paid tier.
 """
 
 from narrativetrace.pipeline.bounded_buffer import BoundedEventBuffer

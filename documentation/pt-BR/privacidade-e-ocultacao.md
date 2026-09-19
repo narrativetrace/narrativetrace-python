@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 433100a99e4b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob f6ea3847f2f0 | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -124,10 +124,20 @@ aninhado — chegava à saída completamente sem mediação, passando pela lista
 limites de profundidade, por tudo. Uma chave de dict/map tinha a mesma brecha: costumava ser um
 `str(key)` nu e sem mediação, então um objeto sensível usado como chave vazava incondicionalmente,
 independente do que seu valor contivesse. Ambos agora são introspectados e verificados contra a
-ocultação exatamente como um valor comum — só um valor genuinamente folha (sem nenhum estado de
-instância: um número, uma string, uma classe auxiliar sem estado, um membro de `Enum` sem payload)
-ainda confia no seu próprio `str()`. `@narrative_summary` não é afetado e continua sendo a forma
-suportada de dar a um composto um resumo curado de uma linha em vez do padrão campo a campo.
+ocultação exatamente como um valor comum. `@narrative_summary` não é afetado e continua sendo a
+forma suportada de dar a um composto um resumo curado de uma linha em vez do padrão campo a campo.
+
+**Não expor nenhum campo legível também não conquista confiança** *(since 0.1.3, unreleased)*. Um
+valor cujo estado a introspecção não consegue ver — uma subclasse de `ctypes.Structure` ou um tipo
+de extensão que guarda seus campos em uma struct C, uma classe que guarda seu estado em uma tabela
+de nível de módulo indexada por identidade ou em um closure — contava como folha e respondia por si
+mesmo através do próprio `__str__`/`__repr__`, que podia imprimir cada um desses campos no traço,
+passando pela lista de negação e por todos os limites. Um `__dict__` vazio não é prova de que não
+há nada a esconder; com mais frequência é prova de um estado que esta biblioteca não alcança. Esse
+valor agora é renderizado apenas como o nome do seu tipo — `<CStructCredentials>` — presente no
+traço, limitado e não lido. O que ainda pode falar por si é decidido pela origem (o parágrafo
+seguinte) e por nada mais; `@narrative_summary` continua sendo a forma suportada de um tipo narrar
+a si mesmo.
 
 **Um tipo definido pela plataforma é confiável para seu próprio `str()` mesmo carregando estado**
 *(since 0.1.2)*. A regra acima é correta para tipos de aplicação, mas era ampla demais

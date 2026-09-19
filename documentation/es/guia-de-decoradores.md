@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob fac5da0e1054 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob c4f5e00e06e9 | translated: 2026-09-17 | reviewed: - -->
 
 # Guía de decoradores
 
@@ -195,20 +195,28 @@ Qué se invoca y qué no:
   introspección. Un `NamedTuple` se introspecciona por nombre de campo en lugar de renderizarse
   como una lista anónima de valores posicionales, de modo que un campo oculto permanece oculto de
   la misma manera que un campo de dataclass.
-- **Un `__str__` personalizado solo es de confianza para una hoja genuina** *(since 0.1.2)*. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`,
+- **Un `__str__` personalizado nunca es de confianza para tus propios tipos** *(since 0.1.2)*.
+  Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`,
   o un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin
   importar si además define `__str__`/`__repr__`; ese método escrito a mano nunca se consulta,
-  igual que nunca se consultaba en una dataclass. Solo un valor sin ningún estado de instancia (un
-  número, una cadena, una clase auxiliar sin estado, un miembro de `Enum` sin carga) sigue
-  renderizándose mediante su propio `str()`. Antes de esta corrección, el `__str__` personalizado
-  de una clase plana prevalecía sobre la introspección sin más, así que un `__str__` escrito a mano
-  que interpolara un campo sensible — directamente, o de forma transitiva a través del `__str__` de
-  un objeto anidado — sorteaba la ocultación por completo; una clave de dict/map tenía la misma
-  brecha exacta (un `str(key)` desnudo y sin mediar), ahora cerrada de la misma forma: una clave se
-  introspecciona y se comprueba contra la ocultación exactamente igual que un valor. Dale a un
-  compuesto un método `@narrative_summary` cuando quieras un resumen curado de una línea en lugar
-  del predeterminado campo por campo — ese mecanismo no se ve afectado y sigue siendo la forma
-  admitida de controlar exactamente qué se muestra.
+  igual que nunca se consultaba en una dataclass. Antes de esta corrección, el `__str__`
+  personalizado de una clase plana prevalecía sobre la introspección sin más, así que un `__str__`
+  escrito a mano que interpolara un campo sensible — directamente, o de forma transitiva a través
+  del `__str__` de un objeto anidado — sorteaba la ocultación por completo; una clave de dict/map
+  tenía la misma brecha exacta (un `str(key)` desnudo y sin mediar), ahora cerrada de la misma
+  forma: una clave se introspecciona y se comprueba contra la ocultación exactamente igual que un
+  valor. Dale a un compuesto un método `@narrative_summary` cuando quieras un resumen curado de una
+  línea en lugar del predeterminado campo por campo — ese mecanismo no se ve afectado y sigue
+  siendo la forma admitida de controlar exactamente qué se muestra.
+- **No declarar ningún campo tampoco otorga confianza** *(since 0.1.3, unreleased)*. Un valor cuyo
+  estado la introspección no puede ver — una subclase de `ctypes.Structure` o un tipo de extensión
+  que guarda sus campos en una estructura C, una clase que guarda su estado en una tabla a nivel de
+  módulo indexada por identidad o en un cierre — se contaba como hoja y se renderizaba mediante su
+  propio `__str__`/`__repr__`, que podía imprimir esos campos superando la lista de denegación.
+  Ahora se renderiza solo como el nombre de su tipo (`<CStructCredentials>`): presente, acotado, sin
+  leer. Los propios tipos de valor de la biblioteca estándar (`pathlib.Path`, `datetime`,
+  `uuid.UUID`, `decimal.Decimal`, un miembro de `Enum`, …) siguen renderizándose con su propio texto
+  breve — esa confianza la decide el origen, y nada más.
 - **Un resumen, `__str__` o getter que lanza excepción renderiza un marcador de error tipado,
   nunca su propio mensaje** *(since 0.1.2)*. `<error: ValueError>`, `<error: RecursionError>`, y así sucesivamente
   — el nombre del propio TIPO de la excepción de la parte que falla, sustituido solo para esa
@@ -216,12 +224,51 @@ Qué se invoca y qué no:
   deliberadamente nunca se renderiza: un mensaje puede llevar el mismo valor que falló al
   renderizarse (`"summary failed for {token}"` filtraría `token` de otro modo), así que solo el
   nombre del tipo — nunca `str(exc)` — llega a la salida.
+- **Una colección solo se enumera cuando está definida por la plataforma.** `list`/`tuple`/
+  `dict`/`set`/`frozenset` se enumeran a través de su propio estado; una subclase de una de ellas
+  se enumera a través de la propia lectura de estado de ese ancestro, nunca a través del
+  `__iter__`/`items` sobrescrito de la subclase. Una colección hecha a mano (que implementa el
+  protocolo `Collection` desde cero, sin ancestro de plataforma) tampoco se enumera — se
+  renderiza como un objeto ordinario, campo por campo. Un iterable simple que no es un
+  `Collection` completo (sin `__contains__`) se renderiza como su nombre de tipo más el tamaño,
+  nunca sus elementos, y su `__iter__` nunca se toca. La única excepción es el gancho
+  `__narrative_elements__` de abajo.
+- **`__narrative_elements__` es el único gancho de confianza para enumerar sus propios
+  elementos.** Definido con más detalle abajo.
 - **La invocación está acotada y aislada.** La salida tiene un límite (longitud de cadena,
   elementos de colección, profundidad); un `__str__`, resumen o getter que lance una excepción
   nunca puede hacer fallar la llamada de negocio trazada (las plantillas recurren al marcador de
   posición literal `{placeholder}`); los valores se renderizan de forma eager en el punto de
   llamada, por lo que cualquier efecto secundario ocurre una sola vez, en un punto determinista.
   Los futures y los awaitables nunca se fuerzan.
+
+## `__narrative_elements__` — iteración de confianza
+
+El tercer gancho de renderizado sancionado, junto a `@narrative_summary` y el propio `__str__` de
+un valor de la plataforma: un tipo que declara un método `__narrative_elements__` sin argumentos es de
+confianza para enumerar sus propios elementos a través de ese método — el único caso en el que el
+renderizado ejecuta la propia iteración de un tipo, porque quien lo escribió la declaró pura.
+
+```python
+class OrderLine:
+    def __init__(self, items: list[Item]) -> None:
+        self._items = items
+
+    def __narrative_elements__(self) -> list[Item]:
+        return list(self._items)
+```
+
+Un `OrderLine` renderizado muestra sus elementos (con el mismo límite de elementos que una
+colección ordinaria, con el mismo marcador `… (N total)` al superarlo) en lugar del nombre de su
+campo `_items`. El método se ejecuta bajo la misma protección reflectiva de renderizado que
+cualquier otro gancho: una llamada que haga a un objeto trazado no abre ningún span propio. Un
+`__narrative_elements__` que lanza excepción degrada al mismo marcador tipado `<error: TypeName>`
+que cualquier otro fallo de gancho, nunca a los campos reales del objeto.
+
+Úsalo cuando un tipo de colección hecho a mano (uno sin ancestro de plataforma al que recurrir, y
+que por tanto se renderizaría como un objeto ordinario) tenga elementos que valga la pena mostrar
+directamente — el mismo papel que cumple `@NarrativeElements` en el resto de los runtimes de
+NarrativeTrace.
 
 Si un miembro no puede ser puro, márcalo con `@not_traced` / `not_traced_field(...)` — el valor de
 un miembro oculto nunca se lee en absoluto — o dale al tipo un `@narrative_summary` para que

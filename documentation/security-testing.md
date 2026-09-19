@@ -12,9 +12,9 @@ language model as often as by a person.
 This document describes the suite that attacks all of that on purpose:
 `packages/narrativetrace-security-tests`, a test-only package that depends on every distribution
 which renders or emits, so one assertion can reach the whole output surface. It carries the same
-targets and the same hostile corpus as every other NarrativeTrace runtime; the Java runtime's
-`narrativetrace-security-tests` module is the sibling suite, and its own security-testing document
-sits beside it.
+targets and the same hostile corpus as every other NarrativeTrace runtime — each runtime ships its
+own sibling `narrativetrace-security-tests` suite and security-testing document over that shared
+corpus.
 
 Two tiers:
 
@@ -56,8 +56,8 @@ uv run poe fuzz                                                # Tier B, budgete
 
 The package is excluded from the publish pipeline's package list (it has no `main`-equivalent
 source, `src/narrativetrace_security_tests/__init__.py` is empty, and its `pyproject.toml` carries
-`Private :: Do Not Upload`) but its *source* ships in the public tree — the same split as the Java
-module: excluded from publishing, not from the repository.
+`Private :: Do Not Upload`) but its *source* ships in the public tree — excluded from publishing,
+not from the repository.
 
 ## The oracles
 
@@ -88,9 +88,9 @@ package asserts from this list:
 
 ## Tier B: real on x86_64 Linux, a documented Hypothesis fallback everywhere else (verified 2026-09-09)
 
-Java's Tier B is Jazzer, whose `@FuzzTest` steers generation by the target's own coverage. The
-Python analogue is [atheris](https://github.com/google/atheris) — Google's libFuzzer-backed
-coverage-guided fuzzer for Python. Earlier notes here attributed atheris's unavailability to this
+Tier B uses [atheris](https://github.com/google/atheris) — Google's libFuzzer-backed
+coverage-guided fuzzer for Python, which steers generation by the target's own coverage. Earlier
+notes here attributed atheris's unavailability to this
 repo's Python floor (`>=3.12`). **That was never the accurate story**: atheris 3.0.0 (2025-11-24)
 added Python 3.12/3.13 support and 3.1.0 (2026-06-17) added 3.14, both released before this
 correction — the real blocker is **platform/toolchain, not Python version**:
@@ -128,7 +128,7 @@ actually resolve a wheel, and attempts nothing (no source build, no error) every
 
 **Fallback (every other environment, and target 2 everywhere):** `poe fuzz`
 (`scripts/fuzz_report.py`) runs a budgeted plain-Hypothesis sweep (`NARRATIVETRACE_FUZZ=1`, 5,000
-examples per property instead of the default 100) over the top two targets, per Java's own
+examples per property instead of the default 100) over the top two targets, per the
 priority table below. This buys **generated-example coverage of the input *shape* space**
 (Hypothesis's strategies + shrinker) — it does **not** buy coverage guidance from the target's own
 control-flow graph the way the real atheris harness above does: a Hypothesis run can miss a branch
@@ -136,8 +136,7 @@ no strategy happens to reach, where a coverage-guided fuzzer would notice the br
 uncovered and steer generation toward it. `fuzz_config.fuzz_settings` points Hypothesis's example
 database at `tests/.fuzz-corpus/`, committed to the repository rather than the default gitignored
 `.hypothesis/` cache: a crash `poe fuzz` finds once is saved there and replayed first on every
-subsequent `poe test`/`poe check`, so it becomes a permanent regression the whole team inherits —
-the role Jazzer's committed seed corpus plays for Java.
+subsequent `poe test`/`poe check`, so it becomes a permanent regression the whole team inherits.
 
 `scripts/fuzz_report.py` makes every branch's own honesty checkable: whichever tier ran (real
 atheris, the Hypothesis fallback, or both), it parses the actual executions/examples and the
@@ -149,13 +148,13 @@ anything, or otherwise did nothing while still exiting 0.
 The natural next steps, in priority order: (1) confirm the CI runners this repo actually uses are
 x86_64 Linux (both the private and public CI configs use images that suggest it, but that has not
 been independently confirmed from inside a live CI job); (2) write a byte-to-object-graph decoder
-and a real atheris harness for target 2; (3) targets 3/4, to match Java's four. Nothing about the
-corpus or the property tests they feed needs to change for any of these.
+and a real atheris harness for target 2; (3) targets 3/4, completing the family's four core
+targets. Nothing about the corpus or the property tests they feed needs to change for any of these.
 
 ## The targets
 
-In priority order (mirrors Java's table; targets 5/6 are clarity/config, out of this package's
-scope, and are not ported here):
+In priority order (targets 5/6 are clarity/config, out of this package's
+scope, and are not covered here):
 
 | # | Target | The oracle that matters most | Tier A | Tier B |
 |---|---|---|---|---|
@@ -165,10 +164,10 @@ scope, and are not ported here):
 | 4 | Template parsing and rendering | a redacted path renders `[REDACTED]` | pinned (see below) | — |
 | 7 | Every output format, again | AI-consumer containment | ✓ | — |
 
-Target 4 (template redaction) has no dedicated Tier A property file: the Java finding it exists to
-catch (an empty path segment, e.g. `{card.}`) was checked against this runtime and found already safe
-— `_resolve_segment`'s `getattr(owner, "")` already raises and is caught, unlike Java's direct
-`property.charAt(0)` indexing — so it is pinned with regression tests
+Target 4 (template redaction) has no dedicated Tier A property file: a known finding from another
+NarrativeTrace runtime (an empty path segment, e.g. `{card.}`) was checked against this runtime and
+found already safe — `_resolve_segment`'s `getattr(owner, "")` already raises and is caught — so it
+is pinned with regression tests
 (`test_template.py::TestEmptyPathSegment`, `test_redacted_paths.py::TestEmptyPathSegment`) rather
 than a new property suite.
 

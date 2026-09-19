@@ -68,26 +68,45 @@ class _ExoticFailure:
 
 
 class TestCollectionTotality:
-    def test_flat_render_survives_a_throwing_iterator(self) -> None:
+    def test_flat_render_reads_a_list_subclass_through_the_ancestors_own_state_never_the_override(
+        self,
+    ) -> None:
+        """The rendering rule (owner ruling 2026-09-17, "rendering reads state, never runs
+        behaviour"): a `list` SUBCLASS's overridden `__iter__` is bypassed via `list.__iter__`
+        bound to the ancestor, so a hostile override that would have thrown never runs at all --
+        the collection renders its real backing elements rather than degrading to a
+        `<_ThrowingIterator>` marker. Retires the pre-fix expectation this test used to pin (an
+        invoked-then-caught override), the same way Java's `ValueRendererTotalityTest` did for its
+        `ArrayList` subclass equivalent."""
         rendered = ValueRenderer().render(_ThrowingIterator([1, 2]))
-        assert "_ThrowingIterator" in rendered
+        assert rendered == "[1, 2]"
 
     def test_structured_render_survives_a_throwing_iterator(self) -> None:
+        """Structured rendering is deliberately unchanged by the rule fix (no pending test
+        requires origin-aware dispatch there -- see `rendering.py`'s module docstring): the
+        override is still consulted for `render_structured`, so a throwing one still degrades."""
         rendered = ValueRenderer().render_structured(_ThrowingIterator([1, 2]))
         assert rendered == StringVal("<_ThrowingIterator>")
 
     def test_one_bad_element_does_not_poison_a_sibling_list(self) -> None:
         rendered = ValueRenderer().render([_ThrowingIterator([1]), "ok"])
         assert '"ok"' in rendered
-        assert "_ThrowingIterator" in rendered
+        assert rendered == '[[1], "ok"]'
 
 
 class TestMapTotality:
-    def test_flat_render_survives_a_throwing_items(self) -> None:
+    def test_flat_render_reads_a_dict_subclass_through_the_ancestors_own_state_never_the_override(
+        self,
+    ) -> None:
+        """Same rule, the `dict` shape: `dict.items` bound to the ancestor bypasses the
+        subclass's overridden `items`, so the map renders its real entries rather than degrading
+        to a `<_ThrowingDict>` marker."""
         rendered = ValueRenderer().render(_ThrowingDict({"a": 1}))
-        assert "_ThrowingDict" in rendered
+        assert rendered == '{"a"=1}'
 
     def test_structured_render_survives_a_throwing_items(self) -> None:
+        """Structured rendering is deliberately unchanged by the rule fix -- see the collection
+        counterpart above."""
         rendered = ValueRenderer().render_structured(_ThrowingDict({"a": 1}))
         assert rendered == StringVal("<_ThrowingDict>")
 

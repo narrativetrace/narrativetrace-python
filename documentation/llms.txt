@@ -1,6 +1,6 @@
 # narrativetrace-python
 
-*(These docs describe 0.1.2; published is 0.1.1.)* <!-- registry checked 30m ago -->
+*(Docs and published both at 0.1.2; 2 behaviours marked unreleased.)*
 
 > Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
 > workspace with a dependency-free core and thin integration packages.
@@ -56,6 +56,7 @@ OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantit
 - Every package installs from PyPI today (`uv add ...`); a workspace checkout is only for contributing to this repo, never required to use it.
 - `narrativetrace-pytest` artifact-writing defaults **on** *(since 0.1.2)* — PyPI's published `0.1.1` still ships it **off**; set `NARRATIVETRACE_OUTPUT=true` explicitly until the next release.
 - `narrativetrace-structlog` pulls in `structlog` itself *(since 0.1.2)* — on PyPI's published `0.1.1` it is an optional extra; add it explicitly (`uv add structlog`) on that version.
+- Loguru needs no NarrativeTrace-specific bridge at all — point Loguru's own documented `InterceptHandler` recipe at the stdlib root logger and `export_to_logger(trace)` reaches your Loguru sink (see [Logging Guide § Loguru](guides/logging.md#loguru)).
 - A composite's own `__str__`/`__repr__` is never trusted for redaction *(since 0.1.2)* — any object carrying instance state is introspected field-by-field regardless, **except a platform-defined type** (`pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*`), which keeps its own short `str()` — decided by origin (`__module__`, never a name prefix), so a lookalike or a subclass is still walked (see [Privacy and Redaction](privacy-and-redaction.md)).
 - `__nt_not_traced__` is a class attribute — a tuple/list/set of field names — for redacting fields on any object a dataclass field can't reach (see the [Decorators guide](guides/decorators.md)).
 - `narrativetrace-pytest` now also writes a value-free `.nt` structural artifact per test invocation, with a `manifest.json` index and a last-green delta on the suite footer *(since 0.1.2)*; `NARRATIVETRACE_APPROVAL=true` turns on approval mode against a committed `.approved.nt` trace, promoted with `uv run poe approve` / `narrativetrace-approve` (see [Structural Trace Format](structural-trace-format.md)).
@@ -86,7 +87,7 @@ We asked AI agents to build a claims service with NarrativeTrace and write up th
 - [Decorators](guides/decorators.md)
 - [pytest plugin](guides/pytest.md)
 - [FastAPI / ASGI](guides/fastapi-asgi.md)
-- [Logging & structlog](guides/logging.md)
+- [Logging, structlog & Loguru](guides/logging.md)
 - [OpenTelemetry](guides/opentelemetry.md)
 - [Clarity](guides/clarity.md)
 - [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over `uv run narrativetrace doctor`, installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`, `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex CLI, or the always-on `AGENTS.md` pointer *(since 0.1.2)*

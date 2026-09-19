@@ -15,8 +15,8 @@ crashed with an uncaught ``RecursionError``, Python's analogue of Java's ``Stack
 This runtime keeps native recursion at each call site (mirrors ``rendering.ValueRenderer``'s
 identical, already-reviewed ``_RenderWalk`` pattern for arbitrary value graphs) rather than
 rewriting every walker as an explicit-stack iterator, so ``MAX_DEPTH`` is picked far below Python's
-own recursion ceiling instead of matching Java's 10,000 literally. Measured empirically
-(2026-09-04): the most stack-frame-hungry walker in this runtime (``MarkdownRenderer``'s mutual
+own recursion ceiling instead of matching Java's 10,000 literally. Measured empirically: the most
+stack-frame-hungry walker in this runtime (``MarkdownRenderer``'s mutual
 recursion) overflows Python's default 1,000-frame recursion limit at a 332-node chain;
 ``MAX_DEPTH`` leaves more than 3x headroom there, and far more for every cheaper (fewer-frames-
 per-level) walker -- confirmed safe even under an artificially reduced ``recursionlimit`` of 400,

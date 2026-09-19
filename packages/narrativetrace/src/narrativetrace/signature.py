@@ -30,8 +30,8 @@ class ParameterCapture:
     ``redacted`` means the parameter's WHOLE value was withheld — by name (the deny-list or an
     explicit ``@not_traced``), or because the top-level argument's own shape matched (a JWT, a
     Luhn-valid PAN, a national-id checksum, ...) and the entire rendering IS the ``[REDACTED]``
-    marker (owner ruling, 2026-09-10). Both axes set this one flag; a consumer branching on it
-    never needs to know which axis fired.
+    marker. Both axes set this one flag; a consumer branching on it never needs to know which axis
+    fired.
 
     **Documented boundary.** A shape match on a NESTED leaf — a JWT sitting inside one field of an
     otherwise-ordinary dataclass argument — masks that leaf within ``rendered_value``/

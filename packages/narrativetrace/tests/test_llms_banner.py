@@ -14,6 +14,7 @@ clock — the same split `test_verify_publication_registry.py` and `test_snippet
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from scripts.llms_banner import (
@@ -233,7 +234,14 @@ class TestSyncBanner:
             "# some-runtime\n\n", "# some-runtime\n\n*(Docs and published both at 0.1.0.)*\n\n"
         )
         _write_repo(tmp_path, version="0.1.1", llms_txt=stale)
-        _write_cache(tmp_path, version="0.1.1", timestamp=1.0)
+        # `sync_banner` has no `now`/`fetch` test seam of its own (unlike `compute_banner_line`),
+        # so this cache must be FRESH by the real wall clock `get_published_version` reads --
+        # `timestamp=1.0` (1970) was never fresh, so this always fell through to a real,
+        # unmocked PyPI lookup and asserted the live published version was "0.1.1" (it stopped
+        # being that the moment the package's real 0.1.2 release published; module docstring
+        # above already documents the intent -- "an injected fake fetcher and clock" -- this just
+        # restores it).
+        _write_cache(tmp_path, version="0.1.1", timestamp=time.time())
         changed = sync_banner(tmp_path)
         assert changed is not None
         assert "0.1.0" not in changed

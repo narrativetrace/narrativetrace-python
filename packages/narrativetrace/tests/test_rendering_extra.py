@@ -7,13 +7,20 @@
 from __future__ import annotations
 
 import concurrent.futures
+from enum import Enum
 
 from narrativetrace.markers import narrative_summary
 from narrativetrace.rendering import ValueRenderer
 from narrativetrace.values import IntVal, ListVal, ObjectVal, StringVal
 
 
-class RogueStr:
+class RogueStr(Enum):
+    """An enum member's own string conversion is one of the two rendering may call, so a hostile
+    one is a real hazard here -- unlike a fieldless plain class's, which is never called at all
+    (see ``TestFieldlessValueIsNeverDescribedByItsOwnText``)."""
+
+    ONE = "one"
+
     def __str__(self) -> str:
         raise RuntimeError("boom")
 
@@ -27,14 +34,25 @@ class RaisingSummary:
         raise RuntimeError("nope")
 
 
-class LongStr:
+class LongStr(Enum):
+    """Long text from a conversion rendering does call, so the string cap has something to cap."""
+
+    ONE = "one"
+
     def __str__(self) -> str:
         return "y" * 50
 
 
 class TestFlatFallbacks:
     def test_rogue_str_degrades_to_the_typed_error_marker(self) -> None:
-        assert ValueRenderer().render(RogueStr()) == "<error: RuntimeError>"
+        assert ValueRenderer().render(RogueStr.ONE) == "<error: RuntimeError>"
+
+    def test_a_fieldless_classs_rogue_str_is_never_called_at_all(self) -> None:
+        class Fieldless:
+            def __str__(self) -> str:
+                raise RuntimeError("boom")
+
+        assert ValueRenderer().render(Fieldless()) == "<Fieldless>"
 
     def test_raising_summary_renders_the_typed_error_marker(self) -> None:
         """A raising ``@narrative_summary`` never falls through to a different rendering (owner
@@ -43,7 +61,7 @@ class TestFlatFallbacks:
         assert ValueRenderer().render(RaisingSummary()) == "<error: RuntimeError>"
 
     def test_custom_str_truncated(self) -> None:
-        assert ValueRenderer(max_string_length=5).render(LongStr()) == "yyyyy…"
+        assert ValueRenderer(max_string_length=5).render(LongStr.ONE) == "yyyyy…"
 
 
 class TestStructuredEdges:
@@ -65,7 +83,7 @@ class TestStructuredEdges:
         assert second.value.startswith("<list@")
 
     def test_custom_str_object_becomes_string_val(self) -> None:
-        assert ValueRenderer().render_structured(LongStr()) == StringVal("y" * 50)
+        assert ValueRenderer().render_structured(LongStr.ONE) == StringVal("y" * 50)
 
     def test_pending_future(self) -> None:
         fut: concurrent.futures.Future[int] = concurrent.futures.Future()

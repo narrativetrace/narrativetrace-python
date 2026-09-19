@@ -1,8 +1,10 @@
-<!-- source: documentation/guides/logging.md blob efe471740251 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 8e11e0235925 | translated: 2026-09-17 | reviewed: - -->
 
-# 日志与 structlog
+# 日志、structlog 与 Loguru
 
 NarrativeTrace 会桥接到标准库的 `logging` 框架以及 `structlog`,并从两者中发出*相同*的规范关联键。
+Loguru 用户可以通过 Loguru 自己文档化的标准库互操作机制,到达同一条追踪——见下文的
+[Loguru](#loguru)。
 
 ## 标准库 logging
 
@@ -101,6 +103,102 @@ structlog.configure(
 
 两个前端共享 `narrativetrace.current_scope_keys()` 作为唯一的词汇来源,因此它们的键集合永远不会
 出现分歧。
+
+## Loguru
+
+NarrativeTrace 没有为 Loguru 内置任何专门的桥接——Loguru 是一个日志库,不是叙事的来源,上面的标准
+库桥接就是 Loguru 用户需要的全部机制。Loguru 自己文档化了与标准库 `logging` 的互操作方式:一个继承
+自 `logging.Handler` 的 `InterceptHandler`,把标准库的每条记录重新通过 `logger` 记录一遍(见 Loguru
+自己的方案,["Entirely compatible with standard
+logging"](https://loguru.readthedocs.io/en/stable/overview.html))。把标准库的根 logger 指向那个
+handler,再加上 `export_to_logger`——也就是 [60 秒教程"发送到你的日志系统"那一步](60秒.md#发送到你的日志系统)
+里同一个一次调用的重放机制——就能不写任何 NarrativeTrace 专属代码,把追踪送到你的 Loguru sink:
+
+```python
+# main.py
+import inspect  # 新增:InterceptHandler 自己的帧遍历逻辑,照抄 Loguru 的方案
+import logging  # 新增:InterceptHandler 继承的标准库 logger;也是 export_to_logger 的目标
+import sys  # 新增:下面 sink 的 stdout 目标
+
+from loguru import logger  # 新增:目标 sink
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    TraceId,
+    export_to_logger,  # 新增:一次调用就把已捕获的追踪重放到你的日志系统
+    trace_object,
+)
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+# 一个固定的追踪 id,采纳它是为了让这个页面里嵌入的输出每次都指向同一条追踪。真实的运行每次
+# 都会生成一个随机的(绝不是这个——这是本 DEMO 自己的常量,不是库的默认值),生成方式与
+# servlet 风格的边界处理入站追踪请求头所用的 TraceId.adopt_trace_id 机制相同。
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+
+# 新增:Loguru 自己文档化的标准库互操作方案,原样照搬——见
+# https://loguru.readthedocs.io/en/stable/overview.html,"Entirely compatible with standard
+# logging"。NarrativeTrace 没有为 Loguru 内置任何专门的桥接;这个方案就是全部机制——标准库 logger
+# 发出的每条记录(包括 export_to_logger 发出的)都会重新通过 `logger` 记录一遍。
+class InterceptHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        # 找到对应的 Loguru 级别(如果存在的话)。
+        level: str | int
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # 找到发起这条日志的调用者所在的帧。
+        frame, depth = inspect.currentframe(), 0
+        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+# 新增:一个固定的、不带时间戳的 sink,让这个页面里嵌入的输出永远不会随时钟变化——你自己的 sink
+# 保留真实的格式、颜色和轮转配置;只有这个演示需要确定性输出。
+logger.remove()
+logger.add(sys.stdout, format="{level} | {message}", colorize=False)
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+trace = context.capture_trace()  # 新增:只捕获一次,print 和 export 共用同一条追踪
+print(IndentedTextRenderer().render(trace))
+
+export_to_logger(trace)  # 新增:和上一步一样的一次调用导出——现在落到了 Loguru 里
+```
+
+```bash
+uv run main.py
+```
+
+```text
+trace: loose hook parks (a1b2c3d)
+
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+DEBUG | → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+DEBUG | ← returned: "ORD-cust-1-prod-42-3"
+```
+
+(这个演示的 sink 用 `"{level} | {message}"` 格式,是这个页面自己的选择,为了让输出不随时钟
+变化;你真实的 sink 保留你已经配置好的格式、颜色和轮转。)Loguru 用户保留 Loguru 已经给他们的一切
+——sink、轮转、颜色、`logger.catch`——完全不受影响;`export_to_logger` 只是把一条已经捕获好的追踪,
+通过 Loguru 的 `InterceptHandler` 已经在监听的标准库桥接重放了一遍。他们不再需要写的,是业务方法
+内部那一行 `logger.info(...)`(或者 `logger.debug(...)`)调用——上面这两行来自 `place_order` 自己的
+名字、参数名和返回值,是代码本来就有的信息,不是谁写出来的一条日志调用。
 
 ## 这在示例中是如何接入的
 

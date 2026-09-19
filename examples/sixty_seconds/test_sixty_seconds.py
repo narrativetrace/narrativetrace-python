@@ -3,21 +3,27 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """The one test behind documentation/sixty-seconds.md's "See a trace in 60 seconds" page (and,
-indirectly, documentation/llms.txt's "Install and first trace" block -- see ``main_llms.py``).
+indirectly, documentation/llms.txt's "Install and first trace" block -- see ``main_llms.py``) and
+the Logging Guide's Loguru section (``main_with_loguru.py``).
 
 This directory *is* the tutorial (rule 8, docs as tests):
 ``main.py`` is byte-identical to the page's "The program" code block, ``main_with_logger.py`` is
-what the page's "Send it to your logger" diff turns it into, and ``main_llms.py`` is the same
+what the page's "Send it to your logger" diff turns it into, ``main_llms.py`` is the same
 program with one ``@not_traced`` parameter -- the variant `llms.txt` embeds so an agent's first
-program already shows redaction applied, not just imported (see documentation/llms.txt). All
-three run exactly as the page's "Run it" step says (``uv run main.py``). None is exercised by
-import: each runs as a real, separate ``python`` process, the same way a reader's shell runs
-them, so nothing here touches another's global state (``main_with_logger.py``'s single
-``export_to_logger()`` call opens its own private ``LoggingTraceConsumer`` -- never two on one
-event stream, see ``narrativetrace.logging_bridge`` -- and its ``logging.basicConfig`` call, which
-would otherwise leak a stdout handler onto the root logger for the rest of this suite's process).
+program already shows redaction applied, not just imported (see documentation/llms.txt) -- and
+``main_with_loguru.py`` is ``main_with_logger.py``'s sibling for the Logging Guide's Loguru
+section: Loguru's own documented ``InterceptHandler`` recipe (stdlib interop) plus
+``export_to_logger`` (documentation/guides/logging.md). All four run exactly as their page's
+"Run it" step says (``uv run main.py``). None is exercised by import: each runs as a real,
+separate ``python`` process, the same way a reader's shell runs them, so nothing here touches
+another's global state (``main_with_logger.py``'s and ``main_with_loguru.py``'s single
+``export_to_logger()`` call each opens its own private ``LoggingTraceConsumer`` -- never two on
+one event stream, see ``narrativetrace.logging_bridge`` -- and their ``logging.basicConfig``
+calls, which would otherwise leak a stdout handler onto the root logger for the rest of this
+suite's process; ``main_with_loguru.py`` additionally calls ``loguru.logger.remove()``/``add()``,
+which would otherwise leak its own sink onto Loguru's process-wide default logger).
 
-The three scripts' captured stdout is saved under ``build/`` (git-ignored, regenerated every run --
+The four scripts' captured stdout is saved under ``build/`` (git-ignored, regenerated every run --
 see documentation/what-to-commit.md) for ``scripts/snippet_check.py`` to embed as the page's and
 `llms.txt`'s output blocks, ``mask=duration`` neutralizing the one thing a real run cannot pin
 down.
@@ -105,6 +111,24 @@ def _assert_redaction_output(with_redaction: str) -> None:
     assert _REDACTED_TRACE_LINE.match(redaction_lines[2])
 
 
+def _assert_loguru_output(with_loguru: str) -> None:
+    loguru_lines = with_loguru.splitlines()
+    assert len(loguru_lines) == 5
+    assert loguru_lines[0] == _DEMO_TRACE_HEADER
+    assert loguru_lines[1] == ""
+    assert _TRACE_LINE.match(loguru_lines[2])
+    # Loguru's InterceptHandler re-logs via `logger.opt(...).log(level, record.getMessage())` --
+    # `record.getMessage()` is the SAME text `_assert_logger_output` checks above the
+    # `%(traceName)s`/`%(runName)s` prefix a stdlib Formatter would otherwise add; InterceptHandler
+    # never applies one, so these two lines carry no MDC prefix, only the demo sink's fixed
+    # `{level} | {message}` format (main_with_loguru.py) -- deterministic, no timestamp.
+    assert loguru_lines[3] == (
+        'DEBUG | → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", '
+        "quantity: 3)"
+    )
+    assert loguru_lines[4] == 'DEBUG | ← returned: "ORD-cust-1-prod-42-3"'
+
+
 def _assert_pytest_fixture_writes_an_artifact(pytester: pytest.Pytester) -> None:
     # Built by concatenation, not an indented triple-quoted literal: `_order_service_source()`'s
     # lines have their own (zero) indentation, and splicing them into an indented f-string leaves
@@ -125,18 +149,20 @@ def _assert_pytest_fixture_writes_an_artifact(pytester: pytest.Pytester) -> None
 
 
 def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
-    """Runs the tutorial call through the real traced proxy four ways, once per page/llms.txt
-    section:
+    """Runs the tutorial call through the real traced proxy five ways, once per page/llms.txt/
+    Logging Guide section:
 
     - the plain script ("The program" / "Run it"), captured and saved for the snippet embed;
     - its logger-wired sibling ("Send it to your logger"), same treatment;
     - its redaction-wired sibling (llms.txt's "Install and first trace" block), same treatment;
+    - its Loguru-wired sibling (the Logging Guide's Loguru section), same treatment;
     - the identical call again, through ``narrativetrace-pytest``'s fixture in an isolated
       subprocess, proving the runtime's own test integration writes the artifact by default.
     """
-    plain, with_logger, with_redaction = write_artifacts()
+    plain, with_logger, with_redaction, with_loguru = write_artifacts()
 
     _assert_plain_output(plain)
     _assert_logger_output(with_logger)
     _assert_redaction_output(with_redaction)
+    _assert_loguru_output(with_loguru)
     _assert_pytest_fixture_writes_an_artifact(pytester)

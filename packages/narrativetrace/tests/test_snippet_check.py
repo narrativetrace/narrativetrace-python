@@ -19,10 +19,12 @@ from examples.import_and_use import write_artifact as write_import_and_use_artif
 from examples.not_traced_fields import write_artifact as write_not_traced_fields_artifact
 from examples.sixty_seconds.tutorial_artifacts import write_artifacts
 from scripts.snippet_check import (
+    _english_markdown_files,
     _strip_license_header,
     check_repository,
     expected_content,
     parse_spans,
+    pending_sync,
     sync_repository,
 )
 from scripts.translation_check import REPO_ROOT
@@ -375,6 +377,27 @@ class TestCheckAndSyncRepository:
         _write(tmp_path, "documentation/page.md", _SIMPLE_PAGE)
         assert sync_repository(tmp_path) == []
 
+    def test_pending_sync_reports_the_same_drift_without_writing_the_page(
+        self, tmp_path: Path
+    ) -> None:
+        """Asking "would a sync rewrite anything?" must never be answered by performing the
+        sync. `TestRealRepository` asks it of this repository's own tracked pages, and inside a
+        mutmut window the mutated renderer guarantees a drifted regenerated artifact -- the
+        answer used to be WRITTEN into the real tree, replacing a `mask=traceName` page's trace
+        phrase with a fresh random one (2026-09-17 nightly finding F2)."""
+        _write(tmp_path, "src/thing.py", "new content\n")
+        page_path = _write(tmp_path, "documentation/page.md", _SIMPLE_PAGE)
+        pending = pending_sync(tmp_path)
+        assert len(pending) == 1
+        assert "documentation/page.md:3" in pending[0]
+        assert page_path.read_text(encoding="utf-8") == _SIMPLE_PAGE
+        assert pending == sync_repository(tmp_path)
+
+    def test_pending_sync_reports_nothing_when_already_in_sync(self, tmp_path: Path) -> None:
+        _write(tmp_path, "src/thing.py", "old content\n")
+        _write(tmp_path, "documentation/page.md", _SIMPLE_PAGE)
+        assert pending_sync(tmp_path) == []
+
     def test_sync_repository_never_touches_a_translated_mirror(self, tmp_path: Path) -> None:
         """A file carrying a `translation_check` staleness header is a translation, not a
         source — `_english_markdown_files` must exclude it even if it also carries (copied)
@@ -460,8 +483,21 @@ class TestRealRepository:
         assert check_repository(REPO_ROOT) == []
 
     def test_the_real_repository_has_no_pending_sync(self) -> None:
+        """`pending_sync`, never `sync_repository`: this test also runs inside the mutmut
+        sandbox, where the mutated renderer drifts the regenerated artifacts on purpose -- a
+        writing answer rewrote the real, tracked pages with a mutant's output (2026-09-17
+        nightly finding F2)."""
         self._regenerate_build_artifacts()
-        assert sync_repository(REPO_ROOT) == []
+        assert pending_sync(REPO_ROOT) == []
+
+    def test_asking_the_real_repository_leaves_every_tracked_page_byte_identical(self) -> None:
+        """The guard the 2026-09-17 finding needed: whatever the two checks above answer, no
+        English page on disk may change while they answer it."""
+        before = {path: path.read_bytes() for path in _english_markdown_files(REPO_ROOT)}
+        self._regenerate_build_artifacts()
+        check_repository(REPO_ROOT)
+        pending_sync(REPO_ROOT)
+        assert {path: path.read_bytes() for path in _english_markdown_files(REPO_ROOT)} == before
 
 
 def test_stamped_header_touching_the_tutorial_label_line_is_stripped_exactly() -> None:

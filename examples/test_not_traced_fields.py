@@ -7,6 +7,7 @@ example: proves both redaction surfaces actually redact, from a real traced run.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from examples.not_traced_fields import run, write_artifact
@@ -36,10 +37,26 @@ def _without_trace_header(rendered: str) -> str:
     return rendered[boundary + 2 :]
 
 
+# Mirrors `scripts/snippet_check.py`'s own `mask=duration` convention: `— \d+(\.\d+)?ms` becomes
+# `— Nms` before comparing. `run()` measures a real `AuthService.login` call each time it's
+# invoked, so its duration is a live wall-clock reading, not fixture data -- two separate calls
+# may legitimately render different digits under load (release-lessons rule 3: wall-clock timing
+# is never a test input). Only the content is under test here, never how many milliseconds a call
+# happened to take.
+_DURATION_RE = re.compile(r"— \d+(\.\d+)?ms")
+
+
+def _without_duration(rendered: str) -> str:
+    return _DURATION_RE.sub("— Nms", rendered)
+
+
 def test_write_artifact_saves_the_same_content_it_returns() -> None:
     """The build artifact `scripts/snippet_check.py` embeds into decorators.md is exactly what
     a reader running this file for themselves would see -- but for the trace header, which names
-    a fresh random trace on every call (`mask=traceName` on the page's own embed)."""
+    a fresh random trace on every call (`mask=traceName` on the page's own embed), and the
+    duration, which names a fresh wall-clock reading on every call (`mask=duration`)."""
     saved = write_artifact()
     assert _BUILD_ARTIFACT.read_text(encoding="utf-8") == saved
-    assert _without_trace_header(saved) == _without_trace_header(run())
+    assert _without_duration(_without_trace_header(saved)) == _without_duration(
+        _without_trace_header(run())
+    )

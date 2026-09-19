@@ -98,11 +98,19 @@ def _log_stderr(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """The ``narrativetrace`` console script entry point."""
+def main(argv: Sequence[str] | None = None, *, cwd: str | None = None) -> int:
+    """The ``narrativetrace`` console script entry point.
+
+    ``cwd`` defaults to the real process cwd (``os.getcwd()``); pass it explicitly to run against
+    a different project root without touching process-global state. The process cwd is not a test
+    input to fake by monkeypatching -- ``os.getcwd()`` is read by other code in the process too
+    (mutmut's mutation trampoline re-resolves its configured, relative source path against it on
+    every call into mutated code, ``main`` included, and crashes if a monkeypatch points it
+    somewhere that path doesn't exist -- see ``test_doctor_cli_bin.py``'s note on the same hazard).
+    """
     args = list(sys.argv[1:] if argv is None else argv)
     deps = CliDeps(
-        cwd=os.getcwd(),
+        cwd=cwd if cwd is not None else os.getcwd(),
         env=os.environ,
         build_snapshot=build_snapshot,
         log=_log_stdout,

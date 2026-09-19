@@ -133,9 +133,16 @@ class TestEveryDistribution:
         assert project["license-files"] == ["LICENSE"]
 
 
+@pytest.mark.distribution
 @pytest.mark.parametrize("distribution", DISTRIBUTIONS, ids=DISTRIBUTION_IDS)
 class TestEveryBuiltArtifact:
-    """Reads the licence back out of the artifacts, so the gate cannot pass on intent alone."""
+    """Reads the licence back out of the artifacts, so the gate cannot pass on intent alone.
+
+    Marked `distribution`: `built_distributions` shells out to `uv build`, which an offline
+    mutation run cannot do once its build backend is not already cached. Building wheels proves
+    packaging, not code under mutation, so the mutation baseline deselects this marker; the
+    ordinary test suite still runs it.
+    """
 
     def test_the_wheel_contains_the_licence_text(
         self, distribution: Path, built_distributions: Path

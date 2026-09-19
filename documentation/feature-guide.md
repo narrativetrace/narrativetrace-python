@@ -1,11 +1,9 @@
 # NarrativeTrace Feature Guide (Python)
 
-What NarrativeTrace for Python ships, from a user's perspective. For the
-full cross-platform feature catalog (all tiers, all platforms), see the
-canonical feature guide:
-<https://github.com/narrativetrace/narrativetrace-java/blob/main/documentation/feature-guide.md>.
+What NarrativeTrace for Python ships, from a user's perspective. This file is
+deliberately thin: it records only what the Python packages deliver.
 
-**Status labels** (same vocabulary as the canonical guide):
+**Status labels:**
 
 - **Free** — shipped and available in this repository, under the Business
   Source License 1.1 (see *Licensing* below).
@@ -33,7 +31,7 @@ published here.
 | Automatic narrative capture — method, class, parameter names, return values, timing, errors; zero log statements | Free | `trace_object(obj, context)` + `ContextVarNarrativeContext`; names read via `inspect.signature` |
 | Enrichment decorators — `@narrated("… {param} …")`, stackable `@on_error(ExcType, "…")` (most-specific wins), `@traced` name overrides for `*args`, `@narrative_summary` | Free | [guides/decorators.md](guides/decorators.md) |
 | Sensitive data redaction — `@not_traced` parameters, `not_traced_field(...)` / `__nt_not_traced__` fields, name-pattern redaction (`RedactionPolicy`) | Free | Redacted values render as `[REDACTED]`, never read at all for marked members; a `@narrated`/`@on_error` template path reaching a redacted member resolves to the same marker, at every depth of the path; a `NamedTuple` is introspected by field name rather than printed as an anonymous positional collection, so a redacted field stays hidden one container deep too |
-| Five capture levels (OFF → ERRORS → SUMMARY → NARRATIVE → DETAIL), changeable at runtime, `NARRATIVETRACE_LEVEL` env channel | Free | Level names differ from the Java runtime's (SUMMARY/NARRATIVE vs NARRATIVE/FLOW). Parameter values exist only at DETAIL; suppression happens at capture, not at render |
+| Five capture levels (OFF → ERRORS → SUMMARY → NARRATIVE → DETAIL), changeable at runtime, `NARRATIVETRACE_LEVEL` env channel | Free | Parameter values exist only at DETAIL; suppression happens at capture, not at render |
 | Two-gate levels — capture level and log level are independent | Free | [guides/configuration.md](guides/configuration.md) |
 | Concurrency capture — `ForkJoinGroup` / `FireAndForgetGroup` over asyncio tasks *and* `ThreadPoolExecutor`, full-identity snapshot propagation, cross-task grafting | Free | The story stays coherent when execution isn't sequential |
 | Bidirectional propagation — a snapshot carries the trace *into* a thread or task, and the work traced there comes *back*: the capturing stack reports it from the moment it is published, transitively through a chain of async hops | Free | Placement follows submit time; adopted work is tagged `ConcurrencyKind.ASYNC`; helpers that re-emit their own children opt out with `activate_without_adoption()`; bounded at 10,000 spans per stack, over-cap hand-overs refused whole and reported through `TraceLoss` |
@@ -68,7 +66,7 @@ are Planned, not merely undocumented.
 | Approval mode — committed `.approved.nt` traces fail a test with a readable diff on any structural mismatch; `uv run poe approve` / `narrativetrace-approve` promotes a reviewed received trace | Free *(since 0.1.2)* | `NARRATIVETRACE_APPROVAL=true`; the approval-testing idea, applied to traces — see [What to Commit](what-to-commit.md) |
 | Canonical JSON export (event-stream form) | Free | `export_json` / `export_document_json`; round-trip tested, and schema-validated against `chapter-tree.schema.json` from the bytes the real writer put on disk |
 | Per-service chapter schema (`nt.entryType` / `schemaVersion` / story-chapter entries) | Free | `export_chapter_json`; validated against `chapter.schema.json`. Correlation is never omitted: `trace_id` is adopted/inherited/generated, `nt.storyId` falls back to the first root call (`Class.method`, else `unknown`), `nt.chapterId` to the story, `nt.traceName` to the resolved id — so a trace captured without any span still validates |
-| Canonical schema **1.2** — one `SCHEMA_VERSION` for the entry form, the chapter envelope and the OTel attributes | Free | `nt.narrationTemplate` (1.1, the raw `@narrated` text with placeholders intact) plus the 1.2 identity fields: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, parameter `type`, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` and the process resource fields are declared but not captured (tracked in the private backlog) — all three are gated off by default in the Java runtime too |
+| Canonical schema **1.2** — one `SCHEMA_VERSION` for the entry form, the chapter envelope and the OTel attributes | Free | `nt.narrationTemplate` (1.1, the raw `@narrated` text with placeholders intact) plus the 1.2 identity fields: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, parameter `type`, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` and the process resource fields are declared but not captured (tracked in the private backlog) — all three are gated off by default across NarrativeTrace runtimes |
 | Per-test `.canonical.json` — the flat entry array, one enter + one exit per call | Free | `NARRATIVETRACE_CANONICAL=1`, independent of `format`. Context-free trees get sequential span ids and a **generated** trace id (eager identity, product ADR-014): span, story and chapter ids are derived and byte-stable across runs, while `trace_id`/`nt.traceName` are unique per capture and must be folded by the conformance normalizer before goldens are compared |
 | Sequence diagrams — Mermaid + PlantUML | Free | `narrativetrace-diagrams` |
 | Trace translation views — re-renders a captured trace into a locale the committed `glossary.json` covers; identifiers glossed with the original kept alongside, values/exception messages byte-identical, redaction untouched, a "glossary gaps" footer names every phrase left untranslated | Free | `narrativetrace-glossary`; live streaming via `TranslationSubscriber` (a pipeline observer beside the trace's own durable path, never a replacement) or one file per trace via `TranslationFileSink`; `./demo.sh --example <name> --lang es\|zh-CN` is the shipped example |
@@ -93,7 +91,7 @@ are Planned, not merely undocumented.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Clarity scoring — method / class / parameter naming quality from real traces (five weighted scorers, byte-identical dictionaries to Java) | Free | [guides/clarity.md](guides/clarity.md) |
+| Clarity scoring — method / class / parameter naming quality from real traces (five weighted scorers, byte-identical dictionaries across NarrativeTrace runtimes) | Free | [guides/clarity.md](guides/clarity.md) |
 | Suite-level clarity split + `clarity-results.json` / `clarity-report.md` via the pytest plugin | Free | |
 | Standalone source scanner — `narrativetrace-clarity` console script, no tests required | Free | |
 | Project vocabulary in scoring — the committed glossary extends the built-in dictionaries | Free | One file, one review workflow: verbs of the committed `glossary.json` score as domain verbs, its nouns as domain tokens. Read from `narrativetrace.glossary_dir` (default: working directory) once per session; reading is unconditional, unlike harvesting. Built-in tiers keep authority — generic verbs, boolean prefixes, meaningless placeholders, deprecated synonyms and `stale` terms are never promoted |
@@ -132,8 +130,6 @@ Python-stack engagement per that repo's private implementation plan
 
 ## Keeping this guide honest
 
-Adapted from the canonical guide's rules:
-
 1. Every user-visible feature of NarrativeTrace for Python appears here,
    exactly once, with a status.
 2. A feature moves to **Free**/**Pro** only when it is merged, tested,
@@ -141,7 +137,5 @@ Adapted from the canonical guide's rules:
    is scheduled; "Planned" means specified only.
 3. Changes that add or promote a feature must update this file in the
    same commit.
-4. This guide covers only what NarrativeTrace for Python ships. Product-wide
-   features and their cross-platform statuses live in the canonical
-   guide (linked at the top) — do not fork its rows here; record only
-   the Python-side reality (including honest gaps).
+4. This guide covers only what NarrativeTrace for Python ships, including
+   honest gaps.

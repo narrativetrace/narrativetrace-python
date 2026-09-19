@@ -87,8 +87,8 @@ print(MarkdownRenderer().render(context.capture_trace()))
   test against a committed `.approved.nt` trace instead, promoted via `poe approve` /
   `narrativetrace-approve`.
 - **`narrativetrace-diagrams`** — `MermaidSequenceDiagramRenderer`,
-  `PlantUmlSequenceDiagramRenderer` (Java-exact tokens; control-char folding on interpolated
-  values).
+  `PlantUmlSequenceDiagramRenderer` (canonical PlantUML tokens across the family; control-char
+  folding on interpolated values).
 - **`narrativetrace-otel`** — `OtelTraceEventListener` (live, span per enter/exit anchored to
   event timestamps, `PerishableMap` orphan eviction), `TraceSpanExporter` (batch, nested spans,
   `narrative.duration_ms`, concurrency + `nt.*` attrs), `attributes` mapper (typed structured
@@ -118,9 +118,10 @@ print(MarkdownRenderer().render(context.capture_trace()))
 
 - `PerishableMap` re-put at capacity evicts nothing (predictable contract).
 - `RenderedValue.LongVal→IntVal`, `DoubleVal→FloatVal`, `BooleanVal→BoolVal` (unbounded ints).
-- Logging level: enter/return at DEBUG (Java TRACE has no stdlib analog).
-- W3C traceparent adopt/inject is TS-ahead parity (Java mints a fresh id per request).
-- Clarity scanner is class-only (matches Java reflection; skips underscore-private).
+- Logging level: enter/return at DEBUG (Python's stdlib `logging` has no TRACE level).
+- W3C traceparent adopt/inject both ship: an inbound header's trace id is adopted directly, not
+  just correlated.
+- Clarity scanner is class-only (skips underscore-private).
 
 ## Examples
 

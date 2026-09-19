@@ -19,12 +19,14 @@ from scripts.contract_lint import (
     ContractVerdict,
     decide,
     heading_anchors,
+    headings_with_since_marker,
     is_applicable,
     lint,
     parse,
     parse_page_ref,
     slugify,
 )
+from scripts.translation_check import REPO_ROOT
 
 # ---- slugify / heading_anchors ------------------------------------------------------------
 
@@ -50,6 +52,103 @@ def test_heading_anchors_disambiguates_repeated_slugs(tmp_path: Path) -> None:
     page = tmp_path / "page.md"
     page.write_text("# Title\n## Properties\nsome text\n## Properties\n", encoding="utf-8")
     assert heading_anchors(page) == {"title", "properties", "properties-1"}
+
+
+# ---- headings_with_since_marker --------------------------------------------------------------
+# Port of the TS repo's tools/contract-lint.ts `headingsWithSinceMarker` / Java's
+# `ContractLintSupport.headingsWithSinceMarker` (read-only references, not shared code): a
+# heading carrying an inline `(since ...)` marker changes its own GitHub anchor slug the instant
+# the release publish script's tag rewrite touches the marker, breaking every inbound link and
+# contract.yaml anchor -- see contract_lint.headings_with_since_marker's own docstring.
+
+
+def test_headings_with_since_marker_flags_a_heading_carrying_an_inline_marker(
+    tmp_path: Path,
+) -> None:
+    page = tmp_path / "documentation" / "foo.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("## A heading *(since 0.2.0)*\n\nbody text\n", encoding="utf-8")
+
+    hits = headings_with_since_marker(tmp_path)
+
+    assert hits == [
+        "documentation/foo.md:1: since-markers belong in the body: heading anchors "
+        "must survive the tag rewrite"
+    ]
+
+
+def test_headings_with_since_marker_does_not_flag_a_marker_in_the_body(tmp_path: Path) -> None:
+    page = tmp_path / "documentation" / "foo.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("## A heading\n\n*(since 0.2.0)* body text\n", encoding="utf-8")
+
+    assert headings_with_since_marker(tmp_path) == []
+
+
+def test_headings_with_since_marker_flags_a_translated_mirror_heading(tmp_path: Path) -> None:
+    # Translated mirrors under documentation/<lang>/ are in scope regardless of their own
+    # translation-header staleness -- the anchor-stability problem applies to every language.
+    mirror = tmp_path / "documentation" / "es" / "foo.md"
+    mirror.parent.mkdir(parents=True)
+    mirror.write_text(
+        "<!-- source: documentation/foo.md blob 000000000000 | translated: 2026-09-17 "
+        "| reviewed: - -->\n\n## Un encabezado *(since 0.2.0)*\n",
+        encoding="utf-8",
+    )
+
+    hits = headings_with_since_marker(tmp_path)
+
+    assert len(hits) == 1
+    assert hits[0].startswith("documentation/es/foo.md:3:")
+
+
+def test_headings_with_since_marker_flags_the_root_readme(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("## A heading *(since 0.2.0)*\n", encoding="utf-8")
+
+    hits = headings_with_since_marker(tmp_path)
+
+    assert hits == [
+        "README.md:1: since-markers belong in the body: heading anchors "
+        "must survive the tag rewrite"
+    ]
+
+
+def test_headings_with_since_marker_flags_a_root_readme_translated_mirror(
+    tmp_path: Path,
+) -> None:
+    mirror = tmp_path / "LEAME.md"
+    mirror.write_text(
+        "<!-- source: README.md blob 000000000000 | translated: 2026-09-17 | reviewed: - -->\n\n"
+        "## Un encabezado *(since 0.2.0)*\n",
+        encoding="utf-8",
+    )
+
+    hits = headings_with_since_marker(tmp_path)
+
+    assert len(hits) == 1
+    assert hits[0].startswith("LEAME.md:3:")
+
+
+def test_headings_with_since_marker_ignores_a_root_markdown_file_that_is_not_a_readme_mirror(
+    tmp_path: Path,
+) -> None:
+    # A root-level markdown file with no translation header at all must never be swept in just
+    # because it happens to sit next to README.md.
+    (tmp_path / "CHANGELOG.md").write_text("## A heading *(since 0.2.0)*\n", encoding="utf-8")
+
+    assert headings_with_since_marker(tmp_path) == []
+
+
+def test_headings_with_since_marker_returns_nothing_when_documentation_does_not_exist(
+    tmp_path: Path,
+) -> None:
+    assert headings_with_since_marker(tmp_path) == []
+
+
+def test_headings_with_since_marker_real_tree_has_zero_violations() -> None:
+    # Guards the actual repository, not just fixtures: a heading marker anywhere under
+    # documentation/ or a README mirror breaks its own anchor the instant a release settles it.
+    assert headings_with_since_marker(REPO_ROOT) == []
 
 
 # ---- parse_page_ref -------------------------------------------------------------------------

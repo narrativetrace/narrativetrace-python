@@ -11,12 +11,12 @@ every ISO control character to a space keeps the whole value on one physical lin
 code point is folded too, for the same reason ``control_sanitize`` treats it as hostile (a security
 fuzz suite finding): no UTF-8 sink can encode it.
 
-Adversarial-audit mirror (2026-09-02): :func:`identifier` is the one sanitizer for *metadata*
-(class/method/parameter/exception-type names) shared by both grammars, applying the union of
-their hazards — neither Mermaid nor PlantUML can escape a ``"`` inside a quoted name, so the
-character must stop being a quote; Mermaid reads ``%%`` as a comment opener wherever it appears.
-Unlike a rendered *value*, metadata never passes through ``control_sanitize`` upstream, so this
-module folds controls and surrogates itself rather than assuming a caller already did.
+:func:`identifier` is the one sanitizer for *metadata* (class/method/parameter/exception-type
+names) shared by both grammars, applying the union of their hazards — neither Mermaid nor
+PlantUML can escape a ``"`` inside a quoted name, so the character must stop being a quote;
+Mermaid reads ``%%`` as a comment opener wherever it appears. Unlike a rendered *value*, metadata
+never passes through ``control_sanitize`` upstream, so this module folds controls and surrogates
+itself rather than assuming a caller already did.
 """
 
 from __future__ import annotations
@@ -203,8 +203,8 @@ def alias_token(raw: str) -> str:
     position, and its output can still carry a space, a colon, an arrow fragment (``->>``) or a
     quote, any one of which would split an arrow into the wrong number of tokens or splice a
     second participant into the line. This reduces the candidate to letters, digits and ``_``
-    (mirrors Java's ``Character.isLetterOrDigit``, so a non-ASCII letter survives, matching the
-    reference's own behavior) and falls back to :data:`_UNNAMED_ALIAS` when nothing survives --
+    (``str.isalnum()`` is Unicode-aware, so a non-ASCII letter survives, not only ASCII ones)
+    and falls back to :data:`_UNNAMED_ALIAS` when nothing survives --
     never an empty token, which would emit a malformed ``participant `` declaration or collapse
     an arrow's endpoint entirely. A class name with no uppercase letters and nothing hostile in
     it keeps its historical alias unchanged: ``scheduler`` stays ``scheduler``.

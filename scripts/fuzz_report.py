@@ -21,6 +21,16 @@ generating anything, or otherwise did nothing while still exiting 0.
 
 Every outcome — which tier ran, how many examples/executions, how long it took — is printed,
 never silent.
+
+**Release rule 2** ("a graceful-skip tool must prove it has ever run"): a nightly quality run's
+own dependency sync can skip installing the `security` group atheris lives in, so this would fall
+back to the Hypothesis-only tier silently every time, while the one scheduled CI job that installs
+the group (`uv sync --all-packages --group security`) was the only place the real coverage-guided
+tier ever ran. Fixed the same way `scripts/run_security_tool.py` and `scripts/quality_gate_status.
+py` already fix their own tool-absence skips: an unmistakable `SKIPPED: atheris not installed` line
+every time the fallback triggers, plus `NARRATIVETRACE_REQUIRE_ATHERIS=1` (set by the CI job that
+installs the group, the one context supposed to have atheris) turning that same skip into a hard
+failure instead of a silent fallback.
 """
 
 from __future__ import annotations
@@ -69,9 +79,20 @@ _STATISTICS_LINE = re.compile(
 _ATHERIS_EXEC_COUNT = re.compile(r"stat::number_of_executed_units:\s*(\d+)")
 
 
+_REQUIRE_ATHERIS_ENV_VAR = "NARRATIVETRACE_REQUIRE_ATHERIS"
+
+
 def module_importable(name: str) -> bool:
     """Whether `name` can be imported in this interpreter, without actually importing it."""
     return importlib.util.find_spec(name) is not None
+
+
+def atheris_required() -> bool:
+    """Whether this context demands the real coverage-guided tier actually ran: the explicit
+    opt-in flag set by the one scheduled CI job that installs the `security` dependency group
+    atheris lives in — same shape as `run_security_tool.security_scanners_required` /
+    `quality_gate_status.quality_checks_required`, one env var per concern."""
+    return os.environ.get(_REQUIRE_ATHERIS_ENV_VAR) == "1"
 
 
 def atheris_status_message(available: bool) -> str:
@@ -196,9 +217,20 @@ def run_hypothesis_sweep() -> tuple[int, FuzzRunReport]:
 
 
 def _run_atheris_stage() -> int:
-    """Runs the real atheris target if importable; returns 0 immediately when it is not (the
+    """Runs the real atheris target if importable. When it is not: prints the unmistakable
+    `SKIPPED: atheris not installed` line release rule 2 requires, then either fails outright
+    (`NARRATIVETRACE_REQUIRE_ATHERIS=1` — this context is supposed to have it) or returns 0 (the
     Hypothesis sweep is the whole story on this interpreter, not a degraded extra stage)."""
     if not module_importable("atheris"):
+        print("SKIPPED: atheris not installed", file=sys.stderr)
+        if atheris_required():
+            print(
+                f"FAIL: {_REQUIRE_ATHERIS_ENV_VAR}=1 but atheris is not importable — the "
+                "coverage-guided tier is required to actually run in this context, not fall "
+                "back silently.",
+                file=sys.stderr,
+            )
+            return 1
         return 0
     returncode, atheris_report = run_atheris_target()
     print(atheris_report.summary(), file=sys.stderr)

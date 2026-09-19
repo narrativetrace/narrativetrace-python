@@ -39,6 +39,9 @@ class ContractEntry:
 
 def _entry_from_raw(raw: dict[str, Any]) -> ContractEntry:
     expect = raw.get("documented_default") or raw.get("expected_effect")
+    assert isinstance(
+        expect, str
+    )  # contract-lint validated the schema already; see module docstring
     return ContractEntry(
         id=raw["id"],
         kind=raw["kind"],

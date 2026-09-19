@@ -14,7 +14,8 @@ National identity numbers are a fourth shape, kept in their own module
 (:mod:`~narrativetrace.national_id_shapes`) because they are six checksums rather than one
 matcher; they are language-neutral by construction — a CPF is a CPF whatever the field holding it
 is called, which is the point: the name deny-list can be read in a language it was not written
-in, and a checksum cannot (family standard, ported from the Java runtime).
+in, and a checksum cannot (a family standard, applied the same way by every NarrativeTrace
+runtime).
 """
 
 from __future__ import annotations

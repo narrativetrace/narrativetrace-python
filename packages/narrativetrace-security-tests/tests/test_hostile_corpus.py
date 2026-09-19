@@ -11,7 +11,11 @@ make every property test downstream pass for the wrong reason.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from hostile_corpus import (
@@ -235,3 +239,127 @@ class TestNoRedactionCanaryIsItselfASecretShape:
             if case.is_name or case.is_kind:
                 assert case.canary is not None
                 assert re.fullmatch(r"canary-[a-z0-9-]+", case.canary)
+
+
+# --------------------------------------------------------------------------- #
+# Byte-identity with the master copy (§6.7: the corpus master lives in the free #
+# Java repository; every runtime copies it verbatim).                           #
+# --------------------------------------------------------------------------- #
+_MASTER_RELATIVE = Path("narrativetrace-security-tests/src/test/resources/hostile-corpus")
+
+
+def _master_corpus_dir() -> Path | None:
+    """Where the master corpus is mounted, or ``None`` when it is not reachable. `NT_MASTER_CORPUS`
+    names the directory outright; otherwise `JAVA_REPO`, the dev container's `/workspace-java`
+    mount (`scripts/dev-container.sh`) and the sibling checkout are tried in that order."""
+    named = os.environ.get("NT_MASTER_CORPUS")
+    if named:
+        return Path(named) if Path(named).is_dir() else None
+    roots = [os.environ.get("JAVA_REPO"), "/workspace-java", "../../../../narrative-trace-java"]
+    for root in roots:
+        if root is None:
+            continue
+        candidate = (
+            Path(__file__).parent / root if root.startswith("..") else Path(root)
+        ).resolve()
+        if (candidate / _MASTER_RELATIVE).is_dir():
+            return candidate / _MASTER_RELATIVE
+    return None
+
+
+def _require_master_corpus() -> Path:
+    """The master corpus directory, or a LOUD skip -- release rule 2: a check that silently
+    no-ops is a check nobody can prove ever ran."""
+    master = _master_corpus_dir()
+    if master is None:
+        message = (
+            "SKIPPED: master corpus not mounted — set NT_MASTER_CORPUS or JAVA_REPO, or run in "
+            "the dev container where it is mounted read-only at /workspace-java"
+        )
+        print(message, file=sys.stderr)
+        pytest.skip(message)
+    return master
+
+
+def _git_toplevel(path: Path) -> Path | None:
+    """The git repository root containing ``path``, or ``None`` when ``path`` is not inside a git
+    working copy at all (a plain directory mount, an extracted archive, ...)."""
+    result = subprocess.run(  # nosec B603, B607 - fixed args, no shell, a local read-only query
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return Path(result.stdout.strip())
+
+
+def _master_file_bytes(master_dir: Path, filename: str) -> tuple[bytes, str]:
+    """Bytes of ``filename`` in the master corpus, and a description of what was actually
+    compared -- design flaw fixed 2026-09-18: reading the master's WORKING-TREE file made this
+    test go red the moment an in-progress master edit touched the same file, before anything was
+    even committed there. Compares against the master's own COMMITTED ``HEAD`` instead
+    (``git -C <master repo> show HEAD:<relative path>``), which is immune to a concurrent dirty
+    edit; falls back to the working-tree file, loudly, only when the mount is not a git checkout
+    at all (a plain directory mount with no ``.git``) -- the one case ``git show`` has nothing to
+    read from."""
+    file_path = master_dir / filename
+    toplevel = _git_toplevel(master_dir)
+    if toplevel is None:
+        message = (
+            f"master mount at {master_dir} is not a git checkout (no .git found) — comparing "
+            "against its WORKING-TREE file, not a committed ref"
+        )
+        print(message, file=sys.stderr)
+        return file_path.read_bytes(), "working tree (mount is not a git checkout)"
+    try:
+        relative = file_path.resolve().relative_to(toplevel.resolve())
+    except ValueError:
+        message = (
+            f"{file_path} is not inside git toplevel {toplevel} — comparing its working tree file"
+        )
+        print(message, file=sys.stderr)
+        return file_path.read_bytes(), "working tree (path escapes the git toplevel)"
+    ref = f"HEAD:{relative.as_posix()}"
+    result = subprocess.run(  # nosec B603, B607 - fixed args, no shell, a local read-only query
+        ["git", "-C", str(toplevel), "show", ref],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = f"git show {ref} failed in {toplevel} — falling back to the working-tree file"
+        print(message, file=sys.stderr)
+        return file_path.read_bytes(), "working tree (git show failed)"
+    description = f"{ref} in {toplevel}"
+    print(f"comparing {filename} against the master's committed {description}", file=sys.stderr)
+    return result.stdout, description
+
+
+class TestByteIdentityWithTheMasterCorpus:
+    """§6.7: a row is byte-identical across every runtime or it is not the same row. A port that
+    quietly lacks a master row tests less than it claims to (this is how `graphs.json`'s four
+    `curated-tostring-*`/`sensitive-map-key`/`throwing-summary` rows went missing until
+    2026-09-17), and one that quietly adds a row tests something no other runtime does (owner
+    ruling 2026-09-18: the master is the source of truth, no documented-extras exemption --
+    `redaction.json`'s four `kind` rows, added here 2026-09-11 ahead of the master and removed the
+    same day to restore byte-identity, were proposed to the master separately and ADOPTED there
+    unchanged (ids, `kind` names and canaries all identical); copied back verbatim once the master
+    carried them).
+
+    Compares against the master's own committed ``HEAD`` (see :func:`_master_file_bytes`), never
+    its working tree (design flaw fixed 2026-09-18): a mount read via the working tree turned this
+    port red the moment an in-progress, uncommitted master edit touched the same file, which is
+    not the byte-identity contract this class actually exists to enforce -- byte-identity is a
+    contract between committed history, not between one runtime's committed state and another's
+    mid-edit scratch. Falls back to the working-tree file, loudly, only when the mount is not a
+    git checkout at all."""
+
+    @pytest.mark.parametrize("filename", _FIXTURE_FILES)
+    def test_the_fixture_file_is_byte_identical_to_the_master(self, filename: str) -> None:
+        master = _require_master_corpus()
+        master_bytes, compared_against = _master_file_bytes(master, filename)
+        assert (_CORPUS_DIR / filename).read_bytes() == master_bytes, (
+            f"{filename} has drifted from the master's {compared_against} — copy it from the "
+            "master, never retype"
+        )

@@ -1,13 +1,11 @@
-<!-- source: documentation/feature-guide.md blob d81975e4a2aa | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/feature-guide.md blob 73c9c6b49200 | translated: 2026-09-17 | reviewed: - -->
 
 # Guia de funcionalidades do NarrativeTrace (Python)
 
-O que o NarrativeTrace para Python distribui, da perspectiva de quem usa. Para o catálogo
-completo de funcionalidades multiplataforma (todos os níveis, todas as
-plataformas), veja o guia de funcionalidades canônico:
-<https://github.com/narrativetrace/narrativetrace-java/blob/main/documentation/feature-guide.md>.
+O que o NarrativeTrace para Python distribui, da perspectiva de quem usa. Este documento é
+deliberadamente enxuto: registra apenas o que os pacotes Python entregam.
 
-**Rótulos de status** (mesmo vocabulário do guia canônico):
+**Rótulos de status:**
 
 - **Gratuito** — lançado e disponível neste repositório, sob a Business
   Source License 1.1 (veja *Licenciamento* abaixo).
@@ -37,7 +35,7 @@ registrado como um log de decisões interno, não publicado aqui.
 | Captura narrativa automática — nomes de método, classe e parâmetro, valores de retorno, timing, erros; zero declarações de log | Gratuito | `trace_object(obj, context)` + `ContextVarNarrativeContext`; nomes lidos via `inspect.signature` |
 | Decoradores de enriquecimento — `@narrated("… {param} …")`, `@on_error(ExcType, "…")` empilhável (o mais específico vence), sobrescritas de nome `@traced` para `*args`, `@narrative_summary` | Gratuito | [guides/decorators.md](guia-de-decoradores.md) |
 | Ocultação de dados sensíveis — parâmetros `@not_traced`, campos `not_traced_field(...)` / `__nt_not_traced__`, ocultação por padrão de nome (`RedactionPolicy`) | Gratuito | Valores ocultos renderizam como `[REDACTED]`, nunca lidos de forma alguma para membros marcados; um caminho de template `@narrated`/`@on_error` que alcança um membro oculto resolve para o mesmo marcador, em qualquer profundidade do caminho; um `NamedTuple` é introspectado pelo nome do campo em vez de impresso como uma coleção posicional anônima, então um campo oculto permanece oculto um nível de container a mais também |
-| Cinco níveis de captura (OFF → ERRORS → SUMMARY → NARRATIVE → DETAIL), alteráveis em tempo de execução, canal de ambiente `NARRATIVETRACE_LEVEL` | Gratuito | Os nomes de nível diferem da implementação Java (SUMMARY/NARRATIVE vs. NARRATIVE/FLOW). Valores de parâmetro só existem em DETAIL; a supressão acontece na captura, não na renderização |
+| Cinco níveis de captura (OFF → ERRORS → SUMMARY → NARRATIVE → DETAIL), alteráveis em tempo de execução, canal de ambiente `NARRATIVETRACE_LEVEL` | Gratuito | Valores de parâmetro só existem em DETAIL; a supressão acontece na captura, não na renderização |
 | Níveis de dois portões — nível de captura e nível de log são independentes | Gratuito | [guides/configuration.md](guia-de-configuracao.md) |
 | Captura de concorrência — `ForkJoinGroup` / `FireAndForgetGroup` sobre tasks do asyncio *e* `ThreadPoolExecutor`, propagação de snapshot de identidade completa, enxerto entre tasks | Gratuito | A história permanece coerente quando a execução não é sequencial |
 | Propagação bidirecional — um snapshot leva o trace *para dentro* de uma thread ou task, e o trabalho traçado ali *volta*: a pilha que captura reporta a partir do momento em que é publicado, transitivamente através de uma cadeia de saltos async | Gratuito | O posicionamento segue o momento do submit; trabalho adotado é marcado `ConcurrencyKind.ASYNC`; helpers que reemitem seus próprios filhos optam por sair com `activate_without_adoption()`; limitado a 10.000 spans por pilha, entregas acima do limite são recusadas por inteiro e reportadas via `TraceLoss` |
@@ -72,7 +70,7 @@ Planejados, não apenas sem documentação.
 | Modo de aprovação — traces `.approved.nt` commitados falham um teste com um diff legível em qualquer divergência estrutural; `uv run poe approve` / `narrativetrace-approve` promove um trace recebido já revisado | Gratuito *(since 0.1.2)* | `NARRATIVETRACE_APPROVAL=true`; a ideia do approval testing, aplicada a traces — veja [O que commitar](o-que-commitar.md) |
 | Exportação JSON canônica (forma de stream de eventos) | Gratuito | `export_json` / `export_document_json`; testado com round-trip, e validado por esquema contra `chapter-tree.schema.json` a partir dos bytes que o writer real gravou em disco |
 | Esquema de capítulo por serviço (`nt.entryType` / `schemaVersion` / entradas história-capítulo) | Gratuito | `export_chapter_json`; validado contra `chapter.schema.json`. A correlação nunca é omitida: `trace_id` é adotado/herdado/gerado, `nt.storyId` recai na primeira chamada raiz (`Class.method`, senão `unknown`), `nt.chapterId` na história, `nt.traceName` no id resolvido — então um trace capturado sem nenhum span ainda assim valida |
-| Esquema canônico **1.2** — um único `SCHEMA_VERSION` para a forma de entrada, o envelope de capítulo e os atributos do OTel | Gratuito | `nt.narrationTemplate` (1.1, o texto bruto do `@narrated` com marcadores intactos) mais os campos de identidade 1.2: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, `type` de parâmetro, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` e os campos de recurso de processo estão declarados mas não capturados (registrado na lista de tarefas privada) — os três também vêm desligados por padrão em Java |
+| Esquema canônico **1.2** — um único `SCHEMA_VERSION` para a forma de entrada, o envelope de capítulo e os atributos do OTel | Gratuito | `nt.narrationTemplate` (1.1, o texto bruto do `@narrated` com marcadores intactos) mais os campos de identidade 1.2: `nt.package`, `nt.exceptionPackage`, `nt.returnType`, `type` de parâmetro, `thread.name`/`thread.id`/`nt.threadVirtual`. `nt.instanceId`, `code.filepath`/`code.lineno` e os campos de recurso de processo estão declarados mas não capturados (registrado na lista de tarefas privada) — os três também vêm desligados por padrão em todos os runtimes do NarrativeTrace |
 | `.canonical.json` por teste — o array plano de entradas, um enter + um exit por chamada | Gratuito | `NARRATIVETRACE_CANONICAL=1`, independente de `format`. Árvores sem contexto recebem ids de span sequenciais e um id de trace **gerado** (identidade antecipada, ADR-014 do produto): ids de span, história e capítulo são derivados e estáveis em bytes entre execuções, enquanto `trace_id`/`nt.traceName` são únicos por captura e devem ser dobrados pelo normalizador de conformidade antes de comparar os goldens |
 | Diagramas de sequência — Mermaid + PlantUML | Gratuito | `narrativetrace-diagrams` |
 | Visualizações de tradução de trace — renderiza novamente um trace capturado em um idioma que o `glossary.json` commitado cobre; identificadores traduzidos com o original mantido ao lado, valores e mensagens de exceção idênticos byte a byte, ocultação intacta, um rodapé de "lacunas do glossário" nomeia toda frase deixada sem tradução | Gratuito | `narrativetrace-glossary`; streaming ao vivo via `TranslationSubscriber` (um observador do pipeline ao lado do caminho durável do próprio trace, nunca uma substituição) ou um arquivo por trace via `TranslationFileSink`; `./demo.sh --example <name> --lang es\|zh-CN` é o exemplo incluído |
@@ -97,7 +95,7 @@ Planejados, não apenas sem documentação.
 
 | Funcionalidade | Status | Notas |
 |---|---|---|
-| Pontuação de clareza — qualidade de nomes de método/classe/parâmetro a partir de traces reais (cinco avaliadores ponderados, dicionários idênticos byte a byte ao Java) | Gratuito | [guides/clarity.md](guia-de-clareza.md) |
+| Pontuação de clareza — qualidade de nomes de método/classe/parâmetro a partir de traces reais (cinco avaliadores ponderados, dicionários idênticos byte a byte em todos os runtimes do NarrativeTrace) | Gratuito | [guides/clarity.md](guia-de-clareza.md) |
 | Divisão de clareza em nível de suíte + `clarity-results.json` / `clarity-report.md` via o plugin do pytest | Gratuito | |
 | Scanner de fonte independente — script de console `narrativetrace-clarity`, sem exigir testes | Gratuito | |
 | Vocabulário de projeto na pontuação — o glossário commitado estende os dicionários embutidos | Gratuito | Um arquivo, um fluxo de revisão: verbos do `glossary.json` commitado pontuam como verbos de domínio, seus substantivos como tokens de domínio. Lido de `narrativetrace.glossary_dir` (padrão: diretório de trabalho) uma vez por sessão; a leitura é incondicional, ao contrário da coleta. Os níveis embutidos mantêm autoridade — verbos genéricos, prefixos booleanos, marcadores sem significado, sinônimos obsoletos e termos `stale` nunca são promovidos |
@@ -136,8 +134,6 @@ está planejado** para Python (Fase E6).
 
 ## Mantendo este guia honesto
 
-Adaptado das regras do guia canônico:
-
 1. Toda funcionalidade visível ao usuário do NarrativeTrace para Python aparece aqui,
    exatamente uma vez, com um status.
 2. Uma funcionalidade só passa para **Gratuito**/**Pro** quando está
@@ -146,7 +142,5 @@ Adaptado das regras do guia canônico:
    significa que só está especificado.
 3. Mudanças que adicionam ou promovem uma funcionalidade devem atualizar
    este arquivo no mesmo commit.
-4. Este guia cobre apenas o que o NarrativeTrace para Python distribui. Funcionalidades de
-   todo o produto e seus status multiplataforma vivem no guia canônico
-   (linkado no topo) — não bifurque suas linhas aqui; registre somente a
-   realidade do lado Python (incluindo as lacunas, com honestidade).
+4. Este guia cobre apenas o que o NarrativeTrace para Python distribui, incluindo as
+   lacunas, com honestidade.

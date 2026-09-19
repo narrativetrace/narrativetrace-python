@@ -29,13 +29,13 @@ design notes) are English-only by convention and stay off every language's trans
 | [pytest Guide](guides/pytest.md) | The `narrative_trace` fixture, per-test artifacts, the clarity footer |
 | [FastAPI / ASGI Guide](guides/fastapi-asgi.md) | Starlette/FastAPI middleware, W3C traceparent, the request accessor |
 | [OpenTelemetry Guide](guides/opentelemetry.md) | The OTel span bridge: live listener and batch exporter |
-| [Logging Guide](guides/logging.md) | The stdlib logging bridge and the structlog processor |
+| [Logging Guide](guides/logging.md) | The stdlib logging bridge, the structlog processor, and reaching a Loguru sink through Loguru's own stdlib interop |
 
 ## Analysis and output
 
 | Document | What it covers |
 |---|---|
-| [Clarity Guide](guides/clarity.md) | The scoring model, JUnit-equivalent integration, and the `clarityCheck`-style gate |
+| [Clarity Guide](guides/clarity.md) | The scoring model, the pytest plugin that scores every suite run automatically, and the `poe clarity` gate |
 | [Feature Guide](feature-guide.md) | The canonical catalog: every feature, its tier, its status |
 
 ## Design and rationale

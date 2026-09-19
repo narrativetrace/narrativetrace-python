@@ -420,6 +420,12 @@ class TestDepthAndCycleBounds:
         entries = json.loads(export_canonical_entries(TraceTree([node])))
         assert len(entries) >= 2
 
+    # Builds and flattens a 10,000-deep chain. HANG GUARD, not a timing assertion -- the test
+    # only checks the entry count stays in range, never a duration, so the budget is the
+    # documented 10s floor, not a multiple of a timing sample (release retrospective rule 3
+    # refinement, Pro ledger #129: "5x a contended sample" still makes wall-clock a test input --
+    # TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
         node = _node()
         for _ in range(10_000):

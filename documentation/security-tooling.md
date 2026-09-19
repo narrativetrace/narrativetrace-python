@@ -48,7 +48,7 @@ Neither tool ships on PyPI. `poe secrets-scan` and `poe osv-scan` both go throug
    in `.tools/bin/`.
 4. If none of that works (offline, unsupported platform, checksum mismatch) — prints a warning to
    stderr, records `skipped: <reason>` under `build/reports/security-scans/<tool>.status`, and
-   exits 0 **locally**. In CI (`CI` set), or under `NARRATIVETRACE_SECURITY_REQUIRED=true`, the
+   exits 0 **locally**. In CI (`CI` set), or under `NARRATIVETRACE_REQUIRE_ALL=true`, the
    same missing binary exits 1 instead — see
    [A skipped scan is not a clean scan](#a-skipped-scan-is-not-a-clean-scan) below. The caller
    sees "tool absent", not "tool broken."
@@ -82,13 +82,13 @@ on-demand/scheduled entry points, not to a per-commit gate that must never touch
 A scanner whose binary can't be resolved used to warn and pass unconditionally — a green build
 that looked like "secrets/dependency scanning passed" when nothing was checked. This is the exact
 failure class release-retrospective rule 2 pins ("a graceful-skip tool must prove it has ever
-run"), and the one a 2026-09-08 adversarial audit found in the Java spec repo's own Gradle
+run"), and the one a 2026-09-08 adversarial audit found in another NarrativeTrace runtime's own
 scanner tasks. Since 2026-09-08, `scripts/run_security_tool.py` (both
 `poe secrets-scan` and `poe osv-scan`) behaves as follows when its binary is missing:
 
 - **Locally**: the task **warns** ("a skipped scan is NOT a clean scan") and still exits 0, so a
   machine without the tools keeps a working `check`/pre-commit.
-- **In CI (`CI` set), or under `NARRATIVETRACE_SECURITY_REQUIRED=true`**: the task **fails**
+- **In CI (`CI` set), or under `NARRATIVETRACE_REQUIRE_ALL=true`**: the task **fails**
   (exit 1) — a run meant to provide security assurance must mean the scan actually ran.
 - Every outcome is recorded under `build/reports/security-scans/<tool>.status` as `ran-clean` or
   `skipped: <reason>` (no file at all reads back as `never-ran`), so "ran clean" and "never ran"
@@ -97,6 +97,27 @@ scanner tasks. Since 2026-09-08, `scripts/run_security_tool.py` (both
 The decision logic lives in `scripts/run_security_tool.py`'s `decide_missing_binary`/
 `security_scanners_required`/`record_skipped`/`record_ran_clean`/`scan_status`, unit-tested in
 `packages/narrativetrace/tests/test_run_security_tool.py`.
+
+### The same rule inside `poe verify-all` (semgrep, pip-audit)
+
+`scripts/verify_all_security.py` used to record a missing **semgrep** or **pip-audit** as a
+sibling-tool note and pass the `sast`/`sca` row regardless — silently, and with no scheduled job
+that proved either had ever run. Since 2026-09-17:
+
+- A missing tool always prints `SKIPPED: <tool> not installed — …` on stderr, whatever the
+  context. A graceful skip nobody can see is the defect, not the skip.
+- `NARRATIVETRACE_REQUIRE_SEMGREP=1` / `NARRATIVETRACE_REQUIRE_PIP_AUDIT=1` (or the umbrella
+  `NARRATIVETRACE_REQUIRE_ALL=true`) turns that skip into a **failed** row, so
+  `poe verify-all` exits non-zero. A bare `CI` marker deliberately does *not*: unlike the
+  fetchable binaries above, these two live in the `security` dependency group that the
+  per-commit CI job does not install, so every push would fail over a tool it never meant to run.
+- The GitLab `semgrep` and `pip-audit` jobs — the contexts that *do* install that group — set
+  their flag, mirroring the `fuzz` job's `NARRATIVETRACE_REQUIRE_ATHERIS`. **A nightly or manual
+  `poe verify-all` on a machine with the `security` group installed must export both flags**, or
+  its `sast`/`sca` rows can still read as clean with neither tool having run.
+
+`tool_required`/`announce_missing_tool` are unit-tested in
+`packages/narrativetrace/tests/test_verify_all_security.py`.
 
 ## Bandit: what's skipped and why
 

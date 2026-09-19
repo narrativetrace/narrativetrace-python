@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+import pytest
+
 from narrativetrace import template as template_module
 from narrativetrace.markers import narrative_summary, not_traced_field
 from narrativetrace.template import find_unresolved, resolve
@@ -47,8 +49,13 @@ class TestPropertyPlaceholder:
     def test_attribute_access(self) -> None:
         assert resolve("total {o.total}", {"o": Order(5)}) == "total 5"
 
-    def test_property_access(self) -> None:
-        assert resolve("{o.label}", {"o": Order(5)}) == "big"
+    def test_computed_property_has_no_backing_field_so_it_stays_literal(self) -> None:
+        """The rendering rule (rendering/narration reads state, never runs behaviour): `label` is
+        a `@property` with no backing field of that name to read, so the placeholder is never
+        resolved by invoking it -- see `test_render_reads_state.py`'s
+        `TestNarrationTemplatePropertySideEffect` for the side-effecting case this generalizes.
+        Retires the pre-fix expectation this test used to pin (the property invoked, "big")."""
+        assert resolve("{o.label}", {"o": Order(5)}) == "{o.label}"
 
     def test_missing_object_preserves_literal(self) -> None:
         assert resolve("{o.total}", {"o": None}) == "{o.total}"
@@ -245,23 +252,31 @@ class TestWholeObjectPlaceholderRedaction:
 
 
 class Rogue:
-    """A value whose rendering blows up — a lazy proxy over a closed session, say."""
+    """A value whose rendering blows up — a lazy proxy over a closed session, say.
 
-    def __str__(self) -> str:
-        raise ValueError("__str__ exploded")
+    The hazard sits in the summary hook, one of the two pieces of user code rendering does run;
+    a hostile ``__str__`` on a class declaring no field is never called at all (``NonStrStr`` and
+    ``Recursive`` below cover that outcome)."""
+
+    def __init__(self) -> None:
+        self.session = "closed"
+
+    @narrative_summary
+    def summary(self) -> str:
+        raise ValueError("rendering exploded")
 
 
 class NonStrStr:
-    """``__str__`` returning a non-``str`` raises TypeError — the analogue of a null toString()."""
+    """``__str__`` returning a non-``str`` would raise TypeError at the call site — and nobody
+    calls it: the class declares no field, so it renders as its type name."""
 
     def __str__(self) -> str:
-        # noqa/ignore deliberate: this IS the defect under test — Python raises TypeError at the
-        # call site when __str__ returns a non-str, which is what the guard must absorb.
+        # noqa/ignore deliberate: a conversion this broken is exactly what must never be invoked.
         return None  # type: ignore[return-value]  # noqa: PLE0307
 
 
 class Recursive:
-    """A self-referential ``__str__`` — the analogue of Java's StackOverflowError case."""
+    """A self-referential ``__str__`` — unbounded recursion if anything ever called it."""
 
     def __str__(self) -> str:
         return str(self)
@@ -296,11 +311,12 @@ class HostileEnum(Enum):
 
 
 class TestRogueStr:
-    """``Rogue``/``NonStrStr``/``Recursive`` carry no instance state, so they stay leaves that
-    trust ``str()`` (see ``ValueRenderer._has_instance_state``) -- routed here through
-    :class:`~narrativetrace.rendering.ValueRenderer` (a non-scalar placeholder value always is),
-    which degrades a raising leaf to the typed error marker (owner ruling, 2026-09-11):
-    ``<error: <ExceptionTypeName>>``, never the value's own type name or the exception's message.
+    """A non-scalar placeholder value is always routed through
+    :class:`~narrativetrace.rendering.ValueRenderer`. Where rendering runs user code and that code
+    raises -- ``Rogue``'s summary hook -- the placeholder degrades to the typed error marker,
+    ``<error: <ExceptionTypeName>>``, never the exception's message. Where the hostile code is a
+    string conversion on a value declaring no field -- ``NonStrStr``, ``Recursive`` -- it is not
+    caught but never called: the value renders as its type name.
     """
 
     def test_simple_placeholder_degrades_to_typed_error_marker(self) -> None:
@@ -320,17 +336,11 @@ class TestRogueStr:
             == "Processing <error: ValueError>"
         )
 
-    def test_non_str_return_degrades_to_typed_error_marker(self) -> None:
-        assert (
-            resolve("Processing {payload}", {"payload": NonStrStr()})
-            == "Processing <error: TypeError>"
-        )
+    def test_a_non_str_returning_conversion_is_never_called(self) -> None:
+        assert resolve("Processing {payload}", {"payload": NonStrStr()}) == "Processing <NonStrStr>"
 
-    def test_recursive_str_degrades_to_type_marker(self) -> None:
-        assert (
-            resolve("Processing {payload}", {"payload": Recursive()})
-            == "Processing <error: RecursionError>"
-        )
+    def test_a_self_referential_conversion_is_never_called(self) -> None:
+        assert resolve("Processing {payload}", {"payload": Recursive()}) == "Processing <Recursive>"
 
     def test_other_placeholders_still_resolve_around_a_rogue_value(self) -> None:
         values = {"payload": Rogue(), "id": 7}
@@ -404,11 +414,24 @@ class TestParseCacheIsBounded:
     unbounded number of distinct templates grows it without limit.
     """
 
+    # Parses and resolves 10,000 distinct templates. HANG GUARD, not a timing assertion -- the
+    # test only checks the cache stayed bounded, never a duration. This is the exact site that
+    # forced the rule (Pro ledger #129): a "5x a contended sample" budget (0.8s) went red under
+    # ordinary scheduler starvation, because deriving *any* budget from a timing sample still
+    # makes wall-clock a test input -- there is always a worse sample. The fix is not a bigger
+    # sample, it's no sample: the documented 10s floor, fixed regardless of measurement.
+    @pytest.mark.timeout(10.0)
     def test_resolving_many_distinct_templates_does_not_grow_the_cache_unbounded(self) -> None:
         for i in range(10_000):
             resolve(f"template {i} {{n}}", {"n": i})
         assert template_module._parse.cache_info().currsize <= 512
 
+    # Parses and resolves 10,000 distinct templates to flood the cache. HANG GUARD, not a timing
+    # assertion -- the test only checks the pre-flood entry still resolves, never a duration, so
+    # the budget is the documented 10s floor, not a multiple of a timing sample (release
+    # retrospective rule 3 refinement, Pro ledger #129: this test's sibling above is the exact
+    # case where "5x a contended sample" still made wall-clock a test input).
+    @pytest.mark.timeout(10.0)
     def test_a_template_evicted_from_the_cache_still_resolves_correctly(self) -> None:
         resolve("hot {n}", {"n": "first"})
         for i in range(10_000):

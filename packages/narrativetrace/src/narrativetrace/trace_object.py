@@ -15,6 +15,13 @@ Guarantees pinned here (proxy-render §TS-PROXY-6, §TS-PIPE-3):
 * **fail-safe capture** — a throwing renderer/exit recorder (or capture setup) never masks the
   business result or the business exception, for both sync and ``async`` methods (the TypeScript
   runtime turned a success into a throw — this does not).
+* **render reentrancy guard** (cross-port finding, Java's ``RenderingGuard``) — a call made *by*
+  :class:`~narrativetrace.rendering.ValueRenderer` while rendering some other call's parameter or
+  return value (a ``@narrative_summary`` hook, or a stateless leaf's own ``__str__``, reaching a
+  method on an object that is itself a :func:`trace_object` proxy) also takes the fast path:
+  :func:`~narrativetrace.rendering.is_rendering` is checked alongside ``context.is_active()``, so
+  rendering never opens a span of its own. Genuine calls the traced method's own body makes are
+  unaffected — see :data:`narrativetrace.rendering._RENDERING`.
 """
 
 from __future__ import annotations
@@ -32,7 +39,7 @@ from narrativetrace.context import NarrativeContext
 from narrativetrace.decorators import MethodMetadata, read_method_metadata, resolve_error_context
 from narrativetrace.ids import SpanId
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
-from narrativetrace.rendering import ValueRenderer
+from narrativetrace.rendering import ValueRenderer, is_rendering
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.template import resolve as _resolve_template
 
@@ -156,7 +163,7 @@ class _TracedProxy:
 
         @functools.wraps(getattr(bound_method, "__func__", bound_method))
         def wrapper(*args: object, **kwargs: object) -> Any:
-            if not context.is_active():
+            if not context.is_active() or is_rendering():
                 return bound_method(*args, **kwargs)
             try:
                 signature, value_map = _build_capture(
@@ -229,7 +236,7 @@ def _redacted_params(
     reports -- which, for a bound method, already excludes ``self``, so ``self`` can never appear
     in ``sig.parameters`` and never reaches ``redaction_policy`` here.
 
-    **Monotonicity floor (owner ruling).** ``RedactionPolicy.DEFAULT`` is unioned in
+    **Monotonicity floor.** ``RedactionPolicy.DEFAULT`` is unioned in
     unconditionally alongside ``redaction_policy`` -- a caller's policy may only ADD to what
     redacts here, never replace the built-in floor. ``RedactionPolicy.of_patterns(...)`` replaces
     a policy's vocabulary entirely rather than extending it, and reaches this function directly

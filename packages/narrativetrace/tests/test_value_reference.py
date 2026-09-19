@@ -11,6 +11,8 @@ any difference renders in full.
 
 from __future__ import annotations
 
+import pytest
+
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Returned
 from narrativetrace.render.markdown import MarkdownRenderer
@@ -172,6 +174,12 @@ class TestDepthAndCycleBounds:
         node.children.append(node)  # a hand-built cycle: nothing in the dataclass prevents this
         ValueReferenceIndex.build(TraceTree([node]))  # must not raise RecursionError
 
+    # Builds a 10,000-deep chain and indexes it. HANG GUARD, not a timing assertion -- the test
+    # only checks the build does not raise, never a duration, so the budget is the documented 10s
+    # floor, not a multiple of a timing sample (release retrospective rule 3 refinement, Pro
+    # ledger #129: "5x a contended sample" still makes wall-clock a test input --
+    # TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_does_not_overflow_the_stack(self) -> None:
         node = _leaf("Svc", "leaf", "x")
         for _ in range(10_000):

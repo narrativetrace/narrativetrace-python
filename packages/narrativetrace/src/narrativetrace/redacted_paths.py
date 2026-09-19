@@ -19,14 +19,22 @@ name, and whether the member it names is marked ``@not_traced`` on its live owne
 A segment naming no member stops the walk and redacts nothing: a placeholder matching no member is
 an authoring typo, and treating it as redacted would hide the unresolved-placeholder warning that
 exists to catch it. Nothing can leak either way — a path that names nothing resolves to nothing.
+
+**Rendering reads state, never runs behaviour** applies here too: a segment's existence and its
+redaction verdict are both decided without ever invoking whatever it names — an existing
+``@property`` decides redaction by NAME alone, exactly like a member with no backing field at all
+(:func:`~narrativetrace.rendering.read_backing_field` cannot read either), so ``{user.secret}``
+resolves to ``[REDACTED]`` without ``secret`` ever running. Only when the walk must continue past
+a segment (a further ``.`` in the path) is that segment's actual STATE read, never its accessor —
+and only when it has one to read; a computed property with nothing further to walk into simply
+stops the walk, same as a missing member.
 """
 
 from __future__ import annotations
 
 from narrativetrace.markers import is_field_not_traced
 from narrativetrace.redaction import RedactionPolicy
-
-_MISSING = object()
+from narrativetrace.rendering import STATE_MISSING, read_backing_field
 
 
 def redacts(root: object, path: str, policy: RedactionPolicy) -> bool:
@@ -48,23 +56,12 @@ def redacts(root: object, path: str, policy: RedactionPolicy) -> bool:
         if current is None:
             return False
         owner_type = type(current)
-        value = _resolve_segment(current, segment)
-        if value is _MISSING:
-            return False
+        value = read_backing_field(current, segment)
+        if value is STATE_MISSING and not hasattr(owner_type, segment):
+            return False  # no member of that name at all -- an authoring typo, not a secret
         if policy.is_redacted(segment, annotated=is_field_not_traced(owner_type, segment)):
             return True
+        if value is STATE_MISSING:
+            return False  # a computed property with no state to continue the walk into
         current = value
     return False
-
-
-def _resolve_segment(owner: object, segment: str) -> object:
-    """Reads ``segment`` off ``owner``, invoking a zero-arg accessor method if that is what it
-    names — the same convention ``template.py`` resolves with. A missing member or a raising
-    accessor both stop the walk the same way: neither can tell the caller anything about what, if
-    anything, lies beneath it.
-    """
-    try:
-        value = getattr(owner, segment)
-        return value() if callable(value) else value
-    except Exception:
-        return _MISSING

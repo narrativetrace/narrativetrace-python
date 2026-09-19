@@ -43,19 +43,19 @@ class TestDecideMissingBinary:
 class TestSecurityScannersRequired:
     def test_false_with_neither_env_var_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.delenv("NARRATIVETRACE_SECURITY_REQUIRED", raising=False)
+        monkeypatch.delenv("NARRATIVETRACE_REQUIRE_ALL", raising=False)
 
         assert security_scanners_required() is False
 
     def test_true_when_ci_is_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CI", "true")
-        monkeypatch.delenv("NARRATIVETRACE_SECURITY_REQUIRED", raising=False)
+        monkeypatch.delenv("NARRATIVETRACE_REQUIRE_ALL", raising=False)
 
         assert security_scanners_required() is True
 
     def test_true_when_the_explicit_flag_is_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setenv("NARRATIVETRACE_SECURITY_REQUIRED", "true")
+        monkeypatch.setenv("NARRATIVETRACE_REQUIRE_ALL", "true")
 
         assert security_scanners_required() is True
 
@@ -63,7 +63,7 @@ class TestSecurityScannersRequired:
         # GitLab/GitHub Actions runners set CI to a truthy string; a locally exported-but-empty
         # CI must not accidentally flip a developer machine into required mode.
         monkeypatch.setenv("CI", "")
-        monkeypatch.delenv("NARRATIVETRACE_SECURITY_REQUIRED", raising=False)
+        monkeypatch.delenv("NARRATIVETRACE_REQUIRE_ALL", raising=False)
 
         assert security_scanners_required() is False
 

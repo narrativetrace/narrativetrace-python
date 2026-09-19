@@ -41,7 +41,14 @@ packages = ["src/narrativetrace"]
 [tool.mutmut]
 source_paths = ["src/narrativetrace/"]
 also_copy = ["tests/"]
-pytest_add_cli_args_test_selection = ["tests/"]
+# "not distribution" deselects the tests marked `distribution`: they build real wheels/sdists via
+# `uv build`, which an offline mutation run cannot do once its build backend is not already
+# cached -- a distribution test proves packaging, not code under mutation, and has no place in
+# this baseline (it still runs in the ordinary test suite). "not stress" is restated here, not
+# just "not distribution" added, because pytest keeps only the LAST -m it sees rather than
+# combining several -m flags -- a bare "not distribution" here would silently override the root
+# addopts' own "not stress" and let the concurrency stress suite back into every mutation run.
+pytest_add_cli_args_test_selection = ["tests/", "-m", "not stress and not distribution"]
 # The plugin distribution imports narrativetrace at plugin-load time, before the mutated copy is on
 # sys.path — loading it would test the installed package instead of the mutant.
 pytest_add_cli_args = ["-p", "no:narrativetrace"]

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import pytest
 from narrativetrace_otel import TraceSpanExporter
 from opentelemetry.trace import StatusCode
 from otel_harness import Harness
@@ -196,6 +197,12 @@ class TestDepthAndCycleBounds:
         TraceSpanExporter(otel.tracer).export([node])  # must not raise RecursionError
         assert otel.attrs(otel.named("S.self"))["narrative.truncated"] == "cycle"
 
+    # Builds and exports a 10,000-deep chain. HANG GUARD, not a timing assertion -- the test only
+    # checks the export was truncated, never a duration, so the budget is the documented 10s
+    # floor, not a multiple of a timing sample (release retrospective rule 3 refinement, Pro
+    # ledger #129: "5x a contended sample" still makes wall-clock a test input --
+    # TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self, otel: Harness) -> None:
         node = _node("S", "leaf", Returned("x"))
         for _ in range(10_000):

@@ -88,7 +88,7 @@ def _as_int(value: object, what: str) -> int:
 
 
 def _required(body: dict[str, Any], key: str) -> Any:
-    """Reads a key that must be present; an explicit ``null`` counts as missing, as in Java."""
+    """Reads a key that must be present; an explicit ``null`` counts as missing."""
     value = body.get(key)
     if value is None:
         raise ValueError(f"missing required key '{key}'")

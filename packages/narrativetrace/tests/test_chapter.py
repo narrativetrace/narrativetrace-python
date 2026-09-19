@@ -231,6 +231,12 @@ class TestDepthAndCycleBounds:
         node.children.append(node)  # a hand-built cycle: nothing in the dataclass prevents this
         assert _chapter(node)["nt.entryCount"] >= 1
 
+    # Builds and walks a 10,000-deep chain. HANG GUARD, not a timing assertion -- the test only
+    # checks the entry count stays in range, never a duration, so the budget is the documented
+    # 10s floor, not a multiple of a timing sample (release retrospective rule 3 refinement, Pro
+    # ledger #129: "5x a contended sample" still makes wall-clock a test input --
+    # TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
         node = _root(children=[], span_context=None)
         for _ in range(10_000):

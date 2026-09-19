@@ -3,7 +3,7 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """``narrativetrace doctor`` — read-only, zero-network diagnosis of a project's NarrativeTrace
-install and configuration *(since 0.1.2, unreleased)*.
+install and configuration.
 
 Mirrors the TypeScript runtime's ``@narrativetrace/cli`` doctor (``packages/cli/src/doctor/``):
 eleven checks with stable, dotted ids, a pure :class:`~narrativetrace.doctor.types.DoctorCheck`

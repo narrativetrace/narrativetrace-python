@@ -30,9 +30,16 @@ dev = [
     "starlette>=0.37",
     "httpx>=0.27",
     "structlog>=24",
+    # examples/sixty_seconds/main_with_loguru.py + the Logging Guide's Loguru section only --
+    # never a runtime dependency of any published package (the core stays dependency-free).
+    "loguru>=0.7.3",
     "pytest>=8",
     "pytest-cov>=5",
     "pytest-benchmark>=4",
+    # Deep-fixture (10,000+/50,000+ node chain/tree) stack-safety tests declare an explicit
+    # `@pytest.mark.timeout(<n>)` budget rather than relying on wall-clock/scheduler luck
+    # (release-retrospective rule 3) -- see scripts/deep_fixture_budget.py.
+    "pytest-timeout>=2",
     "hypothesis>=6",
     # Conformance only: the canonical artifacts are validated against schema/*.schema.json in the
     # test suite. A DEV dependency by design — the core distribution stays dependency-free.
@@ -82,22 +89,30 @@ help = "Lint (no fixes)"
 cmd = "mypy"
 help = "Type-check with mypy --strict"
 
+# Wrapped in tree-writes-guard: a test that asks a question by performing it (a "sync pending?"
+# check that syncs for real) must fail the run, not exit clean with the tracked tree rewritten
+# underneath it -- see scripts/tree_writes_guard.py.
 [tool.poe.tasks.coverage]
-cmd = "pytest --cov --cov-report=term-missing"
+cmd = "python scripts/tree_writes_guard.py pytest --cov --cov-report=term-missing"
 help = "Run tests under coverage with a fail-under threshold"
 
+# Every mutate task goes through scripts/mutation_workers.py, never `mutmut run` directly: mutmut
+# sizes its worker pool from the HOST's cores, so on a cgroup-quota'd container it oversubscribes
+# (2026-09-17 Linux nightly finding F3). The script derives --max-children from
+# NT_MUTATION_WORKERS, else the container's own cpu.max quota, and keeps each task's cwd -- and
+# therefore each task's own [tool.mutmut] config.
 [tool.poe.tasks.mutate]
-cmd = "mutmut run"
+cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
 cwd = "packages/narrativetrace"
 help = "Mutation testing (config in packages/narrativetrace/pyproject.toml)"
 
 [tool.poe.tasks.mutate-glossary]
-cmd = "mutmut run"
+cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
 cwd = "packages/narrativetrace-glossary"
 help = "Mutation testing for the glossary distribution (config in its own pyproject.toml)"
 
 [tool.poe.tasks.mutate-skills]
-cmd = "mutmut run"
+cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
 cwd = "packages/narrativetrace-skills/evals"
 help = """Mutation testing for the Tier B eval runner (run.py, quota.py, platform_presets.py, \
 tier_precondition.py; config in packages/narrativetrace-skills/evals/pyproject.toml -- mutmut \
@@ -165,8 +180,9 @@ Hypothesis fuzz of both hostile-corpus targets everywhere/always -- and asserts 
 examples/executions actually run, so a suspiciously fast/small run fails instead of reading as \
 success."""
 
+# Wrapped in tree-writes-guard, same reason as `coverage` above.
 [tool.poe.tasks.stress-quick]
-cmd = """pytest -m stress \
+cmd = """python scripts/tree_writes_guard.py pytest -m stress \
     packages/narrativetrace/tests/test_pipeline_stress.py \
     packages/narrativetrace/tests/test_context_stress.py"""
 help = """Concurrency stress suite, quick/seeded mode: wired into poe check, finishes in seconds \
@@ -345,6 +361,34 @@ to a real heading, and every '*(since X.Y.Z, unreleased)*' marker in the English
 matching contract.yaml entry -- see documentation/contract-gate.md. The registry-backed half \
 (contract-probe/ against a real PyPI install) is 'python -m scripts.contract_check', nightly only."""
 
+[tool.poe.tasks.comment-hygiene]
+cmd = "python scripts/comment_hygiene.py"
+help = """Per-commit lint against audit-ledger history and port-framing left behind in code \
+comments: walks packages/*/src/**/*.py, fails on an owner-ruling citation, a bare audit date, or \
+shipped-release wording, and on Java-port-framing inside a comment, excusing exactly the files \
+named in scripts/comment-hygiene-allowlist.json (file -> reason) -- also fails on a stale \
+allowlist entry (a file the allowlist excuses that no longer has any hit)."""
+
+[tool.poe.tasks.deep-fixture-budget]
+cmd = "python scripts/deep_fixture_budget.py"
+help = """Per-commit gate: every test_* building a 10,000+/50,000+ node chain/tree fixture (a \
+range(10_000|50_000) loop or a known chain/nest_lists builder call) must declare its own \
+@pytest.mark.timeout(<n>) -- release retrospective rule 3, wall-clock is never an implicit test \
+input. Excusing exactly the test ids named in scripts/deep-fixture-budget-allowlist.json (test \
+id -> reason) -- also fails on a stale allowlist entry (a test id the allowlist excuses that is \
+no longer a large-fixture test)."""
+
+[tool.poe.tasks.timeout-floor]
+cmd = "python scripts/timeout_floor.py"
+help = """Per-commit gate: every @pytest.mark.timeout(<n>) marker meets the documented 10s \
+hang-guard floor -- release retrospective rule 3 refinement (Pro ledger #129): a timeout on a \
+test whose assertion is not about time is a hang guard, not a tolerance, and must never be \
+derived from a timing sample ("5x a contended sample" still makes wall-clock a test input -- \
+TestParseCacheIsBounded went red under scheduler starvation at a sample-derived 0.8s budget). \
+Excusing exactly the test ids named in scripts/timeout-floor-allowlist.json (test id -> reason) \
+-- also fails on a stale allowlist entry (a test id the allowlist excuses that no longer carries \
+a sub-floor marker)."""
+
 [tool.poe.tasks.skills-check]
 cmd = "python scripts/skills_render.py --check"
 help = """Agent-skills build-output gate: .claude/skills/{doctor,add}/SKILL.md and this \
@@ -369,7 +413,8 @@ help = "Regenerates packages/narrativetrace-skills/ledger/promotion.md from ledg
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
-duplication-check + contract-lint + bandit + skills-check + promotion-check"""
+duplication-check + contract-lint + comment-hygiene + deep-fixture-budget + timeout-floor + \
+bandit + skills-check + promotion-check"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -385,6 +430,9 @@ sequence = [
     { ref = "legal-check" },
     { ref = "duplication-check" },
     { ref = "contract-lint" },
+    { ref = "comment-hygiene" },
+    { ref = "deep-fixture-budget" },
+    { ref = "timeout-floor" },
     { ref = "bandit" },
     { ref = "skills-check" },
     { ref = "promotion-check" },
@@ -448,6 +496,9 @@ max-returns = 8
 # Same reason as export_to_logger_probe.py above: narrativetrace.doctor does not exist at all in
 # the 0.1.1 wheel's public API, so this import is also deferred into observe().
 "contract-probe/src/contract_probe/probes/narrativetrace_doctor_probe.py" = ["PLC0415"]
+# Same reason as export_to_logger_probe.py above: export_to_logger does not exist at all in the
+# 0.1.1 wheel's public API, so this import is deferred into _replay_at_critical().
+"contract-probe/src/contract_probe/probes/logger_threshold_does_not_shrink_capture_probe.py" = ["PLC0415"]
 
 [tool.bandit]
 # `poe bandit` targets packages/examples/scripts explicitly (never the whole repo root), so this
@@ -493,17 +544,18 @@ files = [
     "packages/narrativetrace-skills/evals",
     "examples",
 ]
-mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src:packages/narrativetrace-skills/src"
+mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src:packages/narrativetrace-skills/src:contract-probe/src"
 # examples/sixty_seconds/main*.py are excluded, not silenced: they are the "See a trace in 60
-# seconds" page's code blocks (documentation/sixty-seconds.md) and documentation/llms.txt's
-# "Install and first trace" block (main_llms.py), byte-identical on purpose (rule 8, docs as
-# tests) -- a beginner's untyped script, not this repo's own typed example style every other
-# examples/* module follows. test_sixty_seconds.py stays checked like any other test module.
+# seconds" page's code blocks (documentation/sixty-seconds.md), documentation/llms.txt's
+# "Install and first trace" block (main_llms.py), and the Logging Guide's Loguru section
+# (main_with_loguru.py), byte-identical on purpose (rule 8, docs as tests) -- a beginner's
+# untyped script, not this repo's own typed example style every other examples/* module follows.
+# test_sixty_seconds.py stays checked like any other test module.
 # The redaction-gap eval fixture is the same class of thing: a deliberately minimal Tier B
 # fixture script, not this repo's own typed source style.
 exclude = [
     '(^|/)conftest\.py$',
-    'examples/sixty_seconds/main(_with_logger|_llms)?\.py$',
+    'examples/sixty_seconds/main(_with_logger|_llms|_with_loguru)?\.py$',
     'packages/narrativetrace-skills/evals/fixtures/redaction-gap/main\.py$',
 ]
 
@@ -534,6 +586,7 @@ norecursedirs = ["mutants", "*.egg", ".*", "_darcs", "build", "CVS", "dist", "no
 addopts = "-q -p no:narrativetrace -m \"not stress\" --benchmark-skip"
 markers = [
     "stress: high-repetition concurrency race tests (excluded from the default run; poe stress-quick / poe stress)",
+    "distribution: builds real wheels/sdists via `uv build` (excluded from the mutation baseline only; poe check still runs it)",
 ]
 
 [tool.coverage.run]

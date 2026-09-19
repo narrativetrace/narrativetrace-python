@@ -10,10 +10,13 @@ tree (see its own comment: "exists ONLY in the published snapshot; nothing in th
 carries it"). Nothing enforced that convention on the private side, so a header pasted into a
 source file in-tree by mistake would sit there, unnoticed and going stale, until publish time.
 
-Scope is every git-tracked `*.py` file — a header *block* at the top of the file, not a string
-mention anywhere in it: `packages/narrativetrace/tests/test_distribution_licensing.py` legitimately
-asserts on `"BUSL-1.1"` and `"License-File: LICENSE"` deep in the file body, which is exactly why
-only the first few lines are scanned.
+Scope is every git-tracked `*.py` and `*.sh` file — the two kinds this repository's own tracked
+sources come in, and both are stamped by the publish pipeline — a header *block* at the top of
+the file, not a string mention anywhere in it:
+`packages/narrativetrace/tests/test_distribution_licensing.py` legitimately asserts on
+`"BUSL-1.1"` and `"License-File: LICENSE"` deep in the file body, which is exactly why only the
+first few lines are scanned. A `.py`-only scan would miss a header on a shell script, and the
+publish pipeline stamps those just the same, so the scope names both kinds.
 """
 
 from __future__ import annotations
@@ -45,42 +48,47 @@ HEADER_PATTERN = re.compile(
 # conftest.py/conformance.py live directly at the repo root, so that one level is walked too.
 _FALLBACK_SCOPE_DIRS = ("packages", "examples", "scripts")
 _FALLBACK_EXCLUDE_DIRS = frozenset({".venv", "build", "dist", "__pycache__", "mutants", ".git"})
+# Both kinds are stamped unconditionally by the publish pipeline's header loop, so the
+# all-or-nothing policy in `find_offenders` holds across the combined list.
+SOURCE_GLOBS = ("*.py", "*.sh")
 
 
-def _walk_python_files(repo_root: Path) -> list[Path]:
+def _walk_source_files(repo_root: Path) -> list[Path]:
     """Fallback for a checkout with no `.git` (see the module comment above)."""
-    files = [path.relative_to(repo_root) for path in repo_root.glob("*.py")]
-    for scope in _FALLBACK_SCOPE_DIRS:
-        scope_dir = repo_root / scope
-        if not scope_dir.is_dir():
-            continue
-        for path in scope_dir.rglob("*.py"):
-            relative = path.relative_to(repo_root)
-            if _FALLBACK_EXCLUDE_DIRS & set(relative.parts):
+    files: list[Path] = []
+    for glob in SOURCE_GLOBS:
+        files.extend(path.relative_to(repo_root) for path in repo_root.glob(glob))
+        for scope in _FALLBACK_SCOPE_DIRS:
+            scope_dir = repo_root / scope
+            if not scope_dir.is_dir():
                 continue
-            files.append(relative)
+            for path in scope_dir.rglob(glob):
+                relative = path.relative_to(repo_root)
+                if _FALLBACK_EXCLUDE_DIRS & set(relative.parts):
+                    continue
+                files.append(relative)
     return sorted(files)
 
 
-def tracked_python_files(repo_root: Path) -> list[Path]:
-    """Every git-tracked `*.py` file, as paths relative to `repo_root` -- or, wherever
-    `git ls-files` cannot answer (no `.git` at all, git missing, or git refusing the
-    repository, e.g. a container job's dubious-ownership rejection), every `*.py` file in
-    this repo's own source scope (see `_walk_python_files`)."""
+def tracked_source_files(repo_root: Path) -> list[Path]:
+    """Every git-tracked `*.py` and `*.sh` file, as paths relative to `repo_root` -- or,
+    wherever `git ls-files` cannot answer (no `.git` at all, git missing, or git refusing the
+    repository, e.g. a container job's dubious-ownership rejection), every such file in this
+    repo's own source scope (see `_walk_source_files`)."""
     if not (repo_root / ".git").exists():
-        return _walk_python_files(repo_root)
+        return _walk_source_files(repo_root)
     try:
         result = subprocess.run(  # nosec B603, B607 # fixed argv, no shell, no untrusted input
-            ["git", "ls-files", "--", "*.py"],
+            ["git", "ls-files", "--", *SOURCE_GLOBS],
             cwd=repo_root,
             capture_output=True,
             text=True,
             check=False,
         )
     except OSError:
-        return _walk_python_files(repo_root)
+        return _walk_source_files(repo_root)
     if result.returncode != 0:
-        return _walk_python_files(repo_root)
+        return _walk_source_files(repo_root)
     return [Path(line) for line in result.stdout.splitlines() if line]
 
 
@@ -99,7 +107,7 @@ def find_offenders(repo_root: Path) -> list[Path]:
     mistake while its siblings carry none. Stamping is all-or-nothing by construction
     (the publish pipeline's header loop runs over every matching file, unconditionally), so a
     partial result outside those two tests is always exactly the drift this gate is for."""
-    files = tracked_python_files(repo_root)
+    files = tracked_source_files(repo_root)
     stamped = [path for path in files if carries_a_header_block(path, repo_root)]
     if not stamped or len(stamped) == len(files):
         return []
@@ -107,7 +115,7 @@ def find_offenders(repo_root: Path) -> list[Path]:
 
 
 def main() -> int:
-    files = tracked_python_files(REPO_ROOT)
+    files = tracked_source_files(REPO_ROOT)
     offenders = find_offenders(REPO_ROOT)
     if offenders:
         print(
@@ -120,11 +128,11 @@ def main() -> int:
     stamped = sum(1 for path in files if carries_a_header_block(path, REPO_ROOT))
     if files and stamped == len(files):
         print(
-            f"OK: all {len(files)} tracked .py files carry a header block -- a stamped, "
+            f"OK: all {len(files)} tracked .py/.sh files carry a header block -- a stamped, "
             "publish-time snapshot (the publish pipeline's --verify build), not a finding."
         )
     else:
-        print(f"OK: no license headers in {len(files)} tracked .py files.")
+        print(f"OK: no license headers in {len(files)} tracked .py/.sh files.")
     return 0
 
 

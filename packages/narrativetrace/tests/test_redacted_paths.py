@@ -89,20 +89,35 @@ class TestRedacts:
     def test_none_root_redacts_nothing(self) -> None:
         assert not redacts(None, "cvv", RedactionPolicy.DEFAULT)
 
-    def test_a_raising_accessor_stops_the_walk_and_redacts_nothing(self) -> None:
+    def test_a_property_with_a_side_effect_is_never_invoked_and_stops_the_walk(self) -> None:
+        """`card` has no backing field on `Broken` -- only the property -- so `redacts` never
+        touches it at all (not even to catch a raise): the walk simply has no state to continue
+        into and stops, same as any other computed property with nothing to read."""
+        calls = []
+
         class Broken:
             @property
             def card(self) -> Card:
+                calls.append(1)
                 raise RuntimeError("no")
 
         assert not redacts(Broken(), "card.cvv", RedactionPolicy.DEFAULT)
+        assert calls == []
 
-    def test_a_zero_arg_method_is_invoked_to_continue_the_walk(self) -> None:
+    def test_a_zero_arg_method_is_never_invoked_to_continue_the_walk(self) -> None:
+        """The rendering rule (rendering/narration reads state, never runs behaviour): `card` has
+        no backing field on `Wrapper` -- only a method -- so there is no state to continue the
+        walk into, and the walk stops without ever calling `card()`. Retires the pre-fix
+        expectation this test used to pin (the method invoked to reach `cvv`)."""
+        calls = []
+
         class Wrapper:
             def card(self) -> Card:
+                calls.append(1)
                 return Card("4111", "123")
 
-        assert redacts(Wrapper(), "card.cvv", RedactionPolicy.DEFAULT)
+        assert not redacts(Wrapper(), "card.cvv", RedactionPolicy.DEFAULT)
+        assert calls == []
 
     def test_a_disabled_policy_still_honours_the_annotation(self) -> None:
         assert redacts(Card("4111", "123"), "cvv", RedactionPolicy.DISABLED)
@@ -115,10 +130,10 @@ class TestEmptyPathSegment:
     """A security fuzz suite finding, redaction-walk side: Java's ``RedactedPaths.member`` calls
     ``findAccessor`` directly, bypassing the normal resolver's broad catch, so an empty path
     segment (a trailing/leading/doubled dot) raised there even after the resolver itself was
-    already typo-tolerant. Verified this runtime has no equivalent gap: ``_resolve_segment``'s
-    ``getattr(owner, "")`` fails through the existing ``except Exception`` like any other missing
-    member, so every shape below already stops the walk and redacts nothing. Pins the behaviour,
-    no production change."""
+    already typo-tolerant. Verified this runtime has no equivalent gap: an empty segment names no
+    member of anything (``read_backing_field`` finds no such state, and ``hasattr(owner_type, "")``
+    is false too), so every shape below already stops the walk and redacts nothing. Pins the
+    behaviour, no production change."""
 
     def test_an_empty_segment_stops_the_walk_and_redacts_nothing(self) -> None:
         assert not redacts(Card("4111", "123"), "", RedactionPolicy.DEFAULT)

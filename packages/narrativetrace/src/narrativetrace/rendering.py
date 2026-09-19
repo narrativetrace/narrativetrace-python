@@ -15,20 +15,19 @@ method hook. Every string leaf is control-sanitised.
 
 **Native stringification is never trusted for a composite** (family-wide fix, 2026-09-11): a
 plain object exposing instance state (``__dict__`` or ``__slots__``) is introspected field-by-field
-regardless of a custom ``__str__``/``__repr__`` override -- only a genuine leaf (no instance state
-at all: a number, a string, a payload-free enum, ...) still trusts ``str()``. Before this fix,
-``_introspectable`` asked only "does this type override ``__str__``", so a hand-written
-``__str__`` that interpolated a sensitive field (or a nested object's own hostile ``__str__``) ran
-completely unmediated -- past redact-by-name, the deny-list, depth caps, everything. Dict KEYS are
+regardless of a custom ``__str__``/``__repr__`` override. Before this fix, the shape decision asked
+only "does this type override ``__str__``", so a hand-written ``__str__`` that interpolated a
+sensitive field (or a nested object's own hostile ``__str__``) ran completely unmediated -- past
+redact-by-name, the deny-list, depth caps, everything. Dict KEYS are
 rendered through this same pipeline (redaction-by-name and introspection both apply to a key, not
 just its value), rather than a bare ``str(key)`` that bypassed every guard unconditionally. When a
 ``@narrative_summary`` method, a custom ``__str__``, or an object's own field getter raises, that
 one part renders ``<error: <TypeName>>`` -- the exception's own type name, never ``str(exc)``
 (a message can carry the very value that failed to render).
 
-**Platform-defined types are trusted for native stringification even though they carry state**
-*(since 0.1.2, unreleased)*: the 2026-09-11 fix above is correct for application types but too
-broad for the standard library's own value types -- ``pathlib.Path``, ``datetime``,
+**Platform-defined types are trusted for native stringification even though they carry state**:
+the "never trust a composite's own stringification" rule above is correct for application types
+but too broad for the standard library's own value types -- ``pathlib.Path``, ``datetime``,
 ``decimal.Decimal``, ``uuid.UUID``, ``fractions.Fraction`` and ``ipaddress.*`` all carry instance
 state (populated ``__slots__``) and were walked field-by-field into unreadable or inaccessible
 output. ``_is_platform_type`` decides by ORIGIN, never by name: a type whose ``__module__`` names
@@ -41,13 +40,24 @@ defining class loader) and .NET's (keyed on defining assembly); the trusted text
 scanned, escaped and capped, and still redacted by field NAME first -- a field or parameter named
 ``token`` typed ``pathlib.Path`` still renders ``[REDACTED]``.
 
-Depth limiting (a security fuzz suite finding, mirrors Java's ``RenderWalk``): an identity-based
-cycle guard answers "have I been here before", never "how deep am I" -- a linear chain of distinct
-objects never repeats an identity, so the guard alone let a 10,000-node chain recurse Python's
-interpreter past its stack limit, escaping as an uncaught ``RecursionError``. ``MAX_DEPTH`` (32,
-matching the Java fix) is the fourth cap beside the 200-character string limit, the 5-element
-collection limit and the 5-field object limit; a value beyond it renders as ``<max-depth>`` --
-unreached, so a redacted component past the cap is never printed, not even partially.
+**Platform origin is the ONLY thing that earns a value its own string conversion** -- never "this
+value has no field I can see". Carrying no readable instance state used to be read as "a stateless
+leaf", the one shape whose own ``str()`` rendering may call, and that inference is false: a
+``ctypes.Structure`` subclass holds its fields in C-level descriptors, an extension type holds
+them in a C struct, an ordinary class can hold them in a module-level table keyed by identity or
+in a closure -- ``vars()`` is empty for all three while their own ``__repr__`` prints every field
+they hold, straight past redaction into the trace. Emptiness is therefore not evidence of nothing
+to hide; it is most often evidence of state this renderer cannot reach. Such a value renders as
+its type name alone (``<TypeName>``): visible as a value, bounded, unread. See :func:`_shape_of`,
+the single decision both channels share.
+
+Depth limiting (a security fuzz suite finding): an identity-based cycle guard answers "have I been
+here before", never "how deep am I" -- a linear chain of distinct objects never repeats an
+identity, so the guard alone let a 10,000-node chain recurse Python's interpreter past its stack
+limit, escaping as an uncaught ``RecursionError``. ``MAX_DEPTH`` (32) is the fourth cap beside the
+200-character string limit, the 5-element collection limit and the 5-field object limit; a value
+beyond it renders as ``<max-depth>`` -- unreached, so a redacted component past the cap is never
+printed, not even partially.
 
 ``NamedTuple`` is introspected by field name rather than rendered as an anonymous positional
 collection (the template-resolution family, Java's wrapper-``toString()`` bug class applied to a
@@ -60,10 +70,12 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextvars
 import dataclasses
 import inspect
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Iterable, Iterator
+from contextlib import contextmanager
 from enum import Enum
 from typing import Any, ClassVar
 
@@ -87,7 +99,23 @@ _DEFAULT_MAX_OBJECT_FIELDS = 5
 
 _NARRATIVE_SUMMARY_ATTR = "__nt_narrative_summary__"
 
+_ELEMENTS_HOOK = "__narrative_elements__"
+"""The third sanctioned rendering hook (the rendering rule: rendering reads state, never runs
+behaviour), alongside ``@narrative_summary`` and a platform value's own ``__str__``: a type
+declaring this dunder method is trusted to enumerate its own elements -- the one case this
+renderer runs a type's own iteration, because the author declared it pure. Checked ahead of the
+platform-origin collection/map dispatch in :meth:`ValueRenderer._render_if_enumerable`, guarded by
+the same cycle detection, capped by the same :attr:`ValueRenderer.max_collection_items`, and
+totality-guarded like every other element walk -- a throwing hook degrades to the typed
+``<error: TypeName>`` marker, never the object's own fields."""
+
 _COLLECTION_TYPES = (list, tuple, set, frozenset)
+
+STATE_MISSING = object()
+"""Sentinel returned by :func:`read_backing_field` when a name names no readable state -- a
+genuinely computed ``@property``, a missing member, or a zero-arg method with nothing stored
+under that name. Public: :mod:`narrativetrace.template` and :mod:`narrativetrace.redacted_paths`
+both need to tell "no state to read" apart from a real, stored ``None``."""
 
 _TOO_DEEP = "<max-depth>"
 
@@ -97,6 +125,75 @@ _HEAP_TYPE_FLAG = 1 << 9
 """``Py_TPFLAGS_HEAPTYPE``: set on every ordinary Python class, clear only on a type allocated
 statically inside the interpreter (``int``, ``str``, ``datetime.datetime``, ...). A stable CPython
 ABI flag, not a private implementation detail."""
+
+_RENDERING: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "narrativetrace_rendering", default=False
+)
+"""Marks that a :class:`ValueRenderer` public entry point is executing right now, on the current
+thread or asyncio task (cross-port finding, Java's ``RenderingGuard``).
+
+Java's bug: reflectively invoking a *woven* record accessor during parameter/return capture ran
+that accessor's own instrumented bytecode, opening a span for a call the application never made.
+Python has no bytecode weaving -- tracing here is entirely :func:`~narrativetrace.trace_object
+.trace_object`'s proxy -- but the same shape of hazard reaches it differently: a value being
+rendered exposes a hook that runs arbitrary application code (the ``@narrative_summary`` method,
+or -- for a value whose ORIGIN earns it its own text, since neither a composite's nor a fieldless
+value's ``__str__``/``__repr__`` is trusted, see the module docstring -- that own ``__str__``,
+which an enum member or a platform subclass can still override), and that hook calls a method on
+an object held as a field or closure that is itself wrapped by ``trace_object``. Calling that
+wrapped method through ``_TracedProxy.__getattr__`` genuinely dispatches into the proxy's call
+wrapper, opening and closing a real span for it -- attributed as a root when rendering runs during
+parameter capture (before ``enter_method``), or nested under the very call being rendered when it
+runs on the return value (rendered while that call's own span is still the active-stack top, before
+``exit_method_with_return`` pops it).
+
+Checked by :func:`~narrativetrace.trace_object.trace_object`'s call wrapper (:func:`is_rendering`)
+right alongside ``context.is_active()`` -- the same fast-path shape, one more condition -- so a
+call made *by* rendering delegates raw instead of opening a span. Genuine calls the traced method's
+own BODY makes are unaffected: the flag is only ever set for the duration of a
+:class:`ValueRenderer` entry point, never for the traced call itself.
+
+A :class:`contextvars.ContextVar`, not a plain module global or a bare ``threading.local``: a
+fresh thread gets its own copy for free (Python threads do not share a ``Context`` by default),
+and an asyncio task gets an isolated copy of whatever was set at the moment it was created --
+never a mutation a concurrently scheduled sibling task makes afterwards. One flag, never a
+counter: nothing inside :class:`ValueRenderer`'s own recursive ``_render*`` methods calls back
+into one of its own PUBLIC entry points (:meth:`ValueRenderer.render`,
+:meth:`ValueRenderer.render_structured`, :meth:`ValueRenderer.render_for_capture`) -- the only
+nesting :func:`rendering_scope` ever sees is ``render_for_capture`` calling the other two, which
+:meth:`contextvars.ContextVar.set`/``reset`` handle correctly regardless.
+"""
+
+
+def is_rendering() -> bool:
+    """Whether the calling thread/task is currently inside a :class:`ValueRenderer` entry point.
+
+    Read by :func:`~narrativetrace.trace_object.trace_object`'s call wrapper before dispatching a
+    traced call -- a plain, non-throwing, non-blocking read, same contract as
+    ``context.is_active()`` beside which it is checked.
+    """
+    return _RENDERING.get()
+
+
+@contextmanager
+def rendering_scope() -> Iterator[None]:
+    """Marks the calling thread/task as rendering for the duration of the ``with`` block.
+
+    Wraps every :class:`ValueRenderer` PUBLIC entry point (:meth:`ValueRenderer.render`,
+    :meth:`ValueRenderer.render_structured`, :meth:`ValueRenderer.render_for_capture`) -- never
+    the internal ``_render*`` recursion, which would just re-enter this scope pointlessly on every
+    nested value -- plus :mod:`narrativetrace.template`'s own reflective backing-field read for a
+    ``{obj.prop}`` placeholder, a second, cross-module caller with the identical hazard (a hook it
+    might still fall back to could call a traced object). Public, not module-private, for exactly
+    that second caller. Token-based reset (rather than blindly setting ``False``) so the one
+    legitimate nesting case -- ``render_for_capture`` calling ``render``/``render_structured`` --
+    restores the outer call's own state exactly, not a hardcoded default.
+    """
+    token = _RENDERING.set(True)
+    try:
+        yield
+    finally:
+        _RENDERING.reset(token)
 
 
 class _RenderWalk:
@@ -163,10 +260,11 @@ class ValueRenderer:
     # ------------------------------------------------------------------ #
     def render(self, value: object) -> str:
         """Renders ``value`` to a stable, bounded, control-sanitised string."""
-        try:
-            return self._render(value, _RenderWalk())
-        except Exception:  # the renderer is total: nothing a value does may escape capture
-            return f"<{type(value).__name__}>"
+        with rendering_scope():
+            try:
+                return self._render(value, _RenderWalk())
+            except Exception:  # the renderer is total: nothing a value does may escape capture
+                return f"<{type(value).__name__}>"
 
     def _render(self, value: object, walk: _RenderWalk) -> str:
         if value is None:
@@ -238,16 +336,61 @@ class ValueRenderer:
             return self._render_future(value, walk)
         if inspect.isawaitable(value):
             return "<pending>"
+        enumerated = self._render_if_enumerable(value, walk)
+        if enumerated is not None:
+            return enumerated
+        summary = self._render_summary(value)
+        if summary is not None:
+            return summary
+        shape = _shape_of(value)
+        if shape is _Shape.FIELDS:
+            return self._render_introspected(value, walk)
+        if shape is _Shape.OWN_STRING:
+            return self._render_with_str(value)
+        return _opaque_marker(value)
+
+    def _render_if_enumerable(self, value: object, walk: _RenderWalk) -> str | None:
+        """Collections, maps and bare iterables, dispatched by ORIGIN rather than bare
+        ``isinstance`` alone (the rendering rule: rendering reads state, never runs behaviour): an
+        exact platform collection/map enumerates through its own state, unchanged; a user SUBCLASS
+        of a concrete platform collection (``list``, ``dict``) enumerates through that ancestor's
+        own state read (``list.__iter__``/``dict.items``, unbound on the base type, bypassing the
+        subclass's override) rather than the subclass's own, possibly hostile, override; a
+        hand-rolled ``Collection`` (no platform ancestor -- ``isinstance(value, Collection)`` true
+        through the type's own ``__len__``/``__iter__``/``__contains__``, e.g. a
+        ``collections.abc.Sequence`` implementation) is not enumerated here at all, so the caller
+        falls through to plain object introspection of its own fields, never a call that could be
+        overridden; a bare ``Iterable`` that is not a full ``Collection`` (missing
+        ``__contains__``, so nothing here implies it is safe to walk) renders a bounded type+size
+        marker, never touching its iterator.
+
+        Returns ``None`` when the caller should fall through to the summary/introspection path.
+        """
+        if _has_elements_hook(value):
+            return self._render_elements_hook(value, walk)
         if isinstance(value, _COLLECTION_TYPES) and not _is_named_tuple(value):
             return self._render_collection(value, walk)
         if isinstance(value, dict):
             return self._render_map(value, walk)
-        summary = self._render_summary(value)
-        if summary is not None:
-            return summary
-        if self._introspectable(value):
-            return self._render_introspected(value, walk)
-        return self._render_with_str(value)
+        if isinstance(value, Iterable) and not isinstance(value, Collection):
+            return _bare_iterable_marker(value)
+        return None
+
+    def _render_elements_hook(self, value: object, walk: _RenderWalk) -> str:
+        if walk.seen(value):
+            return _identity_marker(value)
+        walk.enter(value)
+        try:
+            return self._render_elements_hook_body(value, walk)
+        finally:
+            walk.exit(value)
+
+    def _render_elements_hook_body(self, value: object, walk: _RenderWalk) -> str:
+        try:
+            items = list(getattr(value, _ELEMENTS_HOOK)())
+        except Exception as exc:  # a rogue hook must not break capture
+            return _error_marker(exc)
+        return self._render_capped_items(items, walk)
 
     def _render_collection(self, value: Any, walk: _RenderWalk) -> str:
         if walk.seen(value):
@@ -260,9 +403,12 @@ class ValueRenderer:
 
     def _render_collection_body(self, value: Any, walk: _RenderWalk) -> str:
         try:
-            items = list(value)
+            items = _collection_elements(value)
         except Exception:  # a rogue iterator must not break capture
             return f"<{type(value).__name__}>"
+        return self._render_capped_items(items, walk)
+
+    def _render_capped_items(self, items: list[object], walk: _RenderWalk) -> str:
         shown = ", ".join(
             self._render_element(item, walk) for item in items[: self.max_collection_items]
         )
@@ -287,7 +433,7 @@ class ValueRenderer:
 
     def _render_map_body(self, value: dict[Any, Any], walk: _RenderWalk) -> str:
         try:
-            items = list(value.items())
+            items = _map_items(value)
         except Exception:  # a rogue Mapping must not break capture
             return f"<{type(value).__name__}>"
         entries = [
@@ -383,10 +529,11 @@ class ValueRenderer:
     # ------------------------------------------------------------------ #
     def render_structured(self, value: object) -> RenderedValue:
         """Renders ``value`` preserving its Python type as a :class:`RenderedValue`."""
-        try:
-            return self._render_structured(value, _RenderWalk())
-        except Exception:  # the renderer is total: nothing a value does may escape capture
-            return StringVal(f"<{type(value).__name__}>")
+        with rendering_scope():
+            try:
+                return self._render_structured(value, _RenderWalk())
+            except Exception:  # the renderer is total: nothing a value does may escape capture
+                return StringVal(f"<{type(value).__name__}>")
 
     # ------------------------------------------------------------------ #
     # Capture-oriented rendering                                          #
@@ -417,16 +564,17 @@ class ValueRenderer:
         separately would); a non-string value has no top-level shape check to share, so it simply
         delegates to both.
         """
-        try:
-            if isinstance(value, str):
-                shape_redacted = self.redaction_policy.should_redact_value(value)
-                if shape_redacted:
-                    return REDACTED_MARKER, StringVal(REDACTED_MARKER), True
-                return self._render_string_body(value), StringVal(value), False
-            return self.render(value), self.render_structured(value), False
-        except Exception:  # the renderer is total: nothing a value does may escape capture
-            marker = f"<{type(value).__name__}>"
-            return marker, StringVal(marker), False
+        with rendering_scope():
+            try:
+                if isinstance(value, str):
+                    shape_redacted = self.redaction_policy.should_redact_value(value)
+                    if shape_redacted:
+                        return REDACTED_MARKER, StringVal(REDACTED_MARKER), True
+                    return self._render_string_body(value), StringVal(value), False
+                return self.render(value), self.render_structured(value), False
+            except Exception:  # the renderer is total: nothing a value does may escape capture
+                marker = f"<{type(value).__name__}>"
+                return marker, StringVal(marker), False
 
     def _render_structured(self, value: object, walk: _RenderWalk) -> RenderedValue:
         if value is None:
@@ -460,9 +608,12 @@ class ValueRenderer:
         summary = self._render_summary(value)
         if summary is not None:
             return StringVal(summary)
-        if self._introspectable(value):
+        shape = _shape_of(value)
+        if shape is _Shape.FIELDS:
             return self._render_structured_object(value, walk)
-        return StringVal(self._render_with_str(value))
+        if shape is _Shape.OWN_STRING:
+            return StringVal(self._render_with_str(value))
+        return StringVal(_opaque_marker(value))
 
     def _render_structured_collection(self, value: Any, walk: _RenderWalk) -> RenderedValue:
         if walk.seen(value):
@@ -573,17 +724,67 @@ class ValueRenderer:
     def _is_future(value: object) -> bool:
         return isinstance(value, (concurrent.futures.Future, asyncio.Future))
 
-    @staticmethod
-    def _introspectable(value: object) -> bool:
-        if dataclasses.is_dataclass(value) and not isinstance(value, type):
-            return True
-        if hasattr(type(value), "__attrs_attrs__"):
-            return True
-        if _is_named_tuple(value):
-            return True
-        if _is_platform_type(type(value)):
-            return False
-        return _has_instance_state(value)
+
+class _Shape(Enum):
+    """How a value that is neither a collection, a future, nor a summary-hook holder renders.
+
+    One decision, consulted by BOTH channels (:meth:`ValueRenderer._render_complex` and
+    :meth:`ValueRenderer._render_structured_complex`), so the flat text and the structured export
+    cannot drift apart about what a value is allowed to say about itself.
+    """
+
+    FIELDS = "fields"
+    """Introspected field by field: its declared components, each redactable by name."""
+
+    OWN_STRING = "own-string"
+    """Rendered through the value's own string conversion -- the one string conversion rendering
+    may call, and only for a type the platform itself defines (see :func:`_is_platform_type`)."""
+
+    OPAQUE = "opaque"
+    """Rendered as its type name alone: present in the trace, bounded, and unread."""
+
+
+def _shape_of(value: object) -> _Shape:
+    """Which of the three renderings ``value`` gets -- the rendering rule's decision point.
+
+    A value whose components are DECLARED (a dataclass, an ``attrs`` class, a ``NamedTuple``) is
+    introspected by declaration, whatever else it also is. A type the platform defines renders
+    through its own string conversion, trusted by ORIGIN (:func:`_is_platform_type`). Anything else
+    carrying readable instance state is introspected field by field.
+
+    Everything remaining is a value that carries no state reflection can read -- and that is NOT a
+    statement that it has nothing to tell. A ``ctypes.Structure`` subclass keeps its fields in
+    C-level descriptors; an extension type can keep them in a C struct with no Python attribute at
+    all; an ordinary class can keep its state in a module-level table keyed by identity, or in a
+    closure. All of them reflect as fieldless, and all of them can print every field they hold from
+    their own ``__str__``/``__repr__`` -- which would reach the trace with nothing but a length cap
+    in front of it: past redaction by field name, past the deny-list, past the caps a walked
+    composite obeys. So emptiness buys no trust at all: such a value renders as its type name, the
+    same shape an undeclared iterable gets (:func:`_bare_iterable_marker`) and for the same reason
+    -- the element or the value stays visible, its state stays unread.
+    """
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _Shape.FIELDS
+    if hasattr(type(value), "__attrs_attrs__"):
+        return _Shape.FIELDS
+    if _is_named_tuple(value):
+        return _Shape.FIELDS
+    if _is_platform_type(type(value)):
+        return _Shape.OWN_STRING
+    if _has_instance_state(value):
+        return _Shape.FIELDS
+    return _Shape.OPAQUE
+
+
+def _opaque_marker(value: object) -> str:
+    """The bounded rendering of a value whose state rendering may not read: its type name alone.
+
+    Never its size: asking for one means calling ``__len__``, which is the value's own behaviour
+    -- the very thing this marker exists to avoid running. An undeclared ITERABLE gets its size
+    (:func:`_bare_iterable_marker`) because the protocol it declares is what makes a length read
+    meaningful there; a value that declares nothing gets its name and nothing more.
+    """
+    return f"<{type(value).__name__}>"
 
 
 def _is_trusted_numeric(value: int | float) -> bool:
@@ -609,6 +810,61 @@ def _is_named_tuple(value: object) -> bool:
     deep instead of stringified whole.
     """
     return isinstance(value, tuple) and hasattr(type(value), "_fields")
+
+
+_PLATFORM_ANCESTOR_ITER: dict[type, Callable[[Any], Iterator[object]]] = {
+    list: list.__iter__,
+    tuple: tuple.__iter__,
+    set: set.__iter__,
+    frozenset: frozenset.__iter__,
+}
+"""The unbound ``__iter__`` slot of each type in :data:`_COLLECTION_TYPES`, called with the
+subclass instance as ``self`` -- the platform ancestor's own iteration, never the attribute
+lookup (``iter(value)``/``for x in value``) that would dispatch to a subclass's overridden
+``__iter__`` instead."""
+
+
+def _collection_elements(value: Any) -> list[object]:
+    """Reads a collection's elements: the exact platform type's own ``list(value)`` when ``value``
+    IS one of :data:`_COLLECTION_TYPES`, unchanged since there is nothing below it to override; a
+    user SUBCLASS of one of them instead through that ancestor's own iteration slot (see
+    :data:`_PLATFORM_ANCESTOR_ITER`), bypassing whatever the subclass overrode -- the rendering
+    rule: rendering reads state, never runs behaviour."""
+    exact = type(value)
+    if exact in _COLLECTION_TYPES:
+        return list(value)
+    for base, ancestor_iter in _PLATFORM_ANCESTOR_ITER.items():
+        if isinstance(value, base):
+            return list(ancestor_iter(value))
+    return list(value)  # unreachable given every caller's isinstance(_COLLECTION_TYPES) guard
+
+
+def _map_items(value: dict[Any, Any]) -> list[tuple[object, object]]:
+    """Reads a mapping's entries: ``dict.items()`` directly for an exact ``dict``, or -- for a
+    user subclass -- through ``dict``'s own ``items`` slot (``dict.items(value)``, unbound),
+    bypassing a subclass's overridden ``items``/``__iter__``. Same rule and reasoning as
+    :func:`_collection_elements`."""
+    if type(value) is dict:
+        return list(value.items())
+    return list(dict.items(value))
+
+
+def _has_elements_hook(value: object) -> bool:
+    """Whether ``value``'s type declares the third sanctioned rendering hook (see
+    :data:`_ELEMENTS_HOOK`) -- checked on the TYPE, never the instance, so a merely-similarly-
+    named instance attribute cannot forge the declaration."""
+    return callable(getattr(type(value), _ELEMENTS_HOOK, None))
+
+
+def _bare_iterable_marker(value: object) -> str:
+    """The bounded marker for an ``Iterable`` that is not a full ``Collection`` (see
+    :meth:`ValueRenderer._render_if_enumerable`): its type name, plus its size when ``len()`` is
+    available and does not raise -- never its elements, and never its ``__iter__``."""
+    try:
+        size = len(value)  # type: ignore[arg-type]
+    except Exception:  # no __len__, or a rogue one -- size is not "free" here
+        return f"<{type(value).__name__}>"
+    return f"{type(value).__name__} (size {size})"
 
 
 def _field_names(value: object) -> list[str]:
@@ -640,11 +896,35 @@ def _slot_names(cls: type) -> list[str]:
     return names
 
 
+def read_backing_field(obj: object, name: str) -> object:
+    """Reads ``name``'s backing state off ``obj`` -- an instance ``__dict__`` entry or a declared
+    ``__slots__`` slot -- never a ``property`` descriptor and never a method call. Returns
+    :data:`STATE_MISSING` when no such state exists: a genuinely computed property, a missing
+    member, or a zero-arg method with nothing stored under that name.
+
+    The narration-template counterpart of :func:`_field_names`/:func:`_has_instance_state`
+    (the rendering rule: rendering/narration reads state, never runs behaviour), used by
+    :mod:`narrativetrace.template` and :mod:`narrativetrace.redacted_paths` to resolve a
+    ``{obj.prop}`` placeholder and to decide whether one is redacted, without ever invoking
+    whatever ``prop`` happens to be.
+    """
+    if hasattr(obj, "__dict__"):
+        instance_dict = vars(obj)
+        if name in instance_dict:
+            return instance_dict[name]
+    if name in _slot_names(type(obj)):
+        try:
+            return getattr(obj, name)
+        except AttributeError:
+            return STATE_MISSING
+    return STATE_MISSING
+
+
 def _is_platform_type(cls: type) -> bool:
     """Whether ``cls`` is defined by the platform (the standard library or the interpreter
     itself) rather than the application -- the carve-out that lets a stateful platform value like
     ``pathlib.Path`` or ``uuid.UUID`` keep its own ``str()`` instead of being walked field-by-field
-    (owner ruling, 2026-09-12; see the module docstring).
+    (see the module docstring).
 
     Decided by ORIGIN, never by name: a class's ``__module__`` is set to wherever *that class* was
     defined and is not inherited down to subclasses, so a user subclass of a platform type (its
@@ -655,11 +935,18 @@ def _is_platform_type(cls: type) -> bool:
     all the same, and is what Java's identical carve-out reaches by identity of the *defining class
     loader* rather than a module name -- CPython has no loader for a type the interpreter itself
     allocates, so the heap-type flag is the analogous identity signal here.
+
+    A type that NAMES an origin is judged by that origin alone; the heap-type flag decides only for
+    a type that names none. A third-party C extension can perfectly well allocate its types
+    statically too, so a bare "not a heap type" test would hand an extension module's own types the
+    trust meant for the interpreter's -- and an extension type's fields live in a C struct no
+    reflection here can read, which is precisely the value that must not stand behind its own text
+    (see :func:`_shape_of`).
     """
     module = getattr(cls, "__module__", None)
     top_level = module.partition(".")[0] if module else None
-    if top_level is not None and top_level in sys.stdlib_module_names:
-        return True
+    if top_level is not None:
+        return top_level in sys.stdlib_module_names
     return not (cls.__flags__ & _HEAP_TYPE_FLAG)
 
 
@@ -669,13 +956,15 @@ def _has_instance_state(value: object) -> bool:
 
     Deliberately about POPULATED state, not merely the storage mechanism's existence: every plain
     Python object without ``__slots__`` carries a ``__dict__`` whether or not anything is ever
-    assigned to it, so gating on ``hasattr(value, "__dict__")`` alone would also flag a genuinely
-    stateless class -- a null object, a singleton, a hand-authored formatter with nothing to leak
-    -- whose curated ``__str__`` is not a security concern because there is no field behind it to
-    bypass. A leaf like a plain ``int``, ``str``, or a payload-free ``Enum`` member has no instance
-    state either way; anything that DOES carry a field is introspected field-by-field even when it
-    also overrides ``__str__``/``__repr__`` -- the family invariant that a composite's native
-    stringification is never trusted (2026-09-11)."""
+    assigned to it, so gating on ``hasattr(value, "__dict__")`` alone would report a field walk as
+    worthwhile for a class that has no field to walk.
+
+    Answers only "is there state to introspect", never "is this value safe to let speak for
+    itself": a false answer here costs a type-name rendering instead of a field list, never a
+    leak. Anything that DOES carry a field is introspected field-by-field even when it also
+    overrides ``__str__``/``__repr__`` -- the family invariant that a composite's native
+    stringification is never trusted -- and anything that does not is rendered as its type name
+    unless its ORIGIN earns it its own string conversion (see :func:`_shape_of`)."""
     if hasattr(value, "__dict__"):
         return bool(vars(value))
     return any(hasattr(value, name) for name in _slot_names(type(value)))
@@ -683,9 +972,8 @@ def _has_instance_state(value: object) -> bool:
 
 def _error_marker(exc: BaseException) -> str:
     """The typed error marker for a part that failed to render: the exception's own TYPE name,
-    never ``str(exc)`` -- a message can carry the very value that failed to render (owner ruling,
-    2026-09-11). Used wherever a ``@narrative_summary`` method, a custom ``__str__``, or a field
-    getter raises."""
+    never ``str(exc)`` -- a message can carry the very value that failed to render. Used wherever
+    a ``@narrative_summary`` method, a custom ``__str__``, or a field getter raises."""
     return f"<error: {type(exc).__name__}>"
 
 

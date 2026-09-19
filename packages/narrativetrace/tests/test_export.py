@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import re
 
+import pytest
+
 from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
 from narrativetrace.export import export, export_document
 from narrativetrace.ids import SpanId, TraceId
@@ -158,6 +160,12 @@ class TestDepthAndCycleBounds:
         doc = json.loads(export(_tree(node)))
         assert any(e.get("truncated") == "cycle" for e in doc["events"])
 
+    # Builds and flattens a 10,000-deep chain. HANG GUARD, not a timing assertion -- the test
+    # only checks the flattened output was truncated, never a duration, so the budget is the
+    # documented 10s floor, not a multiple of a timing sample (release retrospective rule 3
+    # refinement, Pro ledger #129: "5x a contended sample" still makes wall-clock a test input --
+    # TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
         node = TraceNode(MethodSignature("S", "leaf", []), [], Returned("x"))
         for _ in range(10_000):

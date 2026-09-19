@@ -16,7 +16,7 @@ from narrativetrace.context import NOOP_CONTEXT, ContextVarNarrativeContext
 from narrativetrace.decorators import narrated, not_traced, on_error, traced
 from narrativetrace.ids import SpanId
 from narrativetrace.levels import NarrativeTraceConfig, TracingLevel
-from narrativetrace.markers import not_traced_field
+from narrativetrace.markers import narrative_summary, not_traced_field
 from narrativetrace.outcomes import Returned, Threw
 from narrativetrace.rendering import ValueRenderer
 from narrativetrace.signature import MethodSignature
@@ -245,7 +245,22 @@ class TestErrors:
 
 
 class Rogue:
-    """A value whose rendering blows up — a lazy proxy over a closed session, say."""
+    """A value whose rendering blows up — a lazy proxy over a closed session, say.
+
+    The hazard sits in the summary hook, one of the two pieces of user code rendering does run.
+    A hostile ``__str__`` on a class declaring no field is a different shape: it is never called,
+    so it costs nothing and narrates as a type name (``FieldlessRogue`` below)."""
+
+    def __init__(self) -> None:
+        self.session = "closed"
+
+    @narrative_summary
+    def summary(self) -> str:
+        raise ValueError("rendering exploded")
+
+
+class FieldlessRogue:
+    """No field reflection can read, plus a conversion that would explode if anyone called it."""
 
     def __str__(self) -> str:
         raise ValueError("__str__ exploded")
@@ -271,9 +286,9 @@ class RogueService:
 
 
 class TestRogueStr:
-    """A value whose ``__str__`` raises must not cost the span that narrates it.
+    """A value whose rendering raises must not cost the span that narrates it.
 
-    ``ValueRenderer`` has always treated a rogue ``__str__`` as a known hazard; the template
+    ``ValueRenderer`` has always treated a hostile value as a known hazard; the template
     path did not, and the proxy's own "capture setup must never crash the business call" guard
     turned that into a silently *untraced* call — the node vanished from the tree entirely.
     """
@@ -313,6 +328,17 @@ class TestRogueStr:
         node = ctx.capture_trace().roots[0]
         assert isinstance(node.outcome, Threw)
         assert node.signature.error_context == "Failed while processing <error: ValueError>"
+
+    def test_a_fieldless_values_conversion_is_never_called_and_it_narrates_by_name(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        """The other shape: nothing of the value's own runs, so the narration carries its type
+        name and the span is never at risk in the first place."""
+        svc = trace_object(RogueService(), ctx)
+
+        assert svc.process(FieldlessRogue()) == "ok"
+
+        assert ctx.capture_trace().roots[0].signature.narration == "Processing <FieldlessRogue>"
 
 
 class TestFastPath:

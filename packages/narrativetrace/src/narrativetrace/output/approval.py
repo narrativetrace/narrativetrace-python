@@ -33,11 +33,11 @@ _INCOMPLETE_SUFFIX = ".incomplete.nt"
 _APPROVE_HINT = "approve it (run `uv run poe approve` or `narrativetrace-approve`)"
 
 _DOCTOR_POINTER = "→ narrativetrace-doctor skill"
-"""Appended to every message this module raises *(since 0.1.2, unreleased)*: the
-``trap.approval-traces`` doctor check already inspects this same approved-directory state (a stale
-``.received.nt`` beside its ``.approved.nt``), so an agent hitting one of these failures for the
-first time is pointed at the tool that would have caught it before the test ever ran — a
-deterministic pointer at the moment of symptom, never a phrase an agent has to think to look up."""
+"""Appended to every message this module raises: the ``trap.approval-traces`` doctor check already
+inspects this same approved-directory state (a stale ``.received.nt`` beside its ``.approved.nt``),
+so an agent hitting one of these failures for the first time is pointed at the tool that would have
+caught it before the test ever ran — a deterministic pointer at the moment of symptom, never a
+phrase an agent has to think to look up."""
 
 
 def approved_file(approved_dir: Path, identity: ArtifactIdentity) -> Path:

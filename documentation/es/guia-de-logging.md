@@ -1,9 +1,11 @@
-<!-- source: documentation/guides/logging.md blob efe471740251 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 8e11e0235925 | translated: 2026-09-17 | reviewed: - -->
 
-# Logging y structlog
+# Logging, structlog y Loguru
 
 NarrativeTrace se conecta con el framework `logging` de la stdlib y con `structlog`, emitiendo las
-*mismas* claves de correlación canónicas desde ambos.
+*mismas* claves de correlación canónicas desde ambos. Un usuario de Loguru llega a la misma traza
+a través de la interoperabilidad con la stdlib que el propio Loguru ya documenta — consulta
+[Loguru](#loguru) más abajo.
 
 ## logging de la stdlib
 
@@ -113,6 +115,111 @@ structlog.configure(
 
 Ambos frontends comparten `narrativetrace.current_scope_keys()` como única fuente de vocabulario,
 por lo que sus conjuntos de claves nunca pueden desincronizarse.
+
+## Loguru
+
+NarrativeTrace no incluye ningún puente específico para Loguru — Loguru es un logger, no una
+fuente de narración, y el puente con la stdlib de arriba es todo el mecanismo que necesita un
+usuario de Loguru. Loguru documenta su propia interoperabilidad con la `logging` de la stdlib: un
+`InterceptHandler` que hereda de `logging.Handler` y vuelve a registrar cada registro de la stdlib
+a través de `logger` (consulta la propia receta de Loguru, ["Entirely compatible with standard
+logging"](https://loguru.readthedocs.io/en/stable/overview.html)). Apunta el logger raíz de la
+stdlib a ese handler, y `export_to_logger` — la misma reproducción de una sola llamada del [paso
+"Envíala a tu logger" del tutorial de 60
+segundos](sesenta-segundos.md#envíala-a-tu-logger) — llega a tu sink de Loguru sin ningún
+código específico de NarrativeTrace:
+
+```python
+# main.py
+import inspect  # nuevo: el recorrido de frames propio de InterceptHandler, tal cual la receta de Loguru
+import logging  # nuevo: el logger de la stdlib del que hereda InterceptHandler; destino de export_to_logger
+import sys  # nuevo: destino stdout para el sink de abajo
+
+from loguru import logger  # nuevo: el sink de destino
+
+from narrativetrace import (
+    ContextVarNarrativeContext,
+    IndentedTextRenderer,
+    TraceId,
+    export_to_logger,  # nuevo: reproduce una traza ya capturada en tu logger, en una llamada
+    trace_object,
+)
+
+
+class OrderService:
+    def place_order(self, customer_id, product_id, quantity):
+        return f"ORD-{customer_id}-{product_id}-{quantity}"
+
+
+# Un id de traza fijo, adoptado para que la salida incrustada de esta página siempre nombre la
+# misma traza. Una ejecución real genera uno aleatorio cada vez (nunca este — es la constante
+# propia de esta DEMO, no el valor por defecto de la librería) mediante el mismo
+# TraceId.adopt_trace_id que usa una frontera al estilo servlet para una cabecera de traza entrante.
+DEMO_TRACE_ID = TraceId("a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4")
+
+
+# nuevo: la receta de interoperabilidad con la stdlib que el propio Loguru documenta, tal cual --
+# consulta https://loguru.readthedocs.io/en/stable/overview.html, "Entirely compatible with
+# standard logging". NarrativeTrace no incluye ningún puente propio para Loguru; esta receta es
+# todo el mecanismo -- cada registro que emite un logger de la stdlib (incluidos los de
+# export_to_logger) se vuelve a registrar a través de `logger`.
+class InterceptHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        # Obtiene el nivel de Loguru correspondiente, si existe.
+        level: str | int
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Busca quién llamó, a partir de dónde se originó el mensaje registrado.
+        frame, depth = inspect.currentframe(), 0
+        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+# nuevo: un sink fijo, sin timestamp, para que la salida incrustada de esta página nunca varíe
+# según el reloj -- tu propio sink conserva su formato, colores y rotación reales; solo esta demo
+# necesita determinismo.
+logger.remove()
+logger.add(sys.stdout, format="{level} | {message}", colorize=False)
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+context = ContextVarNarrativeContext()
+context.adopt_trace_id(DEMO_TRACE_ID)
+service = trace_object(OrderService(), context)
+service.place_order("cust-1", "prod-42", 3)
+
+trace = context.capture_trace()  # nuevo: se captura una vez, reutilizada por print y export
+print(IndentedTextRenderer().render(trace))
+
+export_to_logger(trace)  # nuevo: el mismo export de una llamada del paso anterior -- ahora en Loguru
+```
+
+```bash
+uv run main.py
+```
+
+```text
+trace: loose hook parks (a1b2c3d)
+
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+DEBUG | → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
+DEBUG | ← returned: "ORD-cust-1-prod-42-3"
+```
+
+(el formato `"{level} | {message}"` del sink de esta demo es una elección de esta página, para una
+salida que nunca varía según el reloj; tu sink real conserva el formato, los colores y la rotación
+que ya tengas configurados.) Un usuario de Loguru conserva todo lo que Loguru ya le da — sinks,
+rotación, colores, `logger.catch` — completamente intacto; `export_to_logger` solo reproduce una
+traza ya capturada a través del puente con la stdlib que el `InterceptHandler` de Loguru ya está
+escuchando. Lo que deja de escribir es la llamada a `logger.info(...)` (o `logger.debug(...)`)
+dentro del propio método de negocio — las dos líneas de arriba vienen del nombre de
+`place_order`, los nombres de sus parámetros y su valor de retorno, la información que el código
+ya tenía, no de una llamada que alguien escribió.
 
 ## Dónde está conectado esto en los ejemplos
 

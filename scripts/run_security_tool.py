@@ -18,7 +18,7 @@ finding in the Java spec repo and its `ScannerGateSupport` fix — the exact fai
 bit the .NET first release, where a secrets scanner had gracefully skipped for the project's
 entire life): locally the caller still gets exit 0 (a WARN on stderr, so a machine without the
 tools keeps a working `check`), but in CI (`CI` set) or under
-`NARRATIVETRACE_SECURITY_REQUIRED=true`, a missing binary now fails the run. Every outcome is
+`NARRATIVETRACE_REQUIRE_ALL=true`, a missing binary now fails the run. Every outcome is
 recorded under `build/reports/security-scans/<tool>.status` as `ran-clean` or `skipped: <reason>`
 (no file at all reads back as `never-ran`), so "ran clean" and "never ran" stay distinguishable
 after the fact, by humans and by jobs alike.
@@ -54,9 +54,7 @@ class MissingBinaryDecision:
 
 def security_scanners_required() -> bool:
     """Whether this context demands a scan actually ran: CI, or the explicit opt-in flag."""
-    return os.environ.get("NARRATIVETRACE_SECURITY_REQUIRED") == "true" or bool(
-        os.environ.get("CI")
-    )
+    return os.environ.get("NARRATIVETRACE_REQUIRE_ALL") == "true" or bool(os.environ.get("CI"))
 
 
 def decide_missing_binary(tool: str, required: bool) -> MissingBinaryDecision:
@@ -66,7 +64,7 @@ def decide_missing_binary(tool: str, required: bool) -> MissingBinaryDecision:
             fail=True,
             message=(
                 f"{tool} could not be resolved and security scanners are required in this "
-                "context (CI, or NARRATIVETRACE_SECURITY_REQUIRED=true)."
+                "context (CI, or NARRATIVETRACE_REQUIRE_ALL=true)."
             ),
         )
     return MissingBinaryDecision(

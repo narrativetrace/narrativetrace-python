@@ -1,8 +1,8 @@
 # Duplication detection
 
 `uv run poe duplication-report` runs [jscpd](https://github.com/kucherenko-ilya/jscpd) — a
-Copy/Paste Detector, the JavaScript-ecosystem tool this port uses in place of the Java runtime's
-PMD CPD — over the main and test source trees separately and writes a report every commit.
+Copy/Paste Detector for the JavaScript ecosystem — over the main and test source trees separately
+and writes a report every commit.
 `uv run poe duplication-check` runs the report step, then reads its output and enforces the
 duplication ratchet described below; it is part of `poe check`.
 
@@ -40,9 +40,8 @@ there rather than keeping its own copy.
   both flags dropped reports **0 clones** — the same two files, the only variables being those
   two flags.
 - **Main and test sources are scanned separately.** Main = every `packages/*/src` directory;
-  test = every `packages/*/tests` directory, plus `examples/` — two separate jscpd invocations,
-  mirroring the Java runtime's separate CPD passes over `src/main/java` and `src/test/java`. The
-  test tree is reported — its numbers are in `duplication.json` and the summary line — but it
+  test = every `packages/*/tests` directory, plus `examples/` — two separate jscpd invocations.
+  The test tree is reported — its numbers are in `duplication.json` and the summary line — but it
   never gates `duplication-check`. Test scaffolding legitimately repeats (setup, fixture
   builders, assertion blocks); a fixed threshold there would be noise, not signal.
 
@@ -87,8 +86,8 @@ Four pairs are exempt today:
   packages/narrativetrace/src/narrativetrace/rendering.py` — the text channel (`render`) and the
   typed channel (`render_structured`) are produced independently on purpose (the module's own
   docstring: "the string case checks the shape once here and reuses it for both the text and
-  structured renderings below, rather than letting each re-derive it independently"). Mirrors the
-  Java runtime's own `ValueRenderer.java` exemption for the identical pattern.
+  structured renderings below, rather than letting each re-derive it independently"). The same
+  exemption pattern applies across the family for the identical `render`/`render_structured` split.
 - `packages/narrativetrace-clarity/src/narrativetrace_clarity/_*_data.py ::
   packages/narrativetrace-clarity/src/narrativetrace_clarity/_*_data.py` — the clarity package's
   `_abbreviations_data.py`, `_collocations_data.py`, `_role_suffixes_data.py` and `_verbs_data.py`
@@ -101,15 +100,15 @@ Four pairs are exempt today:
   packages/narrativetrace/src/narrativetrace/canonical.py` — `CanonicalEntry`'s own docstring
   says every field added by schema 1.1/1.2 is "nullable and additive": an intentionally wide,
   flat record, so its field declarations and its attribute-to-schema-key `_FIELD_ORDER` table are
-  many structurally-identical single lines once identifiers/literals are ignored. Mirrors the
-  Java runtime's own `CanonicalEntry.java` Builder exemption for the identical "one field per
-  schema component is the public shape" reasoning.
+  many structurally-identical single lines once identifiers/literals are ignored. The same
+  reasoning — one field per schema component is the public shape — exempts the equivalent record
+  elsewhere in the family.
 - `packages/narrativetrace/src/narrativetrace/canonical.py ::
   packages/narrativetrace/src/narrativetrace/span.py` — `CanonicalEntry`'s and `SpanContext`'s
   field declarations match each other once identifiers are ignored, the same wide-record shape
   across the core module's two identity records (`span.py`'s own docstring: "The Java builder is
-  replaced by keyword construction plus `dataclasses.replace`"). Mirrors the Java runtime's own
-  `CanonicalEntry.java`/`SpanContext.java` cross-file exemption.
+  replaced by keyword construction plus `dataclasses.replace`"). The same wide-record shape gets a
+  matching cross-file exemption elsewhere in the family.
 
 `packages/narrativetrace-clarity/src/narrativetrace_clarity/generic_tokens.py`'s own duplication
 between its `_MEANINGLESS_PLACEHOLDERS`/`_VAGUE_WORDS` word-list sections is deliberately **not**
@@ -139,7 +138,7 @@ in 190 clusters (reported, not gated)
 ```
 
 (The summary line's "largest" names the largest cluster overall, exempt or not — the same
-convention the Java runtime's own summary line uses; `main.largestCluster` in the baseline is
+convention used elsewhere in the family; `main.largestCluster` in the baseline is
 the largest *non-exempt* one, which is a different, usually smaller, number.)
 
 Every duplication run also records `build/reports/duplication/jscpd.status` as `ran-clean` or
@@ -148,42 +147,36 @@ and "never ran" stay distinguishable after the fact, the same three-state contra
 `scripts/run_security_tool.py` (security scanners) and `scripts/quality_gate_status.py`
 (pre-commit format/lint) already use for their own concerns.
 
-## Where this differs from the Java runtime
+## This port's own report shape
 
-The Java runtime's tool (PMD CPD) and this port's tool (jscpd) expose different data, so two
-things map differently — each is a deliberate substitution, not an oversight:
+jscpd exposes different data than a token-indexed clone detector would, so two things about this
+port's `duplication.json` are specific to it — each a deliberate design choice, not an oversight:
 
-- **The union unit is lines, not tokens.** CPD exposes a cross-file token index (one running
-  count across the whole tokenized corpus), which lets `main.percent` union duplicated *token*
-  positions without double-counting overlapping matches. jscpd exposes only per-file line ranges
-  for each clone — no cross-file token index — so this port unions duplicated *line* positions
-  per file instead (`scripts.duplication_report.covered_line_count`/`union_duplicated_lines`),
-  summed across files. The failure it guards against is identical either way: a data-table file
-  where every row structurally matches every other row produces dozens of overlapping matches
-  over nearly the same span, and naively summing every occurrence's own line span (both sides of
-  every clone pair, never deduplicated) multiplies that far past the file's own size.
-  `minTokens`/`tokens` still describe jscpd's own clone-detection floor and each cluster's exact
-  token count — only the *aggregate percentage's* unit changes, from tokens to lines.
-  `main.percent` can therefore never exceed 100%, same guarantee as the Java runtime's, different
-  unit underneath it.
-- **Clusters are pairs, not arbitrary-arity matches.** CPD's `Match` can hold any number of
-  occurrences; jscpd always reports exactly two (`firstFile`/`secondFile`) per `duplicates[]`
-  entry, splitting an N-way copy into `N choose 2` pairwise entries instead. Exemption matching
-  works unchanged either way (`is_exempt` already only requires every occurrence in *one*
-  cluster's list to match), but the raw entry count for a busy data table between three or more
-  files runs higher on this port than an equivalent Java scan would report, for the same
-  underlying duplication.
+- **The union unit is lines, not tokens.** jscpd exposes only per-file line ranges for each
+  clone — no cross-file token index — so this port unions duplicated *line* positions per file
+  instead (`scripts.duplication_report.covered_line_count`/`union_duplicated_lines`), summed
+  across files. The failure it guards against: a data-table file where every row structurally
+  matches every other row produces dozens of overlapping matches over nearly the same span, and
+  naively summing every occurrence's own line span (both sides of every clone pair, never
+  deduplicated) multiplies that far past the file's own size. `minTokens`/`tokens` still describe
+  jscpd's own clone-detection floor and each cluster's exact token count — only the *aggregate
+  percentage's* unit is lines, not tokens. `main.percent` can therefore never exceed 100%.
+- **Clusters are pairs, not arbitrary-arity matches.** jscpd always reports exactly two
+  occurrences (`firstFile`/`secondFile`) per `duplicates[]` entry, splitting an N-way copy into
+  `N choose 2` pairwise entries instead of one N-way match. Exemption matching works unchanged
+  (`is_exempt` already only requires every occurrence in *one* cluster's list to match), but the
+  raw entry count for a busy data table between three or more files runs higher on this port for
+  the same underlying duplication.
 
-There is no PMD-CPD-XML equivalent alongside `duplication.json` for this port — jscpd's own
-`--reporters json` output is the only raw format read, and this port keeps only its own
-normalised JSON, not the tool's raw file.
+This port keeps only jscpd's normalised JSON (`--reporters json`) as `duplication.json` — no other
+raw report format.
 
 This document is intentionally English-only, not part of `documentation/i18n/manifest.json`: it
 is an internal build/tooling record, the same category `documentation/README.md` already gives
 `security-testing.md`, `security-tooling.md` and `concurrency-stress.md` ("Engineering-only
 documents ... are English-only by convention", `documentation/LEAME.md`'s own wording for the
 same rule) — this page follows that existing convention rather than gaining a translation
-obligation the Java source it mirrors never had either.
+obligation.
 
 ## Adding an exemption
 

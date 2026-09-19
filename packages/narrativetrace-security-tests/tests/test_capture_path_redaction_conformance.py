@@ -6,9 +6,9 @@
 the entry point an application actually uses -- not through ``ValueRenderer`` directly.
 
 **Why this file exists.** ``redaction.json``'s 93 rows (multilingual name spellings, accented/
-decomposed/folded forms, value shapes, four composite ``kind`` shapes added 2026-09-11, and a
-false-positive half) were never the problem: every existing consumer of the corpus -- this
-package's own :mod:`test_redaction_vocabulary_properties`,
+decomposed/folded forms, value shapes, four composite ``kind`` shapes the master adopted
+2026-09-18, and a false-positive half) were never the problem: every existing consumer of the
+corpus -- this package's own :mod:`test_redaction_vocabulary_properties`,
 :mod:`test_value_renderer_redaction_properties` -- drives ``ValueRenderer`` directly, on an object
 or a dict. That is one layer below where the confirmed defect lived: ``trace_object._build_capture``
 deciding parameter redaction from ``@not_traced`` alone, never asking ``RedactionPolicy``, for a
@@ -265,11 +265,14 @@ class TestHostileCorpusValueCasesThroughRealCapturePath:
 
 
 class TestHostileCorpusKindCasesThroughRealCapturePath:
-    """A composite the 2026-09-11 family fix governs directly: a curated ``__str__`` overriding
-    introspection, the same shape planted as a map key, or a raising ``@narrative_summary`` --
-    the exact defects confirmed against published 0.1.1 (read-only investigation the same day).
-    Traced through the innocuous ``data`` parameter, same as a value-case row: what matters here
-    is the composite's own internal shape, not the parameter name holding it."""
+    """A composite the family-wide native-``__str__``-trust fix governs directly: a curated
+    ``__str__`` overriding introspection, the same shape planted as a map key, or a raising
+    ``@narrative_summary`` -- the exact defects confirmed against published 0.1.1 (read-only
+    investigation the same day). Traced through the innocuous ``data`` parameter, same as a
+    value-case row: what matters here is the composite's own internal shape, not the parameter
+    name holding it. These four rows were added to this runtime's own ``redaction.json`` on
+    2026-09-11, removed 2026-09-18 to restore byte-identity with the master, and restored here
+    once the master adopted the equivalent rows unchanged (same ids, ``kind`` names, canaries)."""
 
     @pytest.mark.parametrize("case", _kind_cases(), ids=str)
     def test_kind_case(self, case: RedactionCase) -> None:

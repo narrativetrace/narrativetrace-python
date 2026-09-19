@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: BUSL-1.1
-#
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
 # Legal reference-copy consistency gate.
 #
 # Legal text in this repository follows the canonical copies held in the reference repository

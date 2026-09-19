@@ -26,6 +26,16 @@ a real, already-tested code path:
   must be hashable, so a dict cannot literally be its own key the way a pathological Java
   ``hashCode`` allows.
 
+Four kinds pin native stringification -- the channel where no annotation and no deny-list is ever
+consulted, because the type's own ``__str__`` stands in for the walk: ``curatedToString`` (a
+composite whose hand-written ``__str__`` interpolates its own deny-listed field),
+``curatedToStringNested`` (the same leak one level down, through a holder the outer class merely
+prints), ``mapKey`` (that composite used as a dict KEY, where text is hardest to avoid) and
+``throwingSummary`` (the one sanctioned curated hook raising, with the secret in the exception's
+own message -- the part must render a typed, value-free marker). Their sentinel sits behind a
+deny-listed field NAME (``password``) rather than an annotation, which is the corpus README's
+documented exception to ``payload: "secret-record"``'s usual planting shape.
+
 Four more kinds (owner ruling, 2026-09-12: the platform-type carve-out) exercise
 ``ValueRenderer``'s identity test for a type the platform itself defines: ``platformValue`` (a
 live ``pathlib.PurePosixPath``, well-formedness only), ``platformNameRedacted`` (the deny-list
@@ -33,21 +43,53 @@ by NAME wins before the carve-out is ever consulted), ``platformLookalike`` (a u
 like a platform type -- identity is never decided by name), and ``platformSubclass`` (a genuine
 user subclass of a platform type, walked like any other application type since a subclass's own
 ``__module__`` is never inherited from its stdlib base).
+
+Two more kinds (owner ruling, 2026-09-18: the abstract-base refinement) exercise the rendering
+rule against an ABSTRACT platform base rather than a concrete one: ``abstractMapSubclassOverride``
+(a ``collections.abc.Mapping`` subclass whose overridden ``items()`` counts its calls and refuses)
+and ``abstractCollectionSubclassOverride`` (the same for ``collections.abc.Collection``'s
+``__iter__``). Unlike ``dict``/``list`` -- which carry real backing state the renderer can read
+through the platform ancestor -- an abc base stores nothing of its own, so the honest read is
+plain object introspection of the subclass's own fields; the override is never the extension
+point and must never run.
+
+One more member, ``fieldlessAbstractSubclassToStringDoor`` (master corpus update, 2026-09-18,
+gap 2 from pair #5 I's report, mirrors Java's
+``HostileMembers.FieldlessAbstractSubclassToStringDoor``): a FIELDLESS subclass of the ABSTRACT
+platform base ``collections.abc.Collection``. In Java, ``AbstractCollection`` installs its OWN
+``toString()`` that walks ``iterator()`` internally, so a fieldless subclass -- trusted by
+``rendersItsOwnString`` to stand behind its own text purely because it declares no field -- still
+leaks through that inherited ``toString()``. Checked empirically for this port (there is no
+Python analogue to trust or distrust without checking): none of ``collections.abc``'s
+``Container``/``Iterable``/``Sized``/``Collection`` overrides ``__str__``/``__repr__`` --
+``collections.abc.Collection.__str__ is object.__str__`` holds -- so a fieldless instance's
+default stringification is ``object``'s own inert ``<module.ClassName object at 0x...>``, which
+never touches ``__iter__``. There is no toString-door in Python's abc hierarchy to close, and the
+inference behind the door is gone as well: declaring no field earns a value no trust here, so a
+fieldless instance renders as its type name and no string conversion of its own -- inherited or
+declared -- is called at all. Mirrors the Java fixture's shape (a class-level, not instance-level,
+spy counter: an instance-field spy would defeat the fieldless precondition itself) rather than its
+outcome, which does not port.
 """
 
 from __future__ import annotations
 
+import collections.abc
 import dataclasses
 import pathlib
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future
 from typing import NamedTuple
 
 from hostile_corpus import GraphCase
 
-from narrativetrace.markers import not_traced_field
+from narrativetrace.markers import (
+    NOT_TRACED_METADATA,
+    narrative_summary,
+    not_traced_field,
+)
 
 
 @dataclasses.dataclass
@@ -172,6 +214,142 @@ class _AccessorThrows:
 
 
 @dataclasses.dataclass
+class _CountingAccessor:
+    """Record-accessor analogue for the rendering rule (owner ruling 2026-09-17, "rendering reads
+    state, never runs behaviour"): a side effect instead of a failure -- ``held`` counts its own
+    calls rather than raising. The target reads the dataclass FIELD ``_held`` directly
+    (``dataclasses.fields()`` plus plain ``getattr``), so the counter must never move.
+
+    ``calls`` is ``@not_traced`` so its own rendered text stays the constant ``[REDACTED]`` marker
+    rather than a live count -- otherwise two renders of the same instance would print two
+    different numbers and this row would counterfeit a failure of the unrelated
+    ``test_rendering_a_secret_graph_is_idempotent`` property, which renders every corpus row
+    carrying a secret twice and compares the text. Mirrors Java's
+    ``HostileMembers.CountingAccessor``."""
+
+    _held: object
+    # `dataclasses.field` directly, not the `not_traced_field` wrapper: ruff's RUF009 cannot see
+    # through the wrapper to confirm a `default_factory` (rather than a shared mutable `default`)
+    # is what is actually being passed, and flags it as an unrecognized mutable default.
+    calls: list[int] = dataclasses.field(default_factory=lambda: [0], metadata=NOT_TRACED_METADATA)
+
+    @property
+    def held(self) -> object:
+        self.calls[0] += 1
+        return self._held
+
+
+class _SideEffectingIteratorList(list[object]):
+    """A platform-collection (``list``) subclass whose overridden ``__iter__`` both counts its own
+    calls and refuses -- same rule: the target reads ``list``'s own backing state through the
+    platform ancestor (``list.__iter__`` bound to this instance), never this override. Mirrors
+    Java's ``HostileMembers.SideEffectingIteratorList``."""
+
+    def __init__(self, held: object) -> None:
+        super().__init__([held])
+        self.iterator_calls = 0
+
+    def __iter__(self) -> Iterator[object]:
+        self.iterator_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+
+class _LookalikeCollection(collections.abc.Collection[object]):
+    """A user ``Collection`` implemented from scratch -- not a platform-collection subclass, so it
+    carries no platform-ancestor state to fall back on. Same rule: the target must never enumerate
+    it by calling its own ``__iter__``; it renders as an object instead. Mirrors Java's
+    ``HostileMembers.LookalikeCollection``."""
+
+    def __init__(self, held: object) -> None:
+        self._backing = [held]
+        self.iterator_calls = 0
+
+    def __iter__(self) -> Iterator[object]:
+        self.iterator_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+    def __len__(self) -> int:
+        return len(self._backing)
+
+    def __contains__(self, item: object) -> bool:
+        return item in self._backing
+
+
+class _AbstractMapSubclassOverride(collections.abc.Mapping[object, object]):
+    """Python's honest twin of Java's ``AbstractMap`` subclass (owner ruling 2026-09-18, the
+    abstract-base refinement): a subclass of the ABSTRACT platform base
+    ``collections.abc.Mapping``, whose overridden ``items()`` counts its own calls and refuses.
+    ``Mapping`` itself has no stored state of its own -- unlike a concrete platform base such as
+    ``dict`` -- so the target must read the subclass's OWN ``__dict__`` fields (``label``,
+    ``held``) through plain object introspection, never call through to ``items()``. Mirrors
+    Java's ``HostileMembers.AbstractMapSubclassOverride``."""
+
+    def __init__(self, held: object) -> None:
+        self.label = "abstract-map"
+        self.held = held
+        self.items_calls = 0
+
+    def __getitem__(self, key: object) -> object:
+        raise NotImplementedError
+
+    def __iter__(self) -> Iterator[object]:
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        return 0
+
+    def items(self) -> collections.abc.ItemsView[object, object]:
+        self.items_calls += 1
+        raise NotImplementedError("items() must never be called by rendering")
+
+
+class _AbstractCollectionSubclassOverride(collections.abc.Collection[object]):
+    """Same reasoning for the other ABSTRACT platform base, ``collections.abc.Collection``: an
+    overridden ``__iter__`` that counts its own calls and refuses. Mirrors Java's
+    ``HostileMembers.AbstractCollectionSubclassOverride``."""
+
+    def __init__(self, held: object) -> None:
+        self.label = "abstract-collection"
+        self.held = held
+        self.iterator_calls = 0
+
+    def __iter__(self) -> Iterator[object]:
+        self.iterator_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+    def __len__(self) -> int:
+        return 0
+
+    def __contains__(self, item: object) -> bool:
+        return False
+
+
+class _FieldlessAbstractSubclassToStringDoor(collections.abc.Collection[object]):
+    """Python's honest twin of Java's fieldless ``AbstractCollection`` subclass (master corpus
+    update, 2026-09-18, gap 2 from pair #5 I's report) -- see the module docstring.
+    Takes no ``held`` payload, unlike every other ``hostileMember`` fixture: the whole point of
+    this shape is to carry zero instance state, and accepting a constructor argument only to
+    discard it would still read as a stored field to a careless refactor.
+
+    ``iterator_calls`` is a CLASS attribute, not an instance one, mirroring Java's ``static
+    AtomicInteger ITERATOR_CALLS``: an instance-field spy would populate ``__dict__`` and defeat
+    the very fieldless precondition (``_has_instance_state`` must stay ``False``) this fixture
+    exists to hold. Callers reset it (``iterator_calls = 0`` on the class) before use."""
+
+    iterator_calls: int = 0
+
+    def __iter__(self) -> Iterator[object]:
+        type(self).iterator_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+    def __len__(self) -> int:
+        return 3
+
+    def __contains__(self, item: object) -> bool:
+        return False
+
+
+@dataclasses.dataclass
 class _TokenBox:
     """A field named ``token`` -- the deny-list must win before the platform-type carve-out
     (owner ruling, 2026-09-12) is ever consulted for the value the field holds."""
@@ -207,9 +385,78 @@ class _SubclassedUUID(uuid.UUID):
         return f"{super().__str__()}::{self.inner}"
 
 
+class _CuratedToString:
+    """A class with a deny-listed field and a hand-written ``__str__`` that interpolates it: the
+    field name says "never show this" and the curated text shows it anyway. Mirrors Java's
+    ``HostileMembers.CuratedToString``. Rendering reads STATE (owner ruling 2026-09-17), so this
+    ``__str__`` is never the renderer's source of text for a composite."""
+
+    def __init__(self, password: str) -> None:
+        self.username = "ada"
+        self.password = password
+
+    def __str__(self) -> str:
+        return f"Login{{username={self.username}, password={self.password}}}"
+
+
+class _CuratedToStringNested:
+    """No sensitive field of its own; its curated ``__str__`` interpolates a nested holder that
+    has one, so the leak is invisible to every name-based test. Deliberately a plain class, not a
+    dataclass: a dataclass's generated ``__repr__`` would be a different mechanism than the
+    hand-written stringification this row is about. Mirrors Java's
+    ``HostileMembers.CuratedToStringNested``."""
+
+    def __init__(self, holder: object) -> None:
+        self.session_id = "session-7"
+        self.holder = holder
+
+    def __str__(self) -> str:
+        return f"Session{{id={self.session_id}, holder={self.holder}}}"
+
+
+class _SensitiveKey:
+    """A composite carrying a deny-listed field, built to be used as a dict KEY -- a key has to
+    become text before it is printed, the one place native stringification is hardest to avoid, so
+    it carries a curated ``__str__`` too. Hashed by its non-secret field only, so the secret never
+    reaches ``hash()`` either. Mirrors ``HostileMembers.SensitiveKey``."""
+
+    def __init__(self, password: str) -> None:
+        self.username = "ada"
+        self.password = password
+
+    def __hash__(self) -> int:
+        return hash(self.username)
+
+    def __str__(self) -> str:
+        return f"Key{{username={self.username}, password={self.password}}}"
+
+
+class _ThrowingSummary:
+    """A holder whose ``@narrative_summary`` raises, with the payload in the exception message.
+    The summary marker is the one opt-in to curated rendering left, so its failure mode is part of
+    the contract: the traced call succeeds, the failed part renders a typed, value-free marker, and
+    the message reaches no output. Mirrors ``HostileMembers.ThrowingSummary``."""
+
+    def __init__(self, held: object) -> None:
+        self.held = held
+
+    @narrative_summary
+    def describe(self) -> str:
+        """Never returns; the renderer must degrade to a typed, value-free marker."""
+        secret = self.held.secret if isinstance(self.held, SecretRecord) else self.held
+        raise RuntimeError(f"cannot summarise {secret}")
+
+
+def _secret_text(payload: object) -> str:
+    return payload.secret if isinstance(payload, SecretRecord) else str(payload)
+
+
+def _sensitive_map_key(payload: object) -> dict[object, object]:
+    return {_SensitiveKey(_secret_text(payload)): "visible-value"}
+
+
 def _platform_name_redacted(payload: object) -> object:
-    secret_text = payload.secret if isinstance(payload, SecretRecord) else str(payload)
-    return _TokenBox(pathlib.PurePosixPath(f"/var/secrets/{secret_text}"))
+    return _TokenBox(pathlib.PurePosixPath(f"/var/secrets/{_secret_text(payload)}"))
 
 
 def _hostile_key_names(payload: object) -> dict[object, object]:
@@ -230,6 +477,12 @@ _HOSTILE_MEMBERS: dict[str, Callable[[object], object]] = {
     "getterThrows": lambda _p: _GetterThrows(),
     "accessorThrows": lambda _p: _AccessorThrows(),
     "hostileKeyNames": _hostile_key_names,
+    "countingAccessor": _CountingAccessor,
+    "sideEffectingIteratorList": _SideEffectingIteratorList,
+    "lookalikeCollection": _LookalikeCollection,
+    "abstractMapSubclassOverride": _AbstractMapSubclassOverride,
+    "abstractCollectionSubclassOverride": _AbstractCollectionSubclassOverride,
+    "fieldlessAbstractSubclassToStringDoor": lambda _p: _FieldlessAbstractSubclassToStringDoor(),
 }
 
 
@@ -342,6 +595,10 @@ _KIND_BUILDERS: dict[str, Callable[[GraphCase, object], object]] = {
     "emptyContainers": lambda c, p: [[], {}, [], {"a": []}, [{}]],
     "future": lambda c, p: _future_by_state(c.state or "pending", p),
     "throwable": _throwable,
+    "curatedToString": lambda c, p: _CuratedToString(_secret_text(p)),
+    "curatedToStringNested": lambda c, p: _CuratedToStringNested(p),
+    "mapKey": lambda c, p: _sensitive_map_key(p),
+    "throwingSummary": lambda c, p: _ThrowingSummary(p),
     "platformValue": lambda c, p: pathlib.PurePosixPath(f"/var/lib/{p}"),
     "platformNameRedacted": lambda c, p: _platform_name_redacted(p),
     "platformLookalike": lambda c, p: _FakePath(p),

@@ -42,10 +42,11 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.llms_banner import _unreleased_marker_files
-from scripts.translation_check import REPO_ROOT
+from scripts.translation_check import REPO_ROOT, _first_line, parse_header
 
 _SINCE_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_HEADING_SINCE_RE = re.compile(r"^#{1,6}\s.*\(since ")
 
 # Reuses the exact marker shape `llms_banner._UNRELEASED_MARKER_RE` already scans for (part (a) of
 # the same design note) with a capture group added, so the version cited by a marker -- not just
@@ -121,6 +122,58 @@ def heading_anchors(markdown_path: Path) -> set[str]:
         seen[base] = count + 1
         anchors.add(base if count == 0 else f"{base}-{count}")
     return anchors
+
+
+def _is_readme_mirror(path: Path) -> bool:
+    header = parse_header(_first_line(path))
+    return header is not None and header.source_path == "README.md"
+
+
+def _since_marker_heading_scan_scope(repo_root: Path) -> list[Path]:
+    """Every Markdown file and `llms.txt` anywhere under `documentation/` (every language --
+    translated mirrors live under `documentation/<lang>/` and are in scope too), plus the root
+    README and its own language mirrors: `README.md` itself, and any other root-level `*.md` file
+    whose line-1 translation header (`parse_header`) names `README.md` as its source -- the same
+    header-driven "is this a translation of X" test `translation_check` already uses, so this
+    never keeps a second, independent list of root README mirror filenames."""
+    documentation = repo_root / "documentation"
+    docs: list[Path] = []
+    if documentation.is_dir():
+        docs.extend(sorted(documentation.rglob("*.md")))
+        docs.extend(sorted(documentation.rglob("llms.txt")))
+    readme_mirrors = [
+        path
+        for path in sorted(repo_root.glob("*.md"))
+        if path.name == "README.md" or _is_readme_mirror(path)
+    ]
+    return docs + readme_mirrors
+
+
+def headings_with_since_marker(repo_root: Path) -> list[str]:
+    """Every heading line, across every Markdown file and `llms.txt` anywhere under
+    `documentation/` and the root README's language mirrors, that carries an inline
+    `*(since X.Y.Z...)*` marker -- ported from the TS repo's `tools/contract-lint.ts`
+    `headingsWithSinceMarker` / Java's `ContractLintSupport.headingsWithSinceMarker` (read-only
+    references, not shared code). A heading's GitHub-rendered anchor slug is exactly the text
+    `heading_anchors` computes from it; a since-marker's own tag rewrite (the release publish
+    script) can later shorten or drop the parenthetical, and that mutates the slug -- any reader
+    link into that anchor breaks the instant a release settles. Keeping the marker in the
+    section's body, never the heading itself, is the only shape immune to that. One entry per
+    hit, `"<relative path>:<line>: <reason>"`, sorted; empty when the tree is clean."""
+    hits: list[str] = []
+    for path in _since_marker_heading_scan_scope(repo_root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for index, line in enumerate(text.splitlines(), start=1):
+            if _HEADING_SINCE_RE.match(line):
+                relative = path.resolve().relative_to(repo_root.resolve()).as_posix()
+                hits.append(
+                    f"{relative}:{index}: since-markers belong in the body: heading anchors "
+                    "must survive the tag rewrite"
+                )
+    return sorted(hits)
 
 
 def parse_page_ref(page: str) -> ContractPageRef:
@@ -266,6 +319,7 @@ def lint(repo_root: Path, document: ContractDocument, unreleased_versions: set[s
 
     covered_versions = {entry.since for entry in document.entries}
     problems += _lint_unreleased_coverage(covered_versions, unreleased_versions)
+    problems += headings_with_since_marker(repo_root)
     return sorted(problems)
 
 

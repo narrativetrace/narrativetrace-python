@@ -6,11 +6,11 @@ reset machinery in `context.py` (`_TraceStack`, `ContextVarNarrativeContext`) is
 project and the part most exposed to real concurrent load: every traced method call and every
 async hand-off goes through it.
 
-The Java runtime stress-tests exactly that core with a dedicated jcstress suite
-(`narrativetrace-jcstress`). jcstress is a JVM-only tool — it schedules
-interleavings by exhaustive bytecode-level exploration, which has no CPython equivalent — so this
-runtime holds itself to the same **invariants**, not the tool, per the shared rule: *"A runtime that
-cannot yet run a scenario still owes the invariant."*
+This core is stress-tested by holding it to the same **invariants** every NarrativeTrace runtime
+owes, per the shared rule: *"A runtime that cannot yet run a scenario still owes the invariant."*
+CPython has no exhaustive bytecode-level interleaving scheduler, so this suite proves the
+invariants directly, through high-repetition concurrent stress (see Technique, below) rather than
+exhaustive schedule exploration.
 
 ## The invariants
 
@@ -24,18 +24,18 @@ cannot yet run a scenario still owes the invariant."*
 | 6 | flush()'s post-condition holds under concurrent publish: everything published-before is in the store after | `FlushRacingPublishTest` | `test_pipeline_stress.py::TestFlushPostConditionUnderConcurrentPublish` |
 | 7 | The adoption seams under concurrency: capture racing scope-close sees spans through exactly one side; no partial batch adoption at the ceiling; reset racing publish is safe | `AdoptionCeilingTest`, `LiveChildHandOverTest`, `ResetRacingRequestsTest` | `test_context_stress.py::TestAdoptionCeilingAllOrNothing`, `TestLiveChildHandOver`, `TestResetRacingPublish` |
 
-**Invariant 3 is structurally N/A for this runtime**, the same as it is for the Java runtime.
-Neither `BoundedEventBuffer` (`pipeline/bounded_buffer.py:31-34`) nor `BufferedEventConsumer`
+**Invariant 3 is structurally N/A for this runtime.** Neither `BoundedEventBuffer`
+(`pipeline/bounded_buffer.py:31-34`) nor `BufferedEventConsumer`
 (`pipeline/buffered_consumer.py:80-105`) allocate anything lazily — the ring, the store, and the
 drain thread are all built eagerly inside `__init__`, before the constructed object is ever handed
 to a caller who could race a second thread against it. There is no "does the first publish race the
-allocation?" question to ask of this design. Java's own suite makes the identical substitution in
-`UnsafePublicationTest`'s Javadoc (safe *publication* of an eagerly-built object, not lazy
-allocation) — its production ring has the same eager-construction shape.
+allocation?" question to ask of this design. The nearest analogue makes the identical substitution
+in `UnsafePublicationTest`'s own doc comment (safe *publication* of an eagerly-built object, not
+lazy allocation) — its production ring has the same eager-construction shape.
 
 ## Platform mapping
 
-Java's model is threads only. This runtime additionally covers **asyncio tasks**, since asyncio
+This runtime covers **asyncio tasks** in addition to threads, since asyncio
 task interleaving at the adoption/live-child seam was untested before this suite existed. A plain
 synchronous call with no `await` inside it (`_TraceStack.adopt`) cannot genuinely race under
 asyncio's cooperative model — one coroutine always runs it to completion before another starts —
@@ -44,7 +44,7 @@ reset-racing-publish halves both span real `await` points and get both a `test_t
 `test_asyncio_tasks` variant, exercising the identical assertion against the identical production
 code path, just scheduled cooperatively instead of preemptively.
 
-Technique, since CPython has no jcstress-equivalent scheduler:
+Technique, since CPython has no exhaustive-interleaving scheduler:
 
 * **Threads** — `threading.Barrier`-synchronised starts (`stress_support.run_barrier_synced`) so
   every repetition hits the same contention window, with `sys.setswitchinterval` lowered
@@ -85,12 +85,12 @@ so a failure the long sweep finds once can be reproduced afterward.
 
 ## Findings
 
-The running ledger (Java invariant → Python verdict, one row per finding) is tracked in the
+The running ledger (one row per finding, invariant → verdict) is tracked in the
 private backlog; this runtime's private working notes carry the narrative summary of this run.
 
 ## What this suite does not do
 
-Same scope boundary as Java's: it doesn't replace deterministic unit tests for the same components
+This suite doesn't replace deterministic unit tests for the same components
 (`test_pipeline_buffered.py`, `test_trace_stack_live_child.py`, etc. still own the example-based
 and boundary-condition coverage), doesn't measure throughput or latency, and doesn't cover
 framework integrations (`narrativetrace-asgi`, `narrativetrace-otel`) beyond the core pipeline they

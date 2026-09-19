@@ -56,7 +56,8 @@ _MAX_SANE_FLAT_LENGTH = 4_000
 """A generous, deterministic ceiling for :meth:`ValueRenderer.render` over any corpus graph:
 comfortably above every legitimately-capped shape measured today (the deepest chains and widest
 containers reach roughly a thousand characters), and orders of magnitude below what
-``huge-to-string`` alone would produce (1,048,576 characters) the moment its string cap broke."""
+``huge-to-string`` alone would produce (1,048,576 characters) the moment either guard in front of
+it broke -- the one that never calls a fieldless value's own conversion, or the string cap."""
 
 _MAX_SANE_STRUCTURED_LENGTH = 8_000
 """Same reasoning as :data:`_MAX_SANE_FLAT_LENGTH`, sized for the structured channel's ``repr``
@@ -83,17 +84,20 @@ class TestBoundedWork:
             f"{case.id} produced unbounded structured output ({len(outputs['structured'])} chars)"
         )
 
-    def test_a_megabyte_to_string_is_truncated_to_the_string_cap(self) -> None:
+    def test_a_megabyte_to_string_is_never_consumed_at_all(self) -> None:
         """The deterministic property the removed wall-clock assertion was actually guarding for
-        ``huge-to-string``: a hostile ``__str__`` returning a megabyte is truncated, never
-        consumed whole, in either channel."""
+        ``huge-to-string``, now held one step before truncation: the hostile ``__str__`` belongs
+        to a class declaring no field reflection can read, so the value is rendered by name and
+        the megabyte is never produced. The string cap still stands behind every conversion
+        rendering DOES call (a platform value's, an enum member's -- see
+        ``test_rendering_extra``); it is simply no longer what keeps this row bounded."""
         case = next(c for c in graphs() if c.id == "huge-to-string")
         graph = build(case, sentinel_token())
         outputs = _outputs(ValueRenderer(), graph)
 
-        assert outputs["flat"].endswith("…"), "a truncated value must end in the truncation marker"
+        assert "x" * 1_000 not in outputs["flat"], "the megabyte conversion must never run"
         assert len(outputs["flat"]) <= _MAX_SANE_FLAT_LENGTH
-        assert "…" in outputs["structured"], "the structured channel must carry the same marker"
+        assert "x" * 1_000 not in outputs["structured"], "nor on the structured channel"
         assert len(outputs["structured"]) <= _MAX_SANE_STRUCTURED_LENGTH
 
 

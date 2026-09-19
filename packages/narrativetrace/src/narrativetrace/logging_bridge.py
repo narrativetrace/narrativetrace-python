@@ -73,8 +73,8 @@ _REQUEST_SCOPE: contextvars.ContextVar[dict[str, str] | None] = contextvars.Cont
 # The enclosing test-suite run's own phrase (2026-09-13 ruling, item 2) -- a plain module global,
 # not a ContextVar like the scopes above: a run name is the SAME value for the whole process's
 # test-suite execution, on every thread and task, not a value that should vary by call stack. The
-# pytest plugin's session hook sets it once (mirrors Java's RunListener SPI attaching to MDC) and
-# clears it when the session ends.
+# pytest plugin's session hook sets it once (the same SPI-attach-to-MDC shape this family uses
+# elsewhere) and clears it when the session ends.
 _run_name: str | None = None
 
 

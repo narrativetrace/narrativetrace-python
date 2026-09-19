@@ -2,7 +2,7 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Generates the "See a trace in 60 seconds" tutorial's two captured-output artifacts.
+"""Generates the "See a trace in 60 seconds" tutorial's captured-output artifacts.
 
 Shared by ``test_sixty_seconds.py`` (which also asserts on the returned content) and
 ``packages/narrativetrace/tests/test_snippet_check.py``'s ``TestRealRepository`` (which only
@@ -26,6 +26,7 @@ BUILD_DIR = HERE / "build"
 PLAIN_ARTIFACT = "see_a_trace.txt"
 WITH_LOGGER_ARTIFACT = "see_a_trace_with_logger.txt"
 WITH_REDACTION_ARTIFACT = "see_a_trace_with_redaction.txt"
+WITH_LOGURU_ARTIFACT = "see_a_trace_with_loguru.txt"
 
 
 def _run_script(name: str) -> str:
@@ -56,12 +57,13 @@ def _save(filename: str, content: str) -> None:
     (BUILD_DIR / filename).write_text(content, encoding="utf-8")
 
 
-def write_artifacts() -> tuple[str, str, str]:
-    """Runs ``main.py``, ``main_with_logger.py`` and ``main_llms.py`` (the `llms.txt` "Install and
-    first trace" block's minimal program -- see documentation/llms.txt), saves their stdout under
+def write_artifacts() -> tuple[str, str, str, str]:
+    """Runs ``main.py``, ``main_with_logger.py``, ``main_llms.py`` (the `llms.txt` "Install and
+    first trace" block's minimal program -- see documentation/llms.txt) and
+    ``main_with_loguru.py`` (the Logging Guide's Loguru section), saves their stdout under
     ``build/`` for ``scripts/snippet_check.py`` to embed, and returns
-    ``(plain, with_logger, with_redaction)`` -- idempotent and safe to call from more than one
-    test."""
+    ``(plain, with_logger, with_redaction, with_loguru)`` -- idempotent and safe to call from more
+    than one test."""
     plain = _run_script("main.py")
     _save(PLAIN_ARTIFACT, plain)
 
@@ -71,4 +73,7 @@ def write_artifacts() -> tuple[str, str, str]:
     with_redaction = _run_script("main_llms.py")
     _save(WITH_REDACTION_ARTIFACT, with_redaction)
 
-    return plain, with_logger, with_redaction
+    with_loguru = _run_script("main_with_loguru.py")
+    _save(WITH_LOGURU_ARTIFACT, with_loguru)
+
+    return plain, with_logger, with_redaction, with_loguru

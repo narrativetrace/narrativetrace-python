@@ -15,7 +15,7 @@ label, so the change prints AS a diff.
 The delta is computed from the two *structured* trees and formats only scalar leaves. It never
 reconstructs a flat render from a structured value: the flat and structured channels are captured
 independently (``ValueRenderer.render`` / ``render_structured``) and deriving one from the other
-is a divergence class the Java runtime has already paid for twice. Any difference
+is a divergence class this family has already paid for twice. Any difference
 that is not a scalar-to-scalar field change therefore yields ``None``, and the caller falls back
 to the full flat render.
 """

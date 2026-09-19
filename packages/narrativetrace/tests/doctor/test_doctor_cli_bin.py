@@ -8,7 +8,8 @@ process or touches the real filesystem, mirroring the TypeScript runtime's ``cli
 from __future__ import annotations
 
 import json
-import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -102,29 +103,44 @@ class TestRunCliDoctor:
 
 
 class TestMain:
-    def test_main_runs_against_the_real_process_environment(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_main_runs_against_the_real_process_environment(self) -> None:
         """A thin smoke test of the real console-script wiring (`build_snapshot`/`os.environ`),
         against a scratch project rather than this repository's own tree.
 
-        `os.getcwd` is patched rather than the process actually `chdir`-ing: a real chdir moves
-        the whole process off the checkout for the rest of this test, which nothing in this suite
-        may depend on (see test_cli.py's own note on the same hazard — mutation testing's
-        trampoline re-resolves its configured, relative source path against the live process cwd
-        on every call into mutated code, `main` included).
-        """
-        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
-        monkeypatch.setattr(os, "getcwd", lambda: str(tmp_path))
-        exit_code = main(["doctor", "--json"])
-        assert exit_code in (0, 1)
+        The scratch root is passed to `main`'s explicit `cwd` argument rather than faked by
+        monkeypatching `os.getcwd` (a real `chdir` has the same problem, moving the whole process
+        off the checkout for the rest of this test): the process cwd is not a test input to fake
+        by monkeypatching -- `os.getcwd()` is read by other code in the process too, and mutation
+        testing's trampoline re-resolves its configured, relative source path against it on every
+        call into mutated code, `main` included, so a monkeypatch pointing it somewhere that path
+        doesn't exist crashes the mutation gate before `main`'s own body ever runs (found running
+        the scoped `poe mutate` baseline for `narrativetrace.doctor.*`, 2026-09-18; see
+        test_cli.py's own note on the adjacent `chdir` version of the same hazard). Passing the
+        root explicitly means this test creates exactly what it expects under its own scratch,
+        and process-global state is never touched.
 
-    def test_main_writes_errors_to_real_stderr(
-        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+        The scratch project directory is this test's own `tempfile.mkdtemp()`, not the `tmp_path`
+        fixture: under the mutation gate, every worker calls `pytest.main()` in-process, repeatedly,
+        all sharing one pytest `--basetemp` root, and pytest prunes that shared root's numbered
+        directories at the end of every session (`_pytest.pathlib.cleanup_numbered_dir`) — a
+        directory another, still-running sibling session only just created (and has not yet
+        written its cleanup lock for) is a real target of that scan. A directory this test makes
+        and removes itself, outside pytest's basetemp entirely, is immune to another session's
+        cleanup by construction, so it stays hermetic under repeated/parallel invocation.
+        """
+        scratch = Path(tempfile.mkdtemp(prefix="narrativetrace-doctor-cli-"))
+        try:
+            (scratch / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
+            exit_code = main(["doctor", "--json"], cwd=str(scratch))
+            assert exit_code in (0, 1)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+
+    def test_main_writes_errors_to_real_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
         """The real `_log_stderr`/`print(..., file=sys.stderr)` wiring, not the injected fake used
-        by every other test in this module."""
-        monkeypatch.setattr(os, "getcwd", lambda: "/nonexistent-for-this-test")
-        exit_code = main(["frobnicate"])
+        by every other test in this module. `cwd` is passed explicitly (never patched -- see
+        `test_main_runs_against_the_real_process_environment`'s note) even though the `frobnicate`
+        verb never reaches it, so this test carries no dependency on the real process cwd either."""
+        exit_code = main(["frobnicate"], cwd="/nonexistent-for-this-test")
         assert exit_code == 2
         assert "Unknown command: frobnicate" in capsys.readouterr().err

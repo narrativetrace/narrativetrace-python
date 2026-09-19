@@ -122,10 +122,19 @@ through a nested object's own `__str__` — reached output completely unmediated
 deny-list, depth caps, everything. A dict/map **key** had the identical gap: it used to be a bare,
 unmediated `str(key)`, so a sensitive object used as a key leaked unconditionally regardless of
 what its value held. Both are now introspected and redaction-checked exactly like an ordinary
-value — only a genuine leaf (no instance state at all: a number, a string, a stateless helper
-class, a payload-free `Enum` member) still trusts its own `str()`. `@narrative_summary` is
-unaffected and remains the supported way to give a composite a curated one-line rendering instead
-of the field-by-field default.
+value. `@narrative_summary` is unaffected and remains the supported way to give a composite a
+curated one-line rendering instead of the field-by-field default.
+
+**Carrying no readable field earns no trust either** *(since 0.1.3, unreleased)*. A value whose state
+introspection cannot see — a `ctypes.Structure` subclass or an extension type holding its fields
+in a C struct, a class keeping its state in a module-level table keyed by identity or in a
+closure — used to count as a leaf and stand behind its own `__str__`/`__repr__`, which could
+print every one of those fields into the trace, past the deny-list and past every cap. An empty
+`__dict__` is not evidence of nothing to hide; more often it is evidence of state this library
+cannot reach. Such a value now renders as its type name alone — `<CStructCredentials>` — present
+in the trace, bounded, and unread. What may still speak for itself is decided by origin (next
+paragraph) and by nothing else; `@narrative_summary` remains the supported way for a type to
+narrate itself.
 
 **A platform-defined type is trusted for its own `str()` even though it carries state** *(since 0.1.2)*. The rule above is correct for application types but was too broad for the
 standard library's own value types — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,

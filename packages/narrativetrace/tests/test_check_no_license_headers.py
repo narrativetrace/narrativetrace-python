@@ -9,8 +9,9 @@ against this repository; these tests cover `carries_a_header_block`'s pattern-ma
 isolation (including the exact false-positive `test_distribution_licensing.py` must not trip),
 `find_offenders`'s all-or-nothing policy (a uniformly header-stamped tree -- what
 the (private) publish pipeline's --verify build produces -- is a pass, not a finding; only a MIX is
-an offender), and `_walk_python_files`'s scope (the fallback used outside a git checkout, e.g.
+an offender), and `_walk_source_files`'s scope (the fallback used outside a git checkout, e.g.
 that same --verify build, which runs from a plain tar-extracted copy with no .git at all).
+Shell scripts are in scope alongside Python files: the publish pipeline stamps both.
 """
 
 from __future__ import annotations
@@ -19,14 +20,16 @@ from pathlib import Path
 
 from scripts.check_no_license_headers import (
     HEADER_SCAN_LINES,
-    _walk_python_files,
+    _walk_source_files,
     carries_a_header_block,
     find_offenders,
-    tracked_python_files,
+    tracked_source_files,
 )
 
 _HEADER = "# SPDX-License-Identifier: BUSL-1.1\n"
 _PLAIN = '"""A module."""\n\ndef f() -> None:\n    pass\n'
+_SHEBANG = "#!/usr/bin/env bash\n"
+_PLAIN_SH = _SHEBANG + "set -euo pipefail\necho ok\n"
 
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:
@@ -79,18 +82,34 @@ class TestCarriesAHeaderBlock:
         )
         assert carries_a_header_block(rel, tmp_path) is False
 
+    def test_spdx_line_under_a_shebang_is_a_header(self, tmp_path: Path) -> None:
+        # The publish pipeline stamps shell scripts below their shebang line; the same shape
+        # in-tree is the drift this gate exists for.
+        rel = _write(tmp_path, "stamped.sh", _SHEBANG + _HEADER + "set -euo pipefail\n")
+        assert carries_a_header_block(rel, tmp_path) is True
+
 
 def _make_fake_repo(tmp_path: Path, *, git: bool) -> Path:
-    """A minimal repo shape: packages/<pkg>/src/one.py, scripts/two.py, root three.py. No
-    ``.git`` unless ``git`` asks for one -- the marker `tracked_python_files` branches on."""
+    """A minimal repo shape: packages/<pkg>/src/one.py, scripts/two.py, scripts/four.sh, root
+    three.py. No ``.git`` unless ``git`` asks for one -- the marker `tracked_source_files`
+    branches on."""
     (tmp_path / "packages" / "pkg" / "src").mkdir(parents=True)
     (tmp_path / "packages" / "pkg" / "src" / "one.py").write_text(_PLAIN, encoding="utf-8")
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "two.py").write_text(_PLAIN, encoding="utf-8")
+    (tmp_path / "scripts" / "four.sh").write_text(_PLAIN_SH, encoding="utf-8")
     (tmp_path / "three.py").write_text(_PLAIN, encoding="utf-8")
     if git:
         (tmp_path / ".git").mkdir()
     return tmp_path
+
+
+_FAKE_REPO_FILES = [
+    Path("packages/pkg/src/one.py"),
+    Path("scripts/four.sh"),
+    Path("scripts/two.py"),
+    Path("three.py"),
+]
 
 
 class TestFindOffenders:
@@ -104,7 +123,7 @@ class TestFindOffenders:
 
     def test_every_file_stamped_is_not_an_offense(self, tmp_path: Path) -> None:
         repo = _make_fake_repo(tmp_path, git=False)
-        for path in _walk_python_files(repo):
+        for path in _walk_source_files(repo):
             (repo / path).write_text(_HEADER + _PLAIN, encoding="utf-8")
         assert find_offenders(repo) == []
 
@@ -113,6 +132,14 @@ class TestFindOffenders:
         offender = repo / "scripts" / "two.py"
         offender.write_text(_HEADER + _PLAIN, encoding="utf-8")
         assert find_offenders(repo) == [Path("scripts/two.py")]
+
+    def test_one_stamped_shell_script_among_unstamped_siblings_is_the_offense(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _make_fake_repo(tmp_path, git=False)
+        offender = repo / "scripts" / "four.sh"
+        offender.write_text(_SHEBANG + _HEADER + "set -euo pipefail\n", encoding="utf-8")
+        assert find_offenders(repo) == [Path("scripts/four.sh")]
 
     def test_no_tracked_files_is_not_an_offense(self, tmp_path: Path) -> None:
         assert find_offenders(tmp_path) == []
@@ -128,27 +155,23 @@ class TestTrackedPythonFiles:
         # An empty `.git` directory is not a valid repository, so `git ls-files` genuinely
         # fails here -- same observable behavior as the container's ownership rejection.
         repo = _make_fake_repo(tmp_path, git=True)
-        assert tracked_python_files(repo) == [
-            Path("packages/pkg/src/one.py"),
-            Path("scripts/two.py"),
-            Path("three.py"),
-        ]
+        assert tracked_source_files(repo) == _FAKE_REPO_FILES
 
 
-class TestWalkPythonFiles:
-    """The no-`.git` fallback (`tracked_python_files` delegates here) -- exercised directly
+class TestWalkSourceFiles:
+    """The no-`.git` fallback (`tracked_source_files` delegates here) -- exercised directly
     against `--verify`'s own shape: a plain tar-extracted copy with no VCS metadata at all."""
 
     def test_finds_files_under_the_scoped_directories_and_the_repo_root(
         self, tmp_path: Path
     ) -> None:
         repo = _make_fake_repo(tmp_path, git=False)
-        found = _walk_python_files(repo)
-        assert found == [
-            Path("packages/pkg/src/one.py"),
-            Path("scripts/two.py"),
-            Path("three.py"),
-        ]
+        assert _walk_source_files(repo) == _FAKE_REPO_FILES
+
+    def test_finds_a_shell_script_at_the_repo_root(self, tmp_path: Path) -> None:
+        repo = _make_fake_repo(tmp_path, git=False)
+        (repo / "demo.sh").write_text(_PLAIN_SH, encoding="utf-8")
+        assert Path("demo.sh") in _walk_source_files(repo)
 
     def test_excludes_venv_build_and_mutants_directories(self, tmp_path: Path) -> None:
         repo = _make_fake_repo(tmp_path, git=False)
@@ -156,14 +179,16 @@ class TestWalkPythonFiles:
             noisy = repo / noise_dir
             noisy.mkdir(parents=True)
             (noisy / "noise.py").write_text(_PLAIN, encoding="utf-8")
-        found = _walk_python_files(repo)
+            (noisy / "noise.sh").write_text(_PLAIN_SH, encoding="utf-8")
+        found = _walk_source_files(repo)
         assert Path("packages/pkg/src/one.py") in found
-        assert not any("noise.py" in str(path) for path in found)
+        assert not any("noise." in str(path) for path in found)
 
     def test_ignores_directories_outside_its_scope(self, tmp_path: Path) -> None:
         repo = _make_fake_repo(tmp_path, git=False)
         outside = repo / "documentation"
         outside.mkdir()
         (outside / "outside.py").write_text(_PLAIN, encoding="utf-8")
-        found = _walk_python_files(repo)
-        assert not any("outside.py" in str(path) for path in found)
+        (outside / "outside.sh").write_text(_PLAIN_SH, encoding="utf-8")
+        found = _walk_source_files(repo)
+        assert not any("outside." in str(path) for path in found)

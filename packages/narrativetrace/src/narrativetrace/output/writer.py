@@ -2,31 +2,25 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Renders a trace and writes it (and coupled extras) to disk.
+"""Renders a trace and writes it (and coupled extras) to disk. Empty traces write nothing.
 
-The writing slice of Java ``TraceTestSupport`` / ``TraceFileWriter``. Empty traces write
-nothing.
-
-Format selection mirrors Java ``TraceTestSupport.renderForFormat``: ``text`` is framed with a
-scenario header, ``mermaid`` and ``plantuml`` write that diagram *instead of* the Markdown trace,
-and anything else is the Markdown document. Format names are matched case-insensitively (Java
-``toLowerCase`` / ``equalsIgnoreCase``), so an ambient ``PlantUML`` behaves like ``plantuml``.
+Format selection: ``text`` is framed with a scenario header, ``mermaid`` and ``plantuml`` write
+that diagram *instead of* the Markdown trace, and anything else is the Markdown document. Format
+names are matched case-insensitively, so an ambient ``PlantUML`` behaves like ``plantuml``.
 
 The core distribution is dependency-free, so the diagram renderers and the JSON exporter arrive as
-optional ``json_exporter`` / ``diagram_renderer`` (Mermaid) / ``plantuml_renderer`` hooks — the
-Python equivalent of Java injecting both ``NarrativeRenderer``s into the helper. Requesting a
-diagram format without its hook raises rather than silently writing Markdown into a ``.mmd`` /
-``.puml`` file. ``diagram_renderer`` additionally emits the coupled ``diagrams/<Class>/*.mmd``
-companion that Markdown output carries alongside its sibling ``.json``.
+optional ``json_exporter`` / ``diagram_renderer`` (Mermaid) / ``plantuml_renderer`` hooks.
+Requesting a diagram format without its hook raises rather than silently writing Markdown into a
+``.mmd`` / ``.puml`` file. ``diagram_renderer`` additionally emits the coupled
+``diagrams/<Class>/*.mmd`` companion that Markdown output carries alongside its sibling ``.json``.
 
-Every write passes ``errors="replace"`` (a security fuzz suite finding, mirrors Java's
-``TraceFileWriter`` fix): narration and scenario text reach this module without passing through
-:func:`narrativetrace.escape.control_sanitize` first (it is prose an author wrote, not a captured
-value), so a lone surrogate code point in it would otherwise raise ``UnicodeEncodeError`` from the
-write itself. A written artifact carrying one replacement marker is readable; a failed write is a
-failed run. (Divergence from Java's exact fix: Python's built-in ``errors="replace"`` substitutes
-ASCII ``?`` on encode, where Java's ``CodingErrorAction.REPLACE`` substitutes U+FFFD -- the marker
-spelling differs, the degrade-rather-than-crash contract does not.)
+Every write passes ``errors="replace"`` (a security fuzz suite finding): narration and scenario
+text reach this module without passing through :func:`narrativetrace.escape.control_sanitize`
+first (it is prose an author wrote, not a captured value), so a lone surrogate code point in it
+would otherwise raise ``UnicodeEncodeError`` from the write itself. A written artifact carrying one
+replacement marker is readable; a failed write is a failed run. Python's built-in
+``errors="replace"`` substitutes ASCII ``?`` on encode -- a different replacement marker than some
+other NarrativeTrace runtimes use, same degrade-rather-than-crash contract.
 """
 
 from __future__ import annotations

@@ -26,7 +26,7 @@ bytes are, and keep the file ASCII — every non-ASCII character is written as a
 | `strings.json` | the value renderer, every output format, and (four `diagram-alias-*` cases) Mermaid's alias-mode participant derivation, as a class name | hostile scalar values: control characters, bidi and zero-width, combining sequences, unpaired surrogates, template lookalikes, JSON/Mermaid/Markdown/YAML metacharacters, values up to 1 MiB |
 | `headers.json` | `Traceparent` and any other wire reader | W3C `traceparent` and `tracestate` values: wrong lengths, non-hex, all-zero ids, version `ff`, trailing garbage, embedded CRLF, oversize |
 | `templates.json` | `TemplateParser` and `RedactedPaths` | `@Narrated`/`@OnError` templates: nesting, unterminated braces, paths into redacted members at every depth, 50-segment paths, unicode identifiers |
-| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray` |
+| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary, the platform-type carve-out (a trusted short value, a deny-listed name holding one, a lookalike name and a subclass that must still be walked) |
 | `injection.json` | every output format, as an AI-consumer oracle | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, markdown-link exfiltration, fence and frontmatter terminators, Mermaid label terminators, homoglyph and zero-width variants |
 | `names.json` | the artifact writers, which turn a name into a path | test class and method names: separators and parent traversal, control characters, lone surrogates, noncharacters, bidi overrides, and names past the filesystem's per-element limit in characters *and* in bytes |
 | `redaction.json` | the name deny-list and the value-shape matcher | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
@@ -78,6 +78,20 @@ a deny-list is only as good as the field it does *not* blank, and a default
 that hides `circuitBreaker` is one teams switch off entirely — which leaks
 every field rather than one.
 
+> **Port divergence, resolved twice over (owner ruling 2026-09-18)** — these four `redaction.json`
+> `kind` rows were added in this runtime on 2026-09-11, ahead of the master, which at the time
+> expressed the same four shapes as `graphs.json` rows only. Removed the same day to restore
+> byte-identity and proposed to the master separately, they were then ADOPTED into the master's
+> own `redaction.json` unchanged (`curated-tostring-top-level`, `curated-tostring-nested`,
+> `sensitive-map-key`, `throwing-summary` — ids, `kind` names and canaries all identical) and
+> copied back here verbatim. `test_hostile_corpus.py`'s `TestByteIdentityWithTheMasterCorpus`
+> checks `redaction.json` like every other fixture file, no exemption. The capture-path coverage
+> these rows drive (the real `trace_object`/`ParameterCapture` path, one layer below the
+> `ValueRenderer`-only replay the `graphs.json` rows get) lives in
+> `test_capture_path_redaction_conformance.py`'s `TestHostileCorpusKindCasesThroughRealCapturePath`;
+> `RedactionCase.kind`/`is_kind` and `hostile_redaction_kinds.build` are what it and this file's
+> loader both build on.
+
 The four `kind` rows exist because a `name`/`value` pair can only plant a
 canary directly under a field name or as a bare scalar — none of them can
 express "a composite whose OWN `__str__`/`toString` interpolates its
@@ -106,6 +120,14 @@ or `kind`, naming a shape a stack cannot express:
 | `selfInCollection` | a `container` that contains itself |
 | `diamond` | one object reached twice by different paths — shared, not cyclic |
 | `hostileMember` | an object whose `member` (`toString`, `hashCode`, `equals`, a getter, a record accessor, a field *name*) misbehaves |
+| `curatedToString` | a composite carrying a deny-listed field whose native stringification interpolates it |
+| `curatedToStringNested` | a composite with no sensitive field whose native stringification interpolates a nested composite that carries one |
+| `mapKey` | a composite carrying a deny-listed field, used as a map/dictionary **key** |
+| `throwingSummary` | a composite whose summary marker (`@NarrativeSummary` and its per-runtime equivalents) throws |
+| `platformValue` | platform-defined value types with no deny-listed field, each rendering its own short native text |
+| `platformNameRedacted` | a deny-listed field name holding a value of a platform type the renderer would otherwise trust to stringify itself |
+| `platformLookalike` | a user type named after a platform type, carrying a deny-listed field |
+| `platformSubclass` | a user subclass of a platform type, carrying a deny-listed field |
 | `manyFields` | an object with `n` fields |
 | `emptyContainers` | every empty container, nested |
 | `future` | a `Future` in the given `state` |
@@ -114,7 +136,20 @@ or `kind`, naming a shape a stack cannot express:
 `payload: "secret-record"` means the builder plants a record with a
 `@NotTraced` component holding a **unique per-case sentinel token** at that
 position. The redaction oracle then asserts the token appears in no byte of any
-output, at any depth, in any format.
+output, at any depth, in any format. The four native-stringification kinds are
+the exception to the *shape* of that planting: their sentinel sits behind a
+**deny-listed field name** (`password`) rather than an annotation, because the
+channel they pin is the one where the annotation was never consulted — a type's
+own `toString`/`__str__`/`description` standing in for the walk. Each runtime's
+builder realises them idiomatically; in Java `curatedToStringNested` must be a
+plain class rather than a record, because a record dispatches to its component
+walk *before* the renderer asks whether the type stringifies itself, and a
+record realisation would prove nothing about native stringification.
+
+`throwingSummary` carries a second oracle beside containment: the traced call
+succeeds, and the failed part renders `<error: <TypeName>>` — the raised
+exception's type name and **never** its message, which in this case carries the
+sentinel. See the oracle contract's clauses 7 and 8 (2026-09-11 addendum).
 
 **Declarative trace shape** (`trace-shapes.json`) — `kind` names the call-tree
 shape, `n` its size:

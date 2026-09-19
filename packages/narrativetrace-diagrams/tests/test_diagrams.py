@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from narrativetrace_diagrams.mermaid import MermaidSequenceDiagramRenderer
@@ -441,12 +442,24 @@ class TestDepthAndCycleBounds:
             out = renderer.render(_tree(node))  # must not raise RecursionError
             assert CYCLE_MARKER in out, name
 
+    # Builds and walks a 10,000-deep chain through both renderers. HANG GUARD, not a timing
+    # assertion -- the test only checks both renderers show the depth-limit marker, never a
+    # duration, so the budget is the documented 10s floor, not a multiple of a timing sample
+    # (release retrospective rule 3 refinement, Pro ledger #129: "5x a contended sample" still
+    # makes wall-clock a test input -- TestParseCacheIsBounded went red under scheduler
+    # starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_chain_is_truncated_not_crashed(self) -> None:
         chain = self._chain(10_000)
         for name, renderer in self._RENDERERS:
             out = renderer.render(_tree(chain))  # must not raise RecursionError
             assert DEPTH_LIMIT_MARKER in out, name
 
+    # Builds a 10,000-deep chain and collects Mermaid aliases for it. HANG GUARD, not a timing
+    # assertion -- the test only checks the result is a string, never a duration, so the budget
+    # is the documented 10s floor, not a multiple of a timing sample (release retrospective
+    # rule 3 refinement, Pro ledger #129).
+    @pytest.mark.timeout(10.0)
     def test_mermaid_alias_rendering_also_bounds_participant_collection(self) -> None:
         chain = self._chain(10_000)
         out = MermaidSequenceDiagramRenderer().render_with_aliases(_tree(chain))

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 433100a99e4b | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob f6ea3847f2f0 | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -123,11 +123,21 @@ un campo sensible — directamente, o de forma transitiva a través del `__str__
 profundidad, todo. Una clave de dict/map tenía el mismo hueco: solía ser un `str(key)` desnudo y sin
 mediar, así que un objeto sensible usado como clave se filtraba incondicionalmente sin importar lo
 que contuviera su valor. Ambos casos ahora se introspeccionan y se comprueban contra la ocultación
-exactamente igual que un valor ordinario — solo un valor genuinamente hoja (sin ningún estado de
-instancia: un número, una cadena, una clase auxiliar sin estado, un miembro de `Enum` sin carga)
-sigue confiando en su propio `str()`. `@narrative_summary` no se ve afectado y sigue siendo la forma
-admitida de darle a un compuesto un resumen curado de una línea en vez del predeterminado campo por
-campo.
+exactamente igual que un valor ordinario. `@narrative_summary` no se ve afectado y sigue siendo la
+forma admitida de darle a un compuesto un resumen curado de una línea en vez del predeterminado
+campo por campo.
+
+**No exponer ningún campo legible tampoco otorga confianza** *(since 0.1.3, unreleased)*. Un valor
+cuyo estado la introspección no puede ver — una subclase de `ctypes.Structure` o un tipo de
+extensión que guarda sus campos en una estructura C, una clase que guarda su estado en una tabla a
+nivel de módulo indexada por identidad o en un cierre — se contaba como hoja y respondía por sí
+mismo mediante su propio `__str__`/`__repr__`, que podía imprimir cada uno de esos campos en la
+traza, superando la lista de denegación y todos los límites. Un `__dict__` vacío no es prueba de
+que no haya nada que ocultar; con más frecuencia es prueba de un estado que esta biblioteca no
+puede alcanzar. Ese valor ahora se renderiza solo como el nombre de su tipo —
+`<CStructCredentials>` — presente en la traza, acotado y sin leer. Lo que aún puede hablar por sí
+mismo lo decide el origen (el párrafo siguiente) y nada más; `@narrative_summary` sigue siendo la
+forma admitida de que un tipo se narre a sí mismo.
 
 **Un tipo definido por la plataforma es de confianza para su propio `str()` aunque porte estado**
 *(since 0.1.2)*. La regla anterior es correcta para tipos de aplicación, pero era

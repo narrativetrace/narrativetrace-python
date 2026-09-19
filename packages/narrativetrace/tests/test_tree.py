@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from narrativetrace.events import EnterEvent, ExitEvent, TraceEvent
 from narrativetrace.ids import SpanId, TraceId
 from narrativetrace.levels import TracingLevel
@@ -116,6 +118,12 @@ class TestDepthAndCycleBounds:
         tree = TraceTree([node])
         assert tree.inherited_span_context is None
 
+    # Builds a 10,000-deep chain. HANG GUARD, not a timing assertion -- the test only checks the
+    # inherited span context, never a duration, so the budget is the documented 10s floor, not a
+    # multiple of a timing sample (release retrospective rule 3 refinement, Pro ledger #129:
+    # "5x a contended sample" still makes wall-clock a test input -- TestParseCacheIsBounded went
+    # red under scheduler starvation at a 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_hand_built_chain_does_not_overflow_the_stack(self) -> None:
         node = _node()
         for _ in range(10_000):
@@ -138,6 +146,13 @@ class TestDepthAndCycleBounds:
         tree = build_trace_tree(events, TracingLevel.DETAIL)
         assert tree.roots != []
 
+    # Builds a 10,000-entry linear event chain and builds the tree from it. HANG GUARD, not a
+    # timing assertion -- the test only checks the tree was truncated, never a duration, so the
+    # budget is the documented 10s floor, not a multiple of a timing sample (release
+    # retrospective rule 3 refinement, Pro ledger #129: "5x a contended sample" still makes
+    # wall-clock a test input -- TestParseCacheIsBounded went red under scheduler starvation at a
+    # 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_event_chain_is_truncated_not_crashed(self) -> None:
         events: list[TraceEvent] = []
         parent: SpanId | None = None

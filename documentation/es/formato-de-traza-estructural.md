@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 49cc120389ad | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob 5a69bc325262 | translated: 2026-09-17 | reviewed: - -->
 
 # Formato de traza estructural (`.nt`)
 
@@ -46,9 +46,9 @@ encuentra bajo el mismo nombre en otra:
 - El nombre es estable entre ejecuciones, máquinas y procesos, que es lo que permite que el
   `.approved.nt` de una invocación se confirme en el repositorio siquiera. Donde un nombre supera
   el límite de 255 bytes por elemento de ruta, la mitad del *método* se trunca y se le añaden
-  ocho caracteres hexadecimales del `String.hashCode` de Java sobre el slug completo —
-  especificado, por tanto idéntico en todas partes; un hash por proceso invalidaría en silencio
-  cada línea base que tocara.
+  ocho caracteres hexadecimales del `String.hashCode` canónico sobre el slug completo —
+  especificado, por tanto idéntico en todos los runtimes de NarrativeTrace; un hash por proceso
+  invalidaría en silencio cada línea base que tocara.
 
 Porque los nombres de artefacto se derivan en lugar de anunciarse, una ejecución también escribe
 `<output_dir>/manifest.json`: una fila por escenario trazado, nombrando su prueba, su número de

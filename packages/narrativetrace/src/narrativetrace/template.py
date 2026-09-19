@@ -5,9 +5,10 @@
 """Parser and resolver for ``@narrated`` / ``@on_error`` annotation templates.
 
 ``TemplateParser``. Substitutes ``{param}`` (unquoted ``str(value)``) and
-``{obj.prop}`` (attribute then property access) against a value map built from raw arguments.
-Unresolved placeholders are preserved literally instead of raising, so callers can surface
-warnings (PY8) rather than crash rendering.
+``{obj.prop}`` (a backing-field STATE read, never a property/accessor invocation — see
+:class:`_PropertyPlaceholder`) against a value map built from raw arguments. Unresolved
+placeholders are preserved literally instead of raising, so callers can surface warnings (PY8)
+rather than crash rendering.
 
 Substitution goes through ``_render_value``: text always renders through
 :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` (value-shape redaction,
@@ -56,7 +57,12 @@ from functools import lru_cache
 from narrativetrace.escape import control_sanitize
 from narrativetrace.redacted_paths import redacts
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
-from narrativetrace.rendering import ValueRenderer
+from narrativetrace.rendering import (
+    STATE_MISSING,
+    ValueRenderer,
+    read_backing_field,
+    rendering_scope,
+)
 
 _SAFE = ValueRenderer()
 _SCALAR_TYPES = (bool, int, float, complex)
@@ -111,6 +117,20 @@ class _SimplePlaceholder(_Segment):
 
 @dataclass(frozen=True, slots=True)
 class _PropertyPlaceholder(_Segment):
+    """A placeholder naming a member of a value — ``{order.total}``, ``{card.cvv}``.
+
+    @llmNote Resolved from STATE, never behaviour (the rendering rule: rendering reads state,
+    never runs behaviour): the member's own backing field
+    (:func:`~narrativetrace.rendering.read_backing_field`) — an instance ``__dict__`` entry or a
+    declared ``__slots__`` slot — exactly once, under :func:`~narrativetrace.rendering
+    .rendering_scope` so a woven accessor reached from further inside a value's own rendering
+    opens no phantom span. A genuinely computed ``@property`` or a zero-arg method has no such
+    state, so it is never invoked — the placeholder stays literal instead of running it, the same
+    way a missing member does. Before this fix, resolution invoked the named accessor directly
+    (and the redaction check above invoked it a second time, to decide whether to), so a property
+    with a side effect ran twice per placeholder resolved.
+    """
+
     object_key: str
     property_name: str
 
@@ -121,13 +141,11 @@ class _PropertyPlaceholder(_Segment):
             return literal
         if redacts(obj, self.property_name, RedactionPolicy.DEFAULT):
             return REDACTED_MARKER
-        try:
-            value = getattr(obj, self.property_name)
-            if callable(value):  # a zero-arg accessor (method) is invoked, like Java
-                value = value()
-        except Exception:  # a missing/raising accessor preserves the placeholder
+        with rendering_scope():
+            value = read_backing_field(obj, self.property_name)
+        if value is STATE_MISSING or value is None:
             return literal
-        return _render_value(value) if value is not None else literal
+        return _render_value(value)
 
 
 def _is_scalar(value: object) -> bool:
@@ -204,7 +222,7 @@ def _scalar_text(value: object) -> str:
     member has no such guarantee for its overridden ``__str__``, so it is control-sanitised
     here instead (mirrors ``ValueRenderer``'s identical numeric/enum fast path). Text never
     reaches here — ``_render_value`` routes every ``str`` to
-    :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` first (2026-09-04).
+    :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` first.
     """
     try:
         text = str(value)
@@ -216,10 +234,10 @@ def _scalar_text(value: object) -> str:
 
 
 _MAX_CACHED_TEMPLATES = 512
-"""Adversarial-audit mirror (2026-09-02): bounds the parsed-template cache below, matching
-Java's ``TemplateParser`` fix. Templates are ordinarily fixed at ``@narrated``/``@on_error``
-decoration time (finite by construction, one per call site), but nothing enforces that at this
-function's boundary, so the cache is bounded rather than trusted to stay small."""
+"""Bounds the parsed-template cache below. Templates are ordinarily fixed at
+``@narrated``/``@on_error`` decoration time (finite by construction, one per call site), but
+nothing enforces that at this function's boundary, so the cache is bounded rather than trusted to
+stay small."""
 
 
 def _parse_placeholder(key: str) -> _Segment:

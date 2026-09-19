@@ -244,11 +244,15 @@ class TestObjects:
     def test_plain_object_introspected(self, renderer: ValueRenderer) -> None:
         assert renderer.render(Plain()) == "Plain(a=1, token=[REDACTED])"
 
-    def test_custom_str_takes_precedence_for_a_genuine_leaf(self, renderer: ValueRenderer) -> None:
-        """``WithStr`` carries no instance state at all (an empty ``__dict__``), so it is a leaf
-        under the 2026-09-11 family invariant and still trusts its own ``__str__`` -- unlike
-        ``Plain``/``Account`` above, which DO carry fields and are introspected regardless."""
-        assert renderer.render(WithStr()) == "custom-repr"
+    def test_a_custom_str_on_a_fieldless_class_is_not_trusted_either(
+        self, renderer: ValueRenderer
+    ) -> None:
+        """``WithStr`` carries no instance state reflection can read, and that says nothing about
+        what it holds: state can live in a C struct, in a module-level table keyed by identity, or
+        in a closure, and the type's own text can print all of it. Only a value's ORIGIN earns it
+        its own string conversion, so this one renders as its type name -- the same outcome
+        ``Plain``/``Account`` above get by being walked field by field instead."""
+        assert renderer.render(WithStr()) == "<WithStr>"
 
     def test_object_default_str_does_not_count_as_custom(self, renderer: ValueRenderer) -> None:
         assert renderer.render(Plain()).startswith("Plain(")
@@ -307,9 +311,10 @@ class _RaisingSummaryWithMessageSecret:
 class TestNativeStringificationNeverTrustedForComposites:
     """Unit tests for the 2026-09-11 family fix, on both rendering channels: a composite exposing
     instance state is introspected field-by-field regardless of a custom ``__str__``/``__repr__``
-    override; only a genuine leaf (no instance state at all) still trusts ``str()``; a dict KEY
-    goes through the same pipeline as a value; and a raising ``@narrative_summary``/``__str__``/
-    getter renders the typed ``<error: TypeName>`` marker, never the exception's own message.
+    override; a value carrying no readable instance state is not thereby trusted either, it
+    renders as its type name; a dict KEY goes through the same pipeline as a value; and a raising
+    ``@narrative_summary``, a raising trusted string conversion, or a raising getter renders the
+    typed ``<error: TypeName>`` marker, never the exception's own message.
     """
 
     def test_a_plain_class_with_a_curated_str_is_introspected_not_trusted(
@@ -347,11 +352,14 @@ class TestNativeStringificationNeverTrustedForComposites:
         assert "hunter2" not in rendered
         assert "[REDACTED]" in rendered
 
-    def test_a_leaf_with_no_instance_state_still_trusts_its_own_str(
+    def test_no_instance_state_buys_no_trust_on_either_channel(
         self, renderer: ValueRenderer
     ) -> None:
-        assert renderer.render(WithStr()) == "custom-repr"
-        assert renderer.render_structured(WithStr()) == StringVal("custom-repr")
+        """An empty ``__dict__`` is not evidence of nothing to hide -- more often it is evidence
+        of state this renderer cannot reach, which the type's own text can still print in full.
+        Both channels answer with the type name, and neither calls ``__str__``."""
+        assert renderer.render(WithStr()) == "<WithStr>"
+        assert renderer.render_structured(WithStr()) == StringVal("<WithStr>")
 
     def test_a_successful_summary_is_still_honored(self, renderer: ValueRenderer) -> None:
         """The fix does not touch the success path: a summary that returns normally is used
@@ -379,16 +387,35 @@ class TestNativeStringificationNeverTrustedForComposites:
         assert "hunter2" not in renderer.render(secret)
         assert "hunter2" not in repr(renderer.render_structured(secret))
 
-    def test_a_raising_str_on_a_leaf_also_renders_the_typed_error_marker(
+    def test_a_raising_str_on_a_fieldless_class_never_even_runs(
         self, renderer: ValueRenderer
     ) -> None:
+        """The hostile conversion is not caught here, it is not called: a class declaring no
+        field is rendered by name, so nothing of its own runs."""
+
         class RaisingLeaf:
             __slots__ = ()
 
             def __str__(self) -> str:
                 raise ValueError("no instance state, still hostile")
 
-        assert renderer.render(RaisingLeaf()) == "<error: ValueError>"
+        assert renderer.render(RaisingLeaf()) == "<RaisingLeaf>"
+
+    def test_a_raising_str_on_a_trusted_conversion_renders_the_typed_error_marker(
+        self, renderer: ValueRenderer
+    ) -> None:
+        """The other half: where a string conversion IS called -- an enum member's own, one of
+        the two conversions rendering may run -- a raising one degrades to the typed marker, the
+        exception's own type name and never its message."""
+
+        class RaisingEnum(Enum):
+            ONE = "one"
+
+            def __str__(self) -> str:
+                raise ValueError("hostile conversion carrying hunter2")
+
+        assert renderer.render(RaisingEnum.ONE) == "<error: ValueError>"
+        assert renderer.render_structured(RaisingEnum.ONE) == StringVal("<error: ValueError>")
 
     def test_a_raising_getter_on_a_field_renders_the_typed_error_marker(
         self, renderer: ValueRenderer
@@ -849,12 +876,22 @@ class TestDepthLimiting:
     chain, so unbounded recursion crashed `render()` with an uncaught `RecursionError` on a
     10,000-deep container chain -- Python's analogue of Java's uncaught `StackOverflowError`."""
 
+    # Builds and renders a 10,000-deep list chain. HANG GUARD, not a timing assertion -- the test
+    # only checks the result is a string, never a duration, so the budget is the documented 10s
+    # floor, not a multiple of a timing sample (release retrospective rule 3 refinement, Pro
+    # ledger #129: "5x a contended sample" -- or even "5x a few milliseconds" -- still makes
+    # wall-clock a test input; TestParseCacheIsBounded went red under scheduler starvation at a
+    # 0.8s sample-derived budget).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_list_chain_does_not_overflow_the_stack(
         self, renderer: ValueRenderer
     ) -> None:
         rendered = renderer.render(_nest_lists(10_000, 0))
         assert isinstance(rendered, str)
 
+    # Same shape and reasoning as the list-chain test above: HANG GUARD, not a timing assertion --
+    # the documented 10s floor (release retrospective rule 3 refinement, Pro ledger #129).
+    @pytest.mark.timeout(10.0)
     def test_a_ten_thousand_deep_dict_chain_does_not_overflow_the_stack(
         self, renderer: ValueRenderer
     ) -> None:

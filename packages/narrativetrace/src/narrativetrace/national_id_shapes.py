@@ -10,7 +10,7 @@ number is the same question in a different jurisdiction, and it is the one piece
 data whose *name* is most often in a language the deny-list is read in but not written in --
 ``numero``, ``documento``, ``id``. The value's own checksum does not care what language the
 field name is in, which is why these shapes are language-neutral and on by default for everyone
-(family standard, ported from the Java runtime's ``NationalIdShapes``).
+(a family standard, applied the same way by every NarrativeTrace runtime).
 
 Every matcher here is a checksum -- or, for the one scheme that has none, the issuing authority's
 own structural rule standing in for it -- never a length-and-digits guess, and every one is gated

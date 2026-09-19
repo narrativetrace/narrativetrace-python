@@ -87,8 +87,8 @@ def _longest_backtick_run(text: str) -> int:
 def markdown_code(content: str) -> str:
     """Wraps ``content`` in a backtick code span whose fence is longer than any run inside it.
 
-    ``content`` is control-sanitised first (mirrors Java's ``MarkdownEscape.code()``) so a raw
-    line break cannot end the span early either. When the fence is widened, one space of padding
+    ``content`` is control-sanitised first, so a raw line break cannot end the span early either.
+    When the fence is widened, one space of padding
     is added on each side (CommonMark strips a single leading/trailing space), keeping the
     content faithful. Content with no backtick is wrapped in a single-backtick span.
     """

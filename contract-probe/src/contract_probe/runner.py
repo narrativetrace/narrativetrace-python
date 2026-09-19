@@ -24,6 +24,8 @@ from contract_probe.probes import (
     approval_default_probe,
     entry_point_probe,
     export_to_logger_probe,
+    fieldless_value_not_trusted_probe,
+    logger_threshold_does_not_shrink_capture_probe,
     logging_consumer_depth_probe,
     manifest_identity_probe,
     narrativetrace_doctor_probe,
@@ -31,6 +33,8 @@ from contract_probe.probes import (
     not_traced_class_attribute_probe,
     platform_type_carveout_probe,
     pytest_artifacts_default_probe,
+    run_name_console_footer_probe,
+    run_name_manifest_field_probe,
     structlog_dependency_probe,
     typed_error_marker_probe,
 )
@@ -56,11 +60,17 @@ _DISPATCH: dict[str, Callable[[], str]] = {
     "config-shape-logging-consumer-per-instance-depth": logging_consumer_depth_probe.observe,
     "reflectable-structlog-depends-on-structlog": structlog_dependency_probe.observe,
     "probed-native-stringification-not-trusted": native_stringification_not_trusted_probe.observe,
+    "probed-fieldless-value-not-trusted": fieldless_value_not_trusted_probe.observe,
     "probed-platform-type-carveout": platform_type_carveout_probe.observe,
     "probed-typed-error-marker": typed_error_marker_probe.observe,
     "probed-approval-default": approval_default_probe.observe,
     "probed-manifest-per-invocation-identity": manifest_identity_probe.observe,
     "config-shape-narrativetrace-doctor": narrativetrace_doctor_probe.observe,
+    "probed-run-name-console-footer": run_name_console_footer_probe.observe,
+    "probed-run-name-manifest-field": run_name_manifest_field_probe.observe,
+    "config-shape-logger-threshold-does-not-shrink-capture": (
+        logger_threshold_does_not_shrink_capture_probe.observe
+    ),
 }
 
 

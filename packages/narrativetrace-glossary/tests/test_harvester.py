@@ -285,6 +285,12 @@ def test_a_self_referential_node_does_not_crash_harvesting() -> None:
     assert _harvest(node) != ()
 
 
+# Builds a 10,000-deep chain and harvests it. HANG GUARD, not a timing assertion -- the test only
+# checks harvesting returns a non-empty result, never a duration, so the budget is the documented
+# 10s floor, not a multiple of a timing sample (release retrospective rule 3 refinement, Pro
+# ledger #129: "5x a contended sample" still makes wall-clock a test input --
+# TestParseCacheIsBounded went red under scheduler starvation at a 0.8s sample-derived budget).
+@pytest.mark.timeout(10.0)
 def test_a_ten_thousand_deep_chain_does_not_overflow_the_stack() -> None:
     node = _node("OverdraftService", "leaf")
     for _ in range(10_000):

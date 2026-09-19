@@ -268,7 +268,12 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     way it already proves it for every guide page. `skills_render.py --check`'s own drift check
     (regenerating the whole file from the catalogue) already covers the identical ground from the
     other direction; this is the belt to that suspenders, and the one a hand-edit to just the
-    fenced block inside an otherwise-untouched SKILL.md would still catch."""
+    fenced block inside an otherwise-untouched SKILL.md would still catch. Also the root
+    `README.md` itself (2026-09-18, release rule 8): its own code blocks were hand-typed until
+    then, so a marker there had nothing to check -- `translated` already excludes its mirrors
+    (`LEAME.md`/`LEIAME.md`/`自述文件.md`, headered `source: README.md`), and a root page with no
+    marker in it is simply never scanned, so adding it here cannot flag any of README.md's other,
+    still-untyped blocks."""
     translated = {path.resolve() for path in translated_files(repo_root)}
     documentation = repo_root / "documentation"
     pages = (
@@ -279,6 +284,9 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     llms_txt = documentation / "llms.txt"
     if llms_txt.is_file():
         pages.append(llms_txt)
+    readme = repo_root / "README.md"
+    if readme.is_file():
+        pages.append(readme)
     pages.extend(sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md")))
     pages.extend(sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md")))
     return pages
@@ -316,9 +324,9 @@ def check_repository(repo_root: Path) -> list[str]:
     return failures
 
 
-def _sync_file(repo_root: Path, path: Path) -> list[str]:
-    text = path.read_text(encoding="utf-8")
-    lines = text.split("\n")
+def _resync_lines(repo_root: Path, path: Path, lines: list[str], text: str) -> list[str]:
+    """Rewrites `lines` (in place) to what a sync would produce, reporting each block resynced,
+    in document order. Pure with respect to the filesystem — `_sync_file` is the only writer."""
     relative = _relative(repo_root, path)
     changed: list[str] = []
     for span in reversed(parse_spans(text)):  # back to front: earlier offsets stay valid
@@ -336,13 +344,47 @@ def _sync_file(repo_root: Path, path: Path) -> list[str]:
             changed.append(
                 f"{relative}:{span.open_line + 1}: resynced from '{_source_label(span)}'"
             )
-    if changed:
-        path.write_text("\n".join(lines), encoding="utf-8")
     return list(reversed(changed))  # report in document order
 
 
+def _pending_in_file(repo_root: Path, path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    return _resync_lines(repo_root, path, text.split("\n"), text)
+
+
+def _sync_file(repo_root: Path, path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    lines = text.split("\n")
+    changed = _resync_lines(repo_root, path, lines, text)
+    if changed:
+        path.write_text("\n".join(lines), encoding="utf-8")
+    return changed
+
+
+def pending_sync(repo_root: Path) -> list[str]:
+    """Every block `sync_repository` WOULD rewrite, without writing anything.
+
+    The read-only half of the sync: asking "is a sync pending?" must never be answered by
+    performing one. `packages/narrativetrace/tests/test_snippet_check.py`'s `TestRealRepository`
+    asks exactly that of this repository's own tracked pages, and it runs inside the mutmut
+    sandbox too -- where the mutated renderer guarantees a drifted regenerated artifact, so a
+    writing answer rewrote real, tracked documentation with a mutant's output (2026-09-17 nightly
+    finding F2: the `mask=traceName` phrase in `documentation/guides/decorators.md` and
+    `documentation/privacy-and-redaction.md` came back as a fresh random trace name, dirtying the
+    bind-mounted tree and blocking the nightly's report commit).
+    """
+    pending: list[str] = []
+    for path in _english_markdown_files(repo_root):
+        pending.extend(_pending_in_file(repo_root, path))
+    return pending
+
+
 def sync_repository(repo_root: Path) -> list[str]:
-    """Rewrites every drifted snippet block in place, English pages only. Returns what changed."""
+    """Rewrites every drifted snippet block in place, English pages only. Returns what changed.
+
+    The writing half: `poe snippet-sync`'s entry point. A test asking whether a sync is pending
+    wants :func:`pending_sync` instead.
+    """
     changes: list[str] = []
     for path in _english_markdown_files(repo_root):
         changes.extend(_sync_file(repo_root, path))

@@ -119,11 +119,10 @@ def set_nt_schema_attributes(sc: SpanContext | None, span: Span) -> None:
 def set_trace_level_attributes(sc: SpanContext | None, span: Span) -> None:
     """Sets root-only trace-level attributes (service/http/user identity) from ``sc``.
 
-    Adversarial-audit mirror (2026-09-02): a value set programmatically through
-    ``set_request_context``/``set_user_context`` (a custom integration, a test, a framework this
-    runtime ships no filter for) never passes through the HTTP middleware's own normalisation, so
-    this is the last point before it becomes a telemetry attribute -- control-stripped and
-    length-capped here regardless of how it arrived.
+    A value set programmatically through ``set_request_context``/``set_user_context`` (a custom
+    integration, a test, a framework this runtime ships no filter for) never passes through the
+    HTTP middleware's own normalisation, so this is the last point before it becomes a telemetry
+    attribute -- control-stripped and length-capped here regardless of how it arrived.
     """
     if sc is None:
         return
