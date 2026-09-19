@@ -160,6 +160,42 @@ def test_a_single_word_method_name_yields_a_word_candidate() -> None:
     assert method_candidates("overdraft") == (TermCandidate("overdraft", TermKind.WORD),)
 
 
+def test_a_bean_accessor_yields_the_noun_it_reads_and_no_verb_phrase() -> None:
+    assert method_candidates("getAuthor") == (TermCandidate("author", TermKind.WORD),)
+    assert method_candidates("getBookTitle") == (TermCandidate("book title", TermKind.NOUN_PHRASE),)
+    assert method_candidates("isAvailable") == (TermCandidate("available", TermKind.WORD),)
+
+
+def test_a_name_joining_two_actions_is_not_a_bean_accessor() -> None:
+    """The near miss: a name joining two actions with and/or is a sentence, not a property name,
+    so both of its candidates survive."""
+    assert [c.phrase for c in method_candidates("getOrCreateAccount")] == [
+        "get or create account",
+        "create account",
+    ]
+    assert [c.phrase for c in method_candidates("getAndIncrement")] == [
+        "get and increment",
+        "increment",
+    ]
+
+
+def test_a_property_name_holding_a_genitive_is_still_one_noun() -> None:
+    assert method_candidates("getDateOfBirth") == (
+        TermCandidate("date of birth", TermKind.NOUN_PHRASE),
+    )
+
+
+def test_a_prefix_with_nothing_after_it_is_still_its_own_word() -> None:
+    assert [c.phrase for c in method_candidates("get")] == ["get"]
+
+
+def test_per_is_a_function_word_so_it_never_starts_an_object_noun() -> None:
+    assert method_candidates("pricePerNight") == (
+        TermCandidate("price per night", TermKind.VERB_PHRASE),
+        TermCandidate("night", TermKind.WORD),
+    )
+
+
 def test_a_parameter_candidate_strips_the_trailing_id_role_token() -> None:
     assert parameter_candidate("overdraftAccountId") == TermCandidate(
         "overdraft account", TermKind.NOUN_PHRASE

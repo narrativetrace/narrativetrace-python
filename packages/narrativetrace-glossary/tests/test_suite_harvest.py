@@ -63,6 +63,42 @@ def test_a_second_run_merges_into_the_first_and_finds_no_new_terms(tmp_path: Pat
     assert result.merge.new_terms == ()
 
 
+def test_an_adopters_curated_entry_is_carried_to_its_new_key_on_the_next_harvest(
+    tmp_path: Path,
+) -> None:
+    stranded = Glossary(
+        {"billing": BoundedContext("billing", ["acme.billing"])},
+        [
+            GlossaryTerm(
+                "get overdraft account",
+                "billing",
+                TermKind.VERB_PHRASE,
+                TermStatus.CURATED,
+                definition="The account permitted to go below zero.",
+                translations={"es": "cuenta con descubierto"},
+                sources=["AccountService.getOverdraftAccount"],
+                first_seen=date(2026, 8, 11),
+            )
+        ],
+    )
+    (tmp_path / GLOSSARY_JSON_FILE).write_text(write_glossary_json(stranded), encoding="utf-8")
+    candidate = HarvestCandidate(
+        "billing",
+        "overdraft account",
+        TermKind.NOUN_PHRASE,
+        "AccountService.getOverdraftAccount",
+        "get_overdraft_account",
+    )
+
+    run_suite_harvest([candidate], glossary_dir=tmp_path, output_dir=tmp_path / "out")
+
+    written = (tmp_path / GLOSSARY_JSON_FILE).read_text(encoding="utf-8")
+    assert '"term": "overdraft account"' in written
+    assert "cuenta con descubierto" in written
+    assert "The account permitted to go below zero." in written
+    assert '"term": "get overdraft account"' not in written
+
+
 def test_a_deprecated_alias_is_reported_as_a_violation_only_when_a_glossary_pre_existed(
     tmp_path: Path,
 ) -> None:

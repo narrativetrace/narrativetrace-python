@@ -29,7 +29,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from narrativetrace.canonical import CanonicalEntry
-from narrativetrace_glossary.context_resolver import UNASSIGNED_CONTEXT, resolve_context
+from narrativetrace_glossary.context_resolver import (
+    UNASSIGNED_CONTEXT,
+    package_to_resolve,
+    resolve_context,
+)
 from narrativetrace_glossary.models import Glossary
 from narrativetrace_glossary.normalizer import (
     exception_candidate,
@@ -236,11 +240,15 @@ class TraceTranslationView:
         return translated.text
 
     def _context_of(self, nt_package: str | None, code_namespace: str | None) -> str:
+        """Resolves the bounded context for an entry.
+
+        Which module path to resolve is
+        :func:`~narrativetrace_glossary.context_resolver.package_to_resolve`'s single rule, shared
+        with the harvest so a term is always looked up in the context it was filed under. When a
+        glossary declares exactly one context, that context applies regardless -- a single-context
+        glossary is unambiguous.
+        """
         if self._single_context is not None:
             return self._single_context
-        module_path = (
-            nt_package if nt_package is not None else self._namespace_of(code_namespace or "")
-        )
-        if module_path is None:
-            return UNASSIGNED_CONTEXT
+        module_path = package_to_resolve(nt_package, code_namespace or "", self._namespace_of)
         return resolve_context(self._glossary, module_path)

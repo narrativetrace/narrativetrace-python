@@ -11,12 +11,20 @@ calls between them, one catch that logs and rethrows).
 "before"/"after" blocks the README embeds via ``<!-- snippet: examples/place_order.py
 region=before -->`` / ``region=after`` -- the only difference between the two methods is the
 deleted log lines; everything else (collaborators, call order, exception type) is identical.
+
+``DecliningPaymentService`` and ``run_failing`` are the "after" method's failing path, traced for
+real -- the README embeds them via ``region=failing`` as its exception-narrative example
+(README.md #an-exception-in-the-trace), the same collaborators and call order, only the payment
+collaborator swapped for one that always raises.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
+
+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, trace_object
 
 logger = logging.getLogger(__name__)
 
@@ -123,3 +131,47 @@ class OrderServiceAfter(_OrderServiceBase):
         return self._orders.save(customer, payment)
 
     # snippet:end after
+
+
+# snippet:begin failing
+class DecliningPaymentService(PaymentService):
+    """Always declines -- the failing-path collaborator for the exception-narrative example."""
+
+    def charge(self, amount: float) -> str:
+        raise RuntimeError("payment declined")
+
+
+def run_failing() -> str:
+    """Traces :class:`OrderServiceAfter`'s "after" method with the payment collaborator swapped
+    for one that always declines, and renders the resulting narrative, exception included."""
+    context = ContextVarNarrativeContext()
+    collaborators = Collaborators(
+        customers=CustomerService(),
+        catalog=CatalogService(),
+        inventory=InventoryService(),
+        payments=trace_object(DecliningPaymentService(), context),
+        orders=OrderRepository(),
+    )
+    service = trace_object(OrderServiceAfter(collaborators), context)
+    try:
+        service.place_order(OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
+    except RuntimeError:
+        pass
+    return IndentedTextRenderer().render(context.capture_trace())
+
+
+# snippet:end failing
+
+
+def write_artifact() -> str:
+    """Runs :func:`run_failing` and saves its output under ``build/`` for
+    ``scripts/snippet_check.py`` to embed as the README's exception-narrative output block."""
+    rendered = run_failing()
+    build_dir = Path(__file__).parent / "build"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "place_order_failing.txt").write_text(rendered, encoding="utf-8")
+    return rendered
+
+
+if __name__ == "__main__":
+    print(run_failing())

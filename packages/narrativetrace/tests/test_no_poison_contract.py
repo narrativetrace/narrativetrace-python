@@ -113,8 +113,11 @@ class TestMapTotality:
 
 class TestNumberTotality:
     def test_flat_render_survives_a_throwing_number_str(self) -> None:
+        """A fieldless ``int`` subclass is walked (2026-09-19, the number-subclass-tostring-door
+        row) rather than having its own text read, so the hostile ``__str__`` is not merely
+        survived -- it is never called at all, and totality holds trivially."""
         rendered = ValueRenderer().render(_ThrowingNumber(5))
-        assert rendered == "<error: AssertionError>"
+        assert rendered == "<_ThrowingNumber>"
 
 
 class TestEnumTotality:

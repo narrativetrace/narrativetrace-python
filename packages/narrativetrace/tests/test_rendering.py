@@ -118,13 +118,24 @@ class TestPrimitives:
 
 
 class _HostileInt(int):
+    """An ``int`` subclass whose ``__str__`` forges narrative structure AND prints a deny-listed
+    field. Extending ``int`` says nothing about what a value holds, so this one is walked like any
+    other composite (fixed 2026-09-19, the ``number-subclass-tostring-door`` row) rather than
+    having its own text read at all -- escaped or not."""
+
+    def __init__(self, value: int) -> None:
+        self.password = "hunter2"
+
     def __str__(self) -> str:
-        return "1\n## forged\n"
+        return f"1\n## forged\n{self.password}"
 
 
 class _HostileFloat(float):
+    def __init__(self, value: float) -> None:
+        self.password = "hunter2"
+
     def __str__(self) -> str:
-        return "1.0\n## forged\n"
+        return f"1.0\n## forged\n{self.password}"
 
 
 class _HostileEnum(Enum):
@@ -140,24 +151,34 @@ class _ThrowingInt(int):
 
 
 class TestHostileScalarSubclasses:
-    """A security-suite finding (fixed 2026-09-04): ``renderScalar``'s trusted numeric/enum fast
-    path is an ``isinstance`` check, so an ``int``/``float`` subclass or a plain ``Enum``
-    overriding ``__str__`` matched it and skipped ``control_sanitize`` entirely -- a value like
-    this could inject a raw newline plus Markdown structure into narrative text. Only the literal
-    built-in ``int``/``float`` (never a subclass) is fast-pathed; everything else routes through
-    the same sanitizer a string does."""
+    """A security-suite finding: ``_is_scalar``'s trusted numeric/enum fast path was an
+    ``isinstance`` check, so an ``int``/``float`` subclass or a plain ``Enum`` overriding
+    ``__str__`` matched it. 2026-09-04 closed the escaping half -- the forged text was at least
+    control-sanitised, not printed raw. 2026-09-19 (the ``number-subclass-tostring-door`` row)
+    closed the rest: extending ``int``/``float`` says nothing about what a value holds, so a
+    subclass is an ordinary composite and is walked field by field instead -- a deny-listed field
+    withheld by name, its own ``__str__`` never called at all, whether it forges structure or not.
+    ``Enum`` is unchanged: a constant holds no member a walk could reach, so its own text is still
+    read and sanitised. Only the literal built-in ``int``/``float`` (never a subclass) is still
+    fast-pathed."""
 
-    def test_a_hostile_int_subclass_is_sanitised_not_trusted(self, renderer: ValueRenderer) -> None:
+    def test_a_hostile_int_subclass_is_walked_with_its_field_withheld(
+        self, renderer: ValueRenderer
+    ) -> None:
         rendered = renderer.render(_HostileInt(1))
         assert "\n" not in rendered
-        assert "\\n" in rendered
+        assert "forged" not in rendered
+        assert "hunter2" not in rendered
+        assert rendered == "_HostileInt(password=[REDACTED])"
 
-    def test_a_hostile_float_subclass_is_sanitised_not_trusted(
+    def test_a_hostile_float_subclass_is_walked_with_its_field_withheld(
         self, renderer: ValueRenderer
     ) -> None:
         rendered = renderer.render(_HostileFloat(1.0))
         assert "\n" not in rendered
-        assert "\\n" in rendered
+        assert "forged" not in rendered
+        assert "hunter2" not in rendered
+        assert rendered == "_HostileFloat(password=[REDACTED])"
 
     def test_a_hostile_enum_is_sanitised(self, renderer: ValueRenderer) -> None:
         rendered = renderer.render(_HostileEnum.RED)
@@ -167,22 +188,24 @@ class TestHostileScalarSubclasses:
     def test_a_trusted_int_is_not_run_through_the_sanitiser(self, renderer: ValueRenderer) -> None:
         assert renderer.render(42) == "42"
 
-    def test_a_numeric_subclass_whose_str_throws_degrades_to_the_typed_error_marker(
+    def test_a_numeric_subclass_whose_str_throws_is_walked_so_it_is_never_entered(
         self, renderer: ValueRenderer
     ) -> None:
-        assert renderer.render(_ThrowingInt(1)) == "<error: RuntimeError>"
+        # A fieldless int subclass: walked and named, never read -- the throwing __str__ has no
+        # chance to run at all, let alone escape as the typed error marker it used to degrade to.
+        assert renderer.render(_ThrowingInt(1)) == "<_ThrowingInt>"
 
-    def test_structured_hostile_int_subclass_becomes_a_sanitised_string_val(
+    def test_structured_hostile_int_subclass_is_walked_with_its_field_withheld(
         self, renderer: ValueRenderer
     ) -> None:
         result = renderer.render_structured(_HostileInt(1))
-        assert result == StringVal("1\\n## forged\\n")
+        assert result == ObjectVal("_HostileInt", {"password": StringVal("[REDACTED]")})
 
-    def test_structured_hostile_float_subclass_becomes_a_sanitised_string_val(
+    def test_structured_hostile_float_subclass_is_walked_with_its_field_withheld(
         self, renderer: ValueRenderer
     ) -> None:
         result = renderer.render_structured(_HostileFloat(1.0))
-        assert result == StringVal("1.0\\n## forged\\n")
+        assert result == ObjectVal("_HostileFloat", {"password": StringVal("[REDACTED]")})
 
     def test_structured_hostile_enum_becomes_a_sanitised_string_val(
         self, renderer: ValueRenderer

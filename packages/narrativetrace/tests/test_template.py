@@ -288,19 +288,27 @@ class Wrapper:
 
 
 class RogueNumber(int):
-    """A ``Number`` subclass whose own ``__str__`` misbehaves -- a scalar goes straight to
-    ``_scalar_text`` rather than through ``ValueRenderer``, so it needs its own hostile guard."""
+    """An ``int`` subclass whose own ``__str__`` misbehaves. Extending ``int`` says nothing about
+    what a value holds, so it is not a scalar (2026-09-19, the number-subclass-tostring-door row)
+    and is walked through :class:`~narrativetrace.rendering.ValueRenderer` like any other
+    composite -- fieldless, so it renders as its type name and its throwing ``__str__`` is never
+    reached at all, rather than being caught after the fact."""
 
     def __str__(self) -> str:
         raise ValueError("__str__ exploded")
 
 
 class HostileNumber(int):
-    """An ``int`` subclass whose ``__str__`` forges control characters/Markdown structure instead
-    of throwing -- the scalar fast path must sanitise this, not merely survive it."""
+    """An ``int`` subclass whose ``__str__`` forges control characters/Markdown structure AND
+    prints a deny-listed field. Extending ``int`` says nothing about what a value holds, so it is
+    walked like any other composite (fixed 2026-09-19, the number-subclass-tostring-door row)
+    rather than having its own text read at all -- escaped or not."""
+
+    def __init__(self, value: int) -> None:
+        self.password = "hunter2"
 
     def __str__(self) -> str:
-        return "1\n## forged\n"
+        return f"1\n## forged\n{self.password}"
 
 
 class HostileEnum(Enum):
@@ -351,12 +359,19 @@ class TestHostileScalarSanitizing:
     """Cross-runtime mirror (2026-09-04) of the Java ``TemplateParser`` ``instanceof Number ||
     Boolean`` scalar fast path bypassing ``ControlEscape``: this runtime's ``_scalar_text`` called
     bare ``str(value)`` for every scalar, so a hostile ``int``/``Enum`` subclass could inject a
-    raw newline plus Markdown structure straight into resolved narration text, unsanitised."""
+    raw newline plus Markdown structure straight into resolved narration text, unsanitised.
+    2026-09-04 closed the escaping half for a numeric subclass; 2026-09-19 (the
+    number-subclass-tostring-door row) closed the rest -- ``_is_scalar`` no longer matches a
+    numeric subclass at all, so it is walked and a deny-listed field is withheld by name rather
+    than escaped in whatever forged text its own ``__str__`` produces. ``Enum`` is unchanged: a
+    constant holds no member a walk could reach, so its own text is still read and sanitised."""
 
-    def test_a_hostile_int_subclass_is_sanitised_not_trusted(self) -> None:
+    def test_a_hostile_int_subclass_is_walked_with_its_field_withheld(self) -> None:
         result = resolve("count {n}", {"n": HostileNumber(1)})
         assert "\n" not in result
-        assert "\\n" in result
+        assert "forged" not in result
+        assert "hunter2" not in result
+        assert result == "count HostileNumber(password=[REDACTED])"
 
     def test_a_hostile_enum_is_sanitised(self) -> None:
         result = resolve("status {s}", {"s": HostileEnum.ONE})

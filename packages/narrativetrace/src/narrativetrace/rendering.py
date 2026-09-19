@@ -274,7 +274,9 @@ class ValueRenderer:
         if isinstance(value, str):
             return self._render_string(value)
         if isinstance(value, (int, float)):
-            return self._render_number(value)
+            scalar = self._render_number(value)
+            if scalar is not None:
+                return scalar
         if isinstance(value, Enum):
             return self._render_with_str(value)  # no trusted built-in Enum: __str__ is overridable
         if not walk.descend():
@@ -289,20 +291,28 @@ class ValueRenderer:
             return StringVal(REDACTED_MARKER)
         return StringVal(value)
 
-    def _render_structured_int(self, value: int) -> RenderedValue:
-        if _is_trusted_numeric(value):
-            return IntVal(value)
-        return StringVal(self._render_with_str(value))  # a Number subclass may forge control chars
+    def _render_structured_int(self, value: int) -> RenderedValue | None:
+        # Extending int says nothing about what a value holds: only the exact platform type is a
+        # scalar here. Returning None (not IntVal/StringVal) is "not a scalar", the same "not
+        # mine" idiom every other fast path in this class uses to hand off to the walk below.
+        return IntVal(value) if _is_trusted_numeric(value) else None
 
-    def _render_structured_float(self, value: float) -> RenderedValue:
-        if _is_trusted_numeric(value):
-            return FloatVal(value)
-        return StringVal(self._render_with_str(value))  # a Number subclass may forge control chars
+    def _render_structured_float(self, value: float) -> RenderedValue | None:
+        return FloatVal(value) if _is_trusted_numeric(value) else None
 
-    def _render_number(self, value: int | float) -> str:
-        if _is_trusted_numeric(value):
-            return str(value)
-        return self._render_with_str(value)  # a Number subclass may forge control chars
+    def _render_number(self, value: int | float) -> str | None:
+        """``value``'s own text, or ``None`` when ``value`` is not the exact platform type.
+
+        Extending ``int``/``float`` says nothing about what a value holds: a subclass is an
+        ordinary composite with a numeric base, free to carry a deny-listed field and print it
+        from a ``__str__`` its author wrote long before anyone traced the class. A fast path that
+        read that text unconditionally had only the redaction-by-shape scan and the length cap in
+        front of it -- no field name for the deny-list to match, no ``@not_traced`` to honor, none
+        of the caps a walked composite obeys. So only the platform's own leaf types are read here;
+        ``None`` hands every other case to :meth:`_render_complex`, where a composite belongs, on
+        both this channel and the structured one alike (see :func:`_shape_of`).
+        """
+        return str(value) if _is_trusted_numeric(value) else None
 
     def _render_string(self, value: str) -> str:
         if self.redaction_policy.should_redact_value(value):
@@ -584,9 +594,13 @@ class ValueRenderer:
         if isinstance(value, str):
             return self._render_structured_string(value)
         if isinstance(value, int):
-            return self._render_structured_int(value)
+            structured_int = self._render_structured_int(value)
+            if structured_int is not None:
+                return structured_int
         if isinstance(value, float):
-            return self._render_structured_float(value)
+            structured_float = self._render_structured_float(value)
+            if structured_float is not None:
+                return structured_float
         if isinstance(value, Enum):
             return StringVal(self._render_with_str(value))
         if not walk.descend():

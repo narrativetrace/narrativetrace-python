@@ -5,11 +5,13 @@
 """Tests behind README.md's "problem" section (`examples/place_order.py`): proves the "before"
 and "after" methods really run, and that the only behavioral difference between them is the
 deleted log lines -- both return the same value on success and let the same exception through on
-failure."""
+failure. Also behind README.md's exception-narrative section: proves the "after" method's failing
+path really traces, with the exception in the rendered narrative."""
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +19,7 @@ from examples.place_order import (
     CatalogService,
     Collaborators,
     CustomerService,
+    DecliningPaymentService,
     InventoryService,
     Order,
     OrderRepository,
@@ -24,14 +27,10 @@ from examples.place_order import (
     OrderServiceAfter,
     OrderServiceBefore,
     PaymentService,
+    write_artifact,
 )
 
-
-class _DecliningPaymentService(PaymentService):
-    """A payment collaborator that always declines, to exercise the catch-log-rethrow branch."""
-
-    def charge(self, amount: float) -> str:
-        raise RuntimeError("payment declined")
+_BUILD_ARTIFACT = Path(__file__).parent / "build" / "place_order_failing.txt"
 
 
 def _collaborators(*, payments: PaymentService | None = None) -> Collaborators:
@@ -74,7 +73,7 @@ def test_after_returns_the_same_order_with_zero_log_lines(
 def test_before_logs_the_exception_and_still_reraises_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    service = OrderServiceBefore(_collaborators(payments=_DecliningPaymentService()))
+    service = OrderServiceBefore(_collaborators(payments=DecliningPaymentService()))
     with caplog.at_level(logging.INFO), pytest.raises(RuntimeError, match="payment declined"):
         service.place_order(_REQUEST)
 
@@ -86,8 +85,17 @@ def test_before_logs_the_exception_and_still_reraises_it(
 def test_after_raises_the_same_exception_with_zero_log_lines(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    service = OrderServiceAfter(_collaborators(payments=_DecliningPaymentService()))
+    service = OrderServiceAfter(_collaborators(payments=DecliningPaymentService()))
     with caplog.at_level(logging.DEBUG), pytest.raises(RuntimeError, match="payment declined"):
         service.place_order(_REQUEST)
 
     assert caplog.records == []
+
+
+def test_write_artifact_saves_the_failing_narrative_with_the_exception_in_it() -> None:
+    """The build artifact `scripts/snippet_check.py` embeds is exactly what a reader running
+    `examples/place_order.py`'s failing path for themselves would see."""
+    rendered = write_artifact()
+    assert _BUILD_ARTIFACT.read_text(encoding="utf-8") == rendered
+    assert "DecliningPaymentService.charge" in rendered
+    assert "RuntimeError: payment declined" in rendered

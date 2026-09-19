@@ -64,6 +64,68 @@ NarrativeTrace eliminates this entirely:
 Pure business logic. The trace is generated from the method names, parameter names, and return
 values — the information that was already there.
 
+## Fits the stack you already run
+
+- `narrativetrace-otel` — the OpenTelemetry exporter.
+- The core's logging bridge — the stdlib mirror: every trace event is also a stdlib `logging`
+  record carrying the run/scope keys; a sysadmin's config file still rules.
+- `narrativetrace-structlog` — the structlog processor.
+
+## An exception in the trace
+
+The "after" method above, with the payment collaborator swapped for one that always declines — a
+real run of `examples/place_order.py`'s failing path:
+
+<!-- snippet: examples/place_order.py region=failing -->
+```python
+class DecliningPaymentService(PaymentService):
+    """Always declines -- the failing-path collaborator for the exception-narrative example."""
+
+    def charge(self, amount: float) -> str:
+        raise RuntimeError("payment declined")
+
+
+def run_failing() -> str:
+    """Traces :class:`OrderServiceAfter`'s "after" method with the payment collaborator swapped
+    for one that always declines, and renders the resulting narrative, exception included."""
+    context = ContextVarNarrativeContext()
+    collaborators = Collaborators(
+        customers=CustomerService(),
+        catalog=CatalogService(),
+        inventory=InventoryService(),
+        payments=trace_object(DecliningPaymentService(), context),
+        orders=OrderRepository(),
+    )
+    service = trace_object(OrderServiceAfter(collaborators), context)
+    try:
+        service.place_order(OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
+    except RuntimeError:
+        pass
+    return IndentedTextRenderer().render(context.capture_trace())
+
+
+```
+<!-- /snippet -->
+
+`python -m examples.place_order` prints (the trace phrase and `0ms` vary by run, like the
+60-second page):
+
+<!-- snippet: examples/build/place_order_failing.txt mask=duration,traceName -->
+```text
+trace: glad map sinks (61fdd7c)
+
+OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
+├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms
+└── !! RuntimeError: payment declined — 0ms
+```
+<!-- /snippet -->
+
+That nesting is a context cascade — application, call stack, request, message — mirrored into
+every stdlib `logging` record through the bridge above: the run's own three-word name carries the
+application/session identity, the trace tree itself carries the call-stack context, and
+`request_log_scope` adds request-level keys inside an HTTP request, all riding beneath the message
+line.
+
 ## What the output looks like
 
 Wrap the collaborators once and run the code; here is the real output of a three-service order

@@ -39,6 +39,7 @@ from narrativetrace_glossary.normalizer import (
     normalize_phrase,
     parameter_candidate,
 )
+from narrativetrace_glossary.rekey import migrate
 from narrativetrace_glossary.rename_suggester import suggest_rename
 from narrativetrace_glossary.scaffolding import SUPPORTED_LOCALES, ScaffoldingBundle
 from narrativetrace_glossary.summary_formatter import (
@@ -104,6 +105,7 @@ __all__ = [
     "load_glossary",
     "merge_harvest",
     "method_candidates",
+    "migrate",
     "non_canonical_term_issues",
     "normalize_phrase",
     "parameter_candidate",

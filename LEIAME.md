@@ -1,4 +1,4 @@
-<!-- source: README.md blob 27b56157f029 | translated: 2026-09-18 | reviewed: - -->
+<!-- source: README.md blob 7c09fbf37bce | translated: 2026-09-19 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -62,6 +62,65 @@ O NarrativeTrace elimina isso por completo:
 
 Lógica de negócio pura. O trace é gerado a partir dos nomes de método, nomes de parâmetro e valores
 de retorno — a informação que já estava ali.
+
+## Funciona com a stack que você já usa
+
+- `narrativetrace-otel` — o exportador do OpenTelemetry.
+- A ponte de logging do núcleo — o espelho da stdlib: cada evento de trace também é um registro
+  `logging` da stdlib carregando as chaves de run/scope; o arquivo de configuração do seu sysadmin
+  continua mandando.
+- `narrativetrace-structlog` — o processador do structlog.
+
+## Uma exceção no trace
+
+O método "after" acima, com o colaborador de pagamento trocado por um que sempre recusa — uma
+execução real do caminho de falha de `examples/place_order.py`:
+
+```python
+class DecliningPaymentService(PaymentService):
+    """Always declines -- the failing-path collaborator for the exception-narrative example."""
+
+    def charge(self, amount: float) -> str:
+        raise RuntimeError("payment declined")
+
+
+def run_failing() -> str:
+    """Traces :class:`OrderServiceAfter`'s "after" method with the payment collaborator swapped
+    for one that always declines, and renders the resulting narrative, exception included."""
+    context = ContextVarNarrativeContext()
+    collaborators = Collaborators(
+        customers=CustomerService(),
+        catalog=CatalogService(),
+        inventory=InventoryService(),
+        payments=trace_object(DecliningPaymentService(), context),
+        orders=OrderRepository(),
+    )
+    service = trace_object(OrderServiceAfter(collaborators), context)
+    try:
+        service.place_order(OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
+    except RuntimeError:
+        pass
+    return IndentedTextRenderer().render(context.capture_trace())
+
+
+```
+
+`python -m examples.place_order` imprime (a frase do trace e o `0ms` variam a cada execução, igual
+à página de 60 segundos):
+
+```text
+trace: glad map sinks (61fdd7c)
+
+OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
+├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms
+└── !! RuntimeError: payment declined — 0ms
+```
+
+Esse aninhamento é uma cascata de contexto — aplicação, pilha de chamadas, requisição, mensagem —
+espelhada em cada registro `logging` da stdlib através da ponte acima: o nome próprio de três
+palavras da execução carrega a identidade de aplicação/sessão, a própria árvore do trace carrega o
+contexto da pilha de chamadas, e o `request_log_scope` adiciona chaves de nível de requisição
+dentro de uma requisição HTTP, tudo isso viajando abaixo da linha da mensagem.
 
 ## Como fica a saída
 

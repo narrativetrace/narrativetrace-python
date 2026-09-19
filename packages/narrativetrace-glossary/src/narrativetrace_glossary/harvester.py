@@ -8,6 +8,12 @@
 names (verb phrase plus object noun phrase), parameter names, class names (role suffix stripped),
 and exception type names (``Exception``/``Error`` stripped). Observations are aggregated and
 deterministically ordered; the harvester makes no merge decisions.
+
+A node's bounded context is resolved through
+:func:`~narrativetrace_glossary.context_resolver.package_to_resolve` -- the package captured on
+the signature when the capture site supplied it, else the injected simple-name resolver (the
+suite hook supplies a real one; tests supply a map). Translation resolves by the same call, so a
+term is looked up in the context it was filed under.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ from narrativetrace.outcomes import Threw
 from narrativetrace.signature import MethodSignature
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_walk import TreeWalk
-from narrativetrace_glossary.context_resolver import UNASSIGNED_CONTEXT, resolve_context
+from narrativetrace_glossary.context_resolver import package_to_resolve, resolve_context
 from narrativetrace_glossary.models import Glossary, TermKind
 from narrativetrace_glossary.normalizer import (
     TermCandidate,
@@ -139,7 +145,7 @@ def _walk(
     walk = walk if walk is not None else TreeWalk()
     signature = node.signature
     class_name = signature.class_name
-    context = _context_of(class_name, glossary, module_of)
+    context = _context_of(class_name, signature.package_name, glossary, module_of)
     _harvest_class(context, class_name, observations)
     _harvest_method(context, signature, observations)
     _harvest_parameters(context, signature, observations)
@@ -153,12 +159,19 @@ def _walk(
             walk.exit(node)
 
 
-def _context_of(class_name: str, glossary: Glossary, module_of: Callable[[str], str | None]) -> str:
-    """Files a node under the context owning its module; a module nobody can name owns nothing."""
-    module_path = module_of(class_name)
-    if module_path is None:
-        return UNASSIGNED_CONTEXT
-    return resolve_context(glossary, module_path)
+def _context_of(
+    class_name: str,
+    package_name: str | None,
+    glossary: Glossary,
+    module_of: Callable[[str], str | None],
+) -> str:
+    """Files a node under the context owning its module.
+
+    The module path is :func:`~narrativetrace_glossary.context_resolver.package_to_resolve`'s one
+    rule, shared with translation: the package captured on the signature when the capture site
+    supplied it, else the simple-name index -- a module nobody can name owns nothing.
+    """
+    return resolve_context(glossary, package_to_resolve(package_name, class_name, module_of))
 
 
 def _site(signature: MethodSignature) -> str:

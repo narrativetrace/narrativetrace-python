@@ -31,10 +31,16 @@ from narrativetrace_glossary.models import TermKind
 _STOPWORDS = frozenset(
     {
         "with", "and", "or", "of", "to", "for", "by", "from", "in", "on", "at", "as", "was", "is",
-        "has",
+        "has", "per",
     }
 )  # fmt: skip
 """Function words that must survive normalization untouched (never singularized)."""
+
+_ACCESSOR_PREFIXES = frozenset({"get", "is"})
+"""Leading tokens that spell "read this property" rather than name an action."""
+
+_CONJUNCTIONS = frozenset({"and", "or"})
+"""Conjunctions that join two actions; a name carrying one is a sentence, not a property name."""
 
 _EXCEPTION_SUFFIXES = frozenset({"exception", "error"})
 """Exception-type suffixes stripped when harvesting failure vocabulary."""
@@ -86,16 +92,43 @@ def method_candidates(method_name: str) -> tuple[TermCandidate, ...]:
     """Normalizes a method name into the harvest candidates it contributes.
 
     A method with a leading verb yields its verb phrase plus the object noun phrase (leading
-    function words dropped); any other method yields a single noun candidate. Never returns an
-    empty tuple. Raises ``ValueError`` for an identifier normalization would erase.
+    function words dropped); any other method yields a single noun candidate. A property read
+    yields only the noun it reads — see :func:`_accessor_read`. Never returns an empty tuple.
+    Raises ``ValueError`` for an identifier normalization would erase.
     """
     tokens = _normalized_tokens(method_name)
-    candidates = (
-        _verb_phrase_candidates(tokens) if _is_verb(tokens[0]) else (_noun_candidate(tokens),)
-    )
+    read = _accessor_read(tokens)
+    candidates: tuple[TermCandidate, ...]
+    if read is not None:
+        candidates = (_noun_candidate(read),)
+    elif _is_verb(tokens[0]):
+        candidates = _verb_phrase_candidates(tokens)
+    else:
+        candidates = (_noun_candidate(tokens),)
     assert candidates, "a method always yields at least one candidate"
     assert all(_invariant(candidate) for candidate in candidates), "candidate kinds must fit"
     return candidates
+
+
+def _accessor_read(tokens: list[str]) -> list[str] | None:
+    """The property name a ``get``/``is`` accessor reads, when the identifier is one.
+
+    ``getAuthor`` is how the language spells "the author"; nobody says "get author" out loud, so
+    the phrase is plumbing and only the noun it reads is vocabulary. What it reads is a noun by
+    construction, whatever part of speech the dictionary gives its first word — a property names a
+    thing — so the accessor yields exactly one noun candidate.
+
+    A name that joins two actions with ``and``/``or`` is a sentence, not a property name:
+    ``getOrCreateAccount`` and ``getAndIncrement`` keep both of their candidates. Word class cannot
+    make this call — the verb dictionary reads ``author``, ``book`` and ``title`` as verbs, because
+    in another sentence they are — so the conjunction is the signal that survives. A prefix with
+    nothing after it (``get``) is the whole identifier and stays, there being no noun to keep
+    instead.
+    """
+    if len(tokens) < 2 or tokens[0] not in _ACCESSOR_PREFIXES:
+        return None
+    read = tokens[1:]
+    return None if any(token in _CONJUNCTIONS for token in read) else read
 
 
 def _verb_phrase_candidates(tokens: list[str]) -> tuple[TermCandidate, ...]:

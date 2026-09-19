@@ -2,15 +2,17 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Orchestrates one harvest run: read, merge, write back, report.
+"""Orchestrates one harvest run: read, re-key, merge, write back, report.
 
 ``GlossarySuiteHarvest``. INTENT: the pytest-suite hook and the ``glossary-scan`` CLI
 share this exact sequence — only how they harvest (a live trace walk vs. a static AST scan)
-differs, so both call this with their own ``candidates``. Vocabulary-check issues
-(``non-canonical-term``) fire only when ``glossary.json`` existed *before* this run: a project
-that has not committed a glossary yet has declared no vocabulary, so there is nothing for code to
-have used incorrectly — matches the plan's "the commit is the human approval" rule
-(:mod:`narrativetrace_glossary.vocabulary`).
+differs, so both call this with their own ``candidates``. The committed glossary is carried across
+any normalization rule change (:func:`~narrativetrace_glossary.rekey.migrate`) before the merge, so
+a curated entry a rule change retired is not orphaned beside the successor the merge is about to
+add. Vocabulary-check issues (``non-canonical-term``) fire only when ``glossary.json`` existed
+*before* this run: a project that has not committed a glossary yet has declared no vocabulary, so
+there is nothing for code to have used incorrectly — matches the plan's "the commit is the human
+approval" rule (:mod:`narrativetrace_glossary.vocabulary`).
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from narrativetrace_glossary.json_writer import write_glossary_json
 from narrativetrace_glossary.markdown import render_glossary_markdown
 from narrativetrace_glossary.merger import MergeResult, merge_harvest
 from narrativetrace_glossary.models import Glossary
+from narrativetrace_glossary.rekey import migrate
 from narrativetrace_glossary.summary_formatter import format_vocabulary_summary
 from narrativetrace_glossary.usage_report import write_usage_report
 from narrativetrace_glossary.violations import VocabularyViolation, aggregate_violations
@@ -93,9 +96,12 @@ def run_suite_harvest(
     """
     glossary_dir_path = Path(glossary_dir)
     existing, existed_before = _read_existing(glossary_dir_path)
-    merge = merge_harvest(existing, candidates, clock=clock)
+    # Re-key before merging: a normalization rule change retires keys that the merge, being
+    # additive, would otherwise leave orphaned beside the successors it is about to add.
+    carried = migrate(existing, candidates)
+    merge = merge_harvest(carried, candidates, clock=clock)
     violations = (
-        aggregate_violations(merge.suppressed_alias_uses, build_alias_index(existing))
+        aggregate_violations(merge.suppressed_alias_uses, build_alias_index(carried))
         if existed_before
         else ()
     )

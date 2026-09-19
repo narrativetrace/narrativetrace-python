@@ -64,6 +64,22 @@ fix, both are pre-existing shape:
   carries no secret payload at all (mirrors Java's own note: the corpus factory's ``held`` local
   is unused on this arm), so there is no canary to assert absent for this row -- only the counter
   and the shape of the rendering.
+
+One more row landed on the master 2026-09-19: ``fieldless-sidetable-tostring-door``, a fieldless
+class overriding ``__str__`` whose real state lives entirely off the reflectable-field graph, in a
+module-level, identity-keyed table (``hostile_graphs._SIDE_TABLE``). LIVE for the same reason as
+``fieldless-abstract-subclass-tostring-door``: a value carrying no readable instance state renders
+as its type name alone (``_shape_of`` -> ``OPAQUE``), so its ``__str__`` -- and the side table
+behind it -- is never reached. Unlike that row, this one DOES carry a secret payload, so the
+canary is asserted absent as well as the read counter and the type-name shape.
+
+A second row landed the same day (cross-port B-46/B-45 row 2): ``number-subclass-tostring-door``,
+a user ``int`` subclass carrying a deny-listed field and a ``__str__`` that prints it. This one was
+NOT live -- both scalar-numeric fast paths (``_render_number``, ``_render_structured_int``) trusted
+any ``int``, subclass included, so the field leaked on both channels through the subclass's own
+text; only ``type(value) in (int, float)`` (the exact platform types) is fast-pathed now, so a
+subclass is the composite it always was and is walked field by field, on both paths alike, the
+deny-listed field withheld by name and the subclass's own ``__str__`` never called at all.
 """
 
 from __future__ import annotations
@@ -75,7 +91,9 @@ from hostile_graphs import (
     _AbstractMapSubclassOverride,
     _CountingAccessor,
     _FieldlessAbstractSubclassToStringDoor,
+    _FieldlessSideTableToStringDoor,
     _LookalikeCollection,
+    _NumberSubclassToStringDoor,
     _SideEffectingIteratorList,
 )
 from oracles import contains_nowhere, sentinel_token
@@ -244,3 +262,87 @@ class TestFieldlessAbstractSubclassToStringDoorRow:
         assert [r.signature.method_name for r in roots] == ["receive"]
         assert roots[0].children == [], "rendering the parameter must never open a span of its own"
         assert _FieldlessAbstractSubclassToStringDoor.iterator_calls == 0
+
+
+class TestFieldlessSideTableToStringDoorRow:
+    """``fieldless-sidetable-tostring-door`` (master, 2026-09-19): the state a fieldless ``__str__``
+    override reads may live entirely off the reflectable-field graph, in a module-level table keyed
+    by identity -- the stateless-leaf exemption's inference (no field, so trust its own text) is
+    false here just as for the abstract-subclass door above: a fieldless value renders as its type
+    name, so no string conversion of its own is ever called and the side table backing it is never
+    consulted. Unlike that row, this one carries a real secret payload, so the canary is asserted
+    absent as well."""
+
+    def test_renders_without_reading_the_side_table_on_either_path(
+        self, renderer: ValueRenderer
+    ) -> None:
+        sentinel = sentinel_token()
+        _FieldlessSideTableToStringDoor.read_calls = 0
+        fixture = _FieldlessSideTableToStringDoor(SecretRecord("item", sentinel))
+        type_name = type(fixture).__name__
+
+        flat = renderer.render(fixture)
+        assert _FieldlessSideTableToStringDoor.read_calls == 0, (
+            "the side table backing __str__ must never be read"
+        )
+        assert flat == f"<{type_name}>", f"expected the type-name rendering, got: {flat}"
+        contains_nowhere(sentinel, {"flat": flat})
+
+        _FieldlessSideTableToStringDoor.read_calls = 0
+        structured = repr(renderer.render_structured(fixture))
+        assert _FieldlessSideTableToStringDoor.read_calls == 0, (
+            "the side table must never be read on the structured path either"
+        )
+        assert "<error:" not in structured, f"structured render degraded to a marker: {structured}"
+        assert f"<{type_name}>" in structured, f"structured channel disagrees: {structured}"
+        contains_nowhere(sentinel, {"structured": structured})
+
+    def test_replayed_through_the_real_capture_path_opens_no_extra_span(self) -> None:
+        sentinel = sentinel_token()
+        _FieldlessSideTableToStringDoor.read_calls = 0
+        fixture = _FieldlessSideTableToStringDoor(SecretRecord("item", sentinel))
+        ctx = ContextVarNarrativeContext()
+        svc = trace_object(_FixtureParamService(), ctx)
+
+        svc.receive(fixture)
+
+        roots = ctx.capture_trace().roots
+        assert [r.signature.method_name for r in roots] == ["receive"]
+        assert roots[0].children == [], "rendering the parameter must never open a span of its own"
+        assert _FieldlessSideTableToStringDoor.read_calls == 0
+        rendered_param = roots[0].signature.parameters[0].rendered_value
+        contains_nowhere(sentinel, {"parameter": rendered_param})
+
+
+class TestNumberSubclassToStringDoorRow:
+    """``number-subclass-tostring-door`` (master, 2026-09-19, cross-port B-46/B-45 row 2): a user
+    ``int`` subclass carrying a deny-listed field and a ``__str__`` that prints it -- see the
+    module docstring and ``hostile_graphs._NumberSubclassToStringDoor``'s. The field walk is the
+    whole expectation on both channels: the type named, the deny-listed field withheld, and it is
+    what the structured path already produced for the same value even before the fix."""
+
+    def test_renders_the_field_withheld_rather_than_read_on_the_flat_path(
+        self, renderer: ValueRenderer
+    ) -> None:
+        sentinel = sentinel_token()
+        fixture = _NumberSubclassToStringDoor(1999, sentinel)
+
+        rendered = renderer.render(fixture)
+
+        assert "NumberSubclassToStringDoor" in rendered
+        assert "[REDACTED]" in rendered
+        contains_nowhere(sentinel, {"flat": rendered})
+        assert "<error:" not in rendered
+
+    def test_renders_the_field_withheld_on_the_structured_path_too(
+        self, renderer: ValueRenderer
+    ) -> None:
+        sentinel = sentinel_token()
+        fixture = _NumberSubclassToStringDoor(1999, sentinel)
+
+        rendered = repr(renderer.render_structured(fixture))
+
+        assert "NumberSubclassToStringDoor" in rendered
+        assert "[REDACTED]" in rendered
+        contains_nowhere(sentinel, {"structured": rendered})
+        assert "<error:" not in rendered

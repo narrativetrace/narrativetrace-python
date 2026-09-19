@@ -13,10 +13,13 @@ rather than crash rendering.
 Substitution goes through ``_render_value``: text always renders through
 :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` (value-shape redaction,
 control sanitising, the string cap — minus a captured string's quotation marks); a non-text
-scalar (``bool``/number/``Enum``) renders via its own ``str()`` when trusted (a built-in
-``bool``/``int``/``float``/``complex``), control-sanitised when not (a numeric subclass or
-``Enum`` member, whose overridden ``__str__`` cannot be trusted), degrading to the
-``<TypeName>`` marker when ``str()`` itself misbehaves; anything else always renders through
+scalar (``bool``/the platform's own numeric leaves/``Enum``) renders via its own ``str()`` when
+trusted (the exact built-in ``bool``/``int``/``float``/``complex``, matched by class, never a
+subclass — a numeric subclass is a composite, and reaches
+:class:`~narrativetrace.rendering.ValueRenderer` below like any other; fixed 2026-09-19, the
+``number-subclass-tostring-door`` row), control-sanitised when not (an ``Enum`` member, whose
+overridden ``__str__`` cannot be trusted), degrading to the ``<TypeName>`` marker when ``str()``
+itself misbehaves; anything else always renders through
 :class:`~narrativetrace.rendering.ValueRenderer`, the one place redaction is decided, whether or
 not the placeholder names a path into the value. A bare ``{key}`` placeholder additionally asks
 the redaction deny-list about the key itself — the key is the parameter name, the same input
@@ -65,7 +68,6 @@ from narrativetrace.rendering import (
 )
 
 _SAFE = ValueRenderer()
-_SCALAR_TYPES = (bool, int, float, complex)
 _TRUSTED_BUILTIN_SCALAR_TYPES = (bool, int, float, complex)
 
 _PLACEHOLDER = re.compile(r"\{([^}]+)\}")
@@ -151,17 +153,26 @@ class _PropertyPlaceholder(_Segment):
 def _is_scalar(value: object) -> bool:
     """Whether ``value`` is its own best narration and cannot hide a redacted member.
 
-    Numbers, booleans, complex numbers and enum constants are scalar; everything else — a
-    dataclass, a plain object, a collection — can carry a ``@not_traced`` field or a deny-listed
-    name somewhere inside it, so it must be rendered by
+    The platform's own boolean/numeric/complex leaves and enum constants are scalar; everything
+    else — a dataclass, a plain object, a collection — can carry a ``@not_traced`` field or a
+    deny-listed name somewhere inside it, so it must be rendered by
     :class:`~narrativetrace.rendering.ValueRenderer` rather than its own ``str()``/``repr()``.
 
     @edgeCase ``str`` was on this list until 2026-09-04 (family security fix) and is deliberately
     not any more: text is the one scalar whose *content* can be a credential, so it is answered
     by :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` in
     :func:`_render_value` rather than by its own ``str()``.
+
+    @edgeCase A numeric/complex value is a scalar here only for the exact built-in type (mirrors
+    :class:`~narrativetrace.rendering.ValueRenderer`'s identical gate, one branch over): an
+    ``int``/``float``/``complex`` SUBCLASS can hold anything, including a deny-listed field its
+    ``__str__`` prints, and a narration template is rendering like any other — so it goes to
+    :class:`~narrativetrace.rendering.ValueRenderer` and is walked, exactly as it is when the same
+    value is captured as an argument (fixed 2026-09-19, the ``number-subclass-tostring-door`` row:
+    ``isinstance``-based dispatch here used to trust ANY numeric subclass, sanitizing rather than
+    withholding a deny-listed field printed by its own text).
     """
-    return isinstance(value, _SCALAR_TYPES) or isinstance(value, Enum)
+    return _is_trusted_builtin_scalar(value) or isinstance(value, Enum)
 
 
 def _render_value(value: object) -> str:
@@ -200,10 +211,13 @@ def _is_trusted_builtin_scalar(value: object) -> bool:
     """True only for the literal built-in ``bool``/``int``/``float``/``complex`` -- never a
     subclass.
 
-    As of 2026-09-04: an ``IntEnum``, a hostile ``Number``-like subclass, or a
-    plain ``Enum`` all override ``__str__`` and reach here too (``_is_scalar`` matches on
-    ``isinstance``), so only an exact-type match is fast-pathed; everything else is sanitised
-    below like a string's control characters already are.
+    As of 2026-09-04: a plain ``Enum`` overrides ``__str__`` and is a scalar too
+    (``_is_scalar``'s second, separate check), but is never a subclass OF one of these four types,
+    so an exact-type match here is enough to keep it out. As of 2026-09-19: an ``IntEnum`` or a
+    hostile numeric subclass IS a subclass of one of these four (``int``), which is exactly why
+    ``_is_scalar`` no longer asks ``isinstance`` of this tuple either — both call sites ask this
+    exact-type gate instead, so neither can drift onto trusting a subclass's overridden
+    ``__str__``.
     """
     return type(value) in _TRUSTED_BUILTIN_SCALAR_TYPES
 
@@ -218,10 +232,12 @@ def _scalar_text(value: object) -> str:
     returning a non-``str``) are both ``Exception`` subclasses, while ``BaseException`` would
     swallow ``KeyboardInterrupt``.
 
-    A trusted built-in scalar renders as its own ``str()``; a numeric subclass or ``Enum``
-    member has no such guarantee for its overridden ``__str__``, so it is control-sanitised
-    here instead (mirrors ``ValueRenderer``'s identical numeric/enum fast path). Text never
-    reaches here — ``_render_value`` routes every ``str`` to
+    A trusted built-in scalar renders as its own ``str()``; an ``Enum`` member has no such
+    guarantee for its overridden ``__str__``, so it is control-sanitised here instead (mirrors
+    ``ValueRenderer``'s identical enum fast path). A numeric subclass never reaches here at all as
+    of 2026-09-19 — ``_is_scalar`` is where it is turned away, to :func:`_render_value`'s
+    :class:`~narrativetrace.rendering.ValueRenderer` fallback, the composite it actually is. Text
+    never reaches here either — ``_render_value`` routes every ``str`` to
     :meth:`~narrativetrace.rendering.ValueRenderer.render_narration_text` first.
     """
     try:
@@ -230,7 +246,7 @@ def _scalar_text(value: object) -> str:
         return f"<{type(value).__name__}>"
     if _is_trusted_builtin_scalar(value):
         return text
-    return control_sanitize(text)
+    return control_sanitize(text)  # an Enum constant's own text, the last branch that reads it
 
 
 _MAX_CACHED_TEMPLATES = 512

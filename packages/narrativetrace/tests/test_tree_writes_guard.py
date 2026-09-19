@@ -154,6 +154,163 @@ class TestRunGuarded:
         assert run_guarded([]) == 1
 
 
+def _init_no_git_scope(tmp_path: Path) -> Path:
+    """A directory shaped like a `git archive` extraction of this repo -- no `.git` anywhere, one
+    file inside the guard's content-snapshot scope -- the baseline for the no-`.git` fallback
+    tests below."""
+    repo = tmp_path / "snapshot"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "scripts" / "tracked.py").write_text("original\n", encoding="utf-8")
+    return repo
+
+
+def _init_no_git_scope_with_gitignore(tmp_path: Path) -> Path:
+    """Same shape as `_init_no_git_scope`, plus a `.gitignore` -- there is no `.git` to already
+    filter ignored paths out of the comparison, so the content-snapshot baseline must read
+    `.gitignore` itself (a real `poe check` run leaves `.hypothesis`/`.coverage`-shaped caches
+    behind under this exact scope; `cache/`/`*.log` here stand in for that without depending on
+    an actual test run)."""
+    repo = _init_no_git_scope(tmp_path)
+    (repo / ".gitignore").write_text("cache/\n*.log\n", encoding="utf-8")
+    return repo
+
+
+class TestContentSnapshotRespectsGitignore:
+    """No `.git` means no `git status` to have already filtered ignored paths out -- an ordinary
+    `poe check` run leaves gitignored caches behind that must not read as a tree write."""
+
+    def test_a_gitignored_directory_is_not_a_tree_write(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope_with_gitignore(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        target = repo / "scripts" / "cache" / "generated.bin"
+        script = (
+            f"from pathlib import Path; p = Path({str(target)!r}); "
+            f"p.parent.mkdir(parents=True, exist_ok=True); p.write_text('x', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 0
+
+    def test_a_gitignored_file_at_the_repo_root_is_not_a_tree_write(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope_with_gitignore(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        target = repo / "run.log"
+        script = (
+            f"from pathlib import Path; Path({str(target)!r}).write_text('x', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 0
+
+    def test_a_non_ignored_write_is_still_caught(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope_with_gitignore(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        target = repo / "scripts" / "new_output.py"
+        script = (
+            f"from pathlib import Path; Path({str(target)!r}).write_text('x', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 1
+
+
+class TestGuardMode:
+    def test_a_git_checkout_uses_git(self, tmp_path: Path) -> None:
+        repo = _init_repo(tmp_path)
+        assert tree_writes_guard.guard_mode(repo) == "git"
+
+    def test_a_checkout_with_no_git_falls_back_to_a_content_snapshot(self, tmp_path: Path) -> None:
+        repo = tmp_path / "snapshot"
+        repo.mkdir()
+        assert tree_writes_guard.guard_mode(repo) == "content snapshot"
+
+
+class TestContentSnapshotFallback:
+    """`--verify` builds the staged snapshot with `git archive` and runs `poe check` inside it --
+    no `.git` anywhere in that tree, so this guard must still work there (the precedent:
+    `check_no_license_headers.py`'s own non-git fallback for the same --verify shape)."""
+
+    def test_detects_a_write_the_wrapped_command_makes(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        repo = _init_no_git_scope(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        target = repo / "scripts" / "tracked.py"
+        script = (
+            f"from pathlib import Path; "
+            f"Path({str(target)!r}).write_text('rewritten\\n', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 1
+        err = capsys.readouterr().err
+        assert "scripts/tracked.py" in err
+        assert "tree-writes-guard: content snapshot (no .git)" in err
+
+    def test_detects_a_new_file_the_wrapped_command_creates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        target = repo / "scripts" / "new_output.py"
+        script = (
+            f"from pathlib import Path; Path({str(target)!r}).write_text('x', encoding='utf-8')"
+        )
+        assert run_guarded([sys.executable, "-c", script]) == 1
+
+    def test_passes_when_nothing_changes(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        repo = _init_no_git_scope(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        assert run_guarded([sys.executable, "-c", "import sys; sys.exit(0)"]) == 0
+        assert "tree-writes-guard: content snapshot (no .git)" in capsys.readouterr().err
+
+    def test_a_clean_command_still_returns_its_own_exit_code(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        assert run_guarded([sys.executable, "-c", "import sys; sys.exit(3)"]) == 3
+
+
+class TestGitModeAnnouncesItsModeOnce:
+    def test_prints_the_git_mode_line_exactly_once(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        repo = _init_repo(tmp_path)
+        monkeypatch.setattr(tree_writes_guard, "REPO_ROOT", repo)
+        run_guarded([sys.executable, "-c", "import sys; sys.exit(0)"])
+        assert capsys.readouterr().err.count("tree-writes-guard: git") == 1
+
+
+class TestBaselineNeverSkipsSilently:
+    """Rule: git failing to answer is a failure, not a pass (see the module docstring) -- the
+    same holds for the no-`.git` fallback. A baseline it cannot establish at all must fail
+    naming why, never read as "nothing to compare, so nothing changed"."""
+
+    def test_a_missing_repo_root_fails_naming_why(self, tmp_path: Path) -> None:
+        missing = tmp_path / "does-not-exist"
+        with pytest.raises(RuntimeError, match="does not exist"):
+            tree_writes_guard.content_snapshot(missing)
+
+    def test_an_unreadable_scoped_file_fails_naming_why(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = _init_no_git_scope(tmp_path)
+        target = repo / "scripts" / "tracked.py"
+        target.chmod(0o000)
+        try:
+            with pytest.raises(RuntimeError, match=r"tracked\.py"):
+                tree_writes_guard.content_snapshot(repo)
+        finally:
+            target.chmod(0o644)
+
+
 class TestMain:
     def test_wraps_sys_argv_and_returns_run_guarded_s_result(
         self, monkeypatch: pytest.MonkeyPatch

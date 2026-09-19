@@ -10,15 +10,21 @@ The harvester is the bridge between traces and the glossary: it observes, aggreg
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import date
+
 import pytest
 from narrativetrace_glossary import (
     BoundedContext,
     Glossary,
+    GlossaryTerm,
     HarvestCandidate,
     TermKind,
+    TermStatus,
     harvest_traces,
 )
 from narrativetrace_glossary.harvester import _invariant
+from narrativetrace_glossary.translation_view import TraceTranslationView
 
 from narrativetrace import (
     MethodSignature,
@@ -28,6 +34,7 @@ from narrativetrace import (
     TraceNode,
     TraceTree,
 )
+from narrativetrace.canonical import CanonicalEntry
 
 BILLING = Glossary({"billing": BoundedContext("billing", ["acme.billing"])})
 """One declared context, so a candidate's resolved context is visible in every assertion."""
@@ -296,3 +303,87 @@ def test_a_ten_thousand_deep_chain_does_not_overflow_the_stack() -> None:
     for _ in range(10_000):
         node = TraceNode(MethodSignature("OverdraftService", "wrap", []), [node])
     assert _harvest(node) != ()
+
+
+# --- Harvest and translation must resolve a node's context by the same rule. A term filed under
+# one context and looked up under another produces a gap no curation can close. ---
+
+SHOP_AND_BILLING = Glossary(
+    {
+        "shop": BoundedContext("shop", ["acme.shop"]),
+        "billing": BoundedContext("billing", ["acme.billing"]),
+        "_unassigned": BoundedContext("_unassigned"),
+    }
+)
+
+
+def _order_node(captured_package: str | None) -> TraceNode:
+    return TraceNode(
+        MethodSignature("OrderService", "place_order", [], package_name=captured_package)
+    )
+
+
+def _order_entry(captured_package: str | None) -> CanonicalEntry:
+    return CanonicalEntry(
+        timestamp="2026-08-14T10:00:00.000Z",
+        level="trace",
+        message="enter",
+        nt_event_type="method_enter",
+        span_id="s1",
+        code_namespace="OrderService",
+        code_function="place_order",
+        nt_package=captured_package,
+    )
+
+
+def _with_place_order_curated_in(context: str) -> Glossary:
+    return Glossary(
+        SHOP_AND_BILLING.contexts,
+        [
+            GlossaryTerm(
+                "place order",
+                context,
+                TermKind.VERB_PHRASE,
+                TermStatus.CURATED,
+                translations={"es": "realizar pedido"},
+                first_seen=date(2026, 8, 11),
+            )
+        ],
+    )
+
+
+def _assert_harvest_and_translation_agree(
+    module_of: Callable[[str], str | None], captured_package: str | None
+) -> None:
+    """Harvests one node, curates its verb phrase in exactly the context the harvest filed it
+    under, then renders the same call: the translation must land. It only can when both halves
+    resolved the context the same way."""
+    harvested = harvest_traces(
+        [TraceTree([_order_node(captured_package)])],
+        glossary=SHOP_AND_BILLING,
+        module_of=module_of,
+    )
+    context = next(c.context for c in harvested if c.phrase == "place order")
+
+    view = TraceTranslationView(_with_place_order_curated_in(context), module_of)
+
+    rendered = view.render([_order_entry(captured_package)], "es")
+    assert "realizar pedido (place_order)" in rendered, f"harvested under {context!r}"
+
+
+def test_harvest_and_translation_agree_when_the_index_resolves_the_simple_name() -> None:
+    _assert_harvest_and_translation_agree(lambda class_name: "acme.shop", "acme.shop")
+
+
+def test_harvest_and_translation_agree_when_the_index_never_scanned_the_class() -> None:
+    _assert_harvest_and_translation_agree(lambda class_name: None, "acme.shop")
+
+
+def test_harvest_and_translation_agree_when_the_simple_name_is_ambiguous_in_the_index() -> None:
+    # Two classes share the simple name, so the index answers for the wrong one (or, as the real
+    # index does, not at all). The package captured at the site outranks it either way.
+    _assert_harvest_and_translation_agree(lambda class_name: "acme.billing", "acme.shop")
+
+
+def test_a_pre_schema_one_two_signature_falls_back_to_the_index() -> None:
+    _assert_harvest_and_translation_agree(lambda class_name: "acme.shop", None)

@@ -70,6 +70,27 @@ fieldless instance renders as its type name and no string conversion of its own 
 declared -- is called at all. Mirrors the Java fixture's shape (a class-level, not instance-level,
 spy counter: an instance-field spy would defeat the fieldless precondition itself) rather than its
 outcome, which does not port.
+
+One more member, ``fieldlessSideTableToStringDoor`` (master corpus update, 2026-09-19, mirrors
+Java's ``HostileMembers.FieldlessSideTableToStringDoor``): a FIELDLESS class overriding
+``__str__``, whose real state never touches the instance at all -- it lives in a module-level
+table keyed by the instance's own identity (``id(self)``), off the graph ``_field_names``/
+``_has_instance_state`` can ever read. The stateless-leaf exemption's inference (no field, so
+trust its own text) is false here for the same reason it is false for the side-table-free
+``fieldlessAbstractSubclassToStringDoor`` row above: a value carrying no readable instance state
+renders as its type name alone (``_shape_of`` -> ``OPAQUE``), so no string conversion of its own
+is ever called and the side table backing it is never consulted. ``read_calls`` is a CLASS
+attribute for the same reason ``iterator_calls`` is above: an instance-field spy would populate
+``__dict__`` and defeat the fieldless precondition itself.
+
+One more member, ``numberSubclassToStringDoor`` (master corpus update, 2026-09-19, cross-port
+B-46/B-45 row 2, mirrors Java's ``HostileMembers.NumberSubclassToStringDoor``): a user ``int``
+subclass carrying a deny-listed field and a ``__str__`` that prints it. Extending ``int``/
+``float`` said nothing about what a value held, and this runtime's scalar-numeric fast paths
+(``_render_number``/``_render_structured_int``) used to trust ANY ``int``, subclass included --
+only the exact platform types (``type(value) in (int, float)``) are fast-pathed now, so a
+subclass is the composite it always was and is walked field by field on both channels, the
+deny-listed field withheld and its own ``__str__`` never called at all.
 """
 
 from __future__ import annotations
@@ -178,12 +199,47 @@ class _NumberHostileToString(int):
     case exercises every renderer's scalar-numeric path at once (mirrors Java
     ``HostileMembers.NumberHostileToString``).
 
-    Scalar, so never introspected field-by-field the way ``_ToStringThrows`` and its siblings are
-    -- the redaction oracle does not apply to it, only the structure-forging one does.
+    Fieldless, so it is now introspected like any other composite (the ``number-subclass-
+    tostring-door`` fix, 2026-09-19: extending ``int``/``float`` says nothing about what a value
+    holds, so only the exact platform types are still fast-pathed) and renders as its bare type
+    name -- its own ``__str__`` is never called at all, so the forged text it carries never has a
+    chance to appear whether escaped or not.
     """
 
     def __str__(self) -> str:
         return '1\n```\n{"outcome": "success"}\nNaN Infinity -Infinity\n```'
+
+
+class _NumberSubclassToStringDoor(int):
+    """A user ``int`` subclass carrying a deny-listed field and a ``__str__`` that prints it --
+    the ``number-subclass-tostring-door`` row (mirrors Java's
+    ``HostileMembers.NumberSubclassToStringDoor``, cross-port B-46/B-45 row 2, 2026-09-19).
+
+    INTENT: extending ``int``/``float`` says nothing about what a value holds -- this one is an
+    ordinary composite that merely happens to have a numeric base, and its deny-listed field is
+    hidden by name on any path that walks it. Both this runtime's scalar-numeric fast paths
+    (``_render_number``, the flat channel's, and ``_render_structured_int``, the structured
+    channel's) used to trust ANY ``int``, subclass included, and printed this text with only
+    control-sanitising and the length cap in front of it -- no field name for the deny-list to
+    match, no ``@not_traced`` to honor -- on BOTH channels alike. One value, two channels, one
+    leak; only a renderer that never reads the text at all closes the door.
+
+    The sibling :class:`_NumberHostileToString` pins the OTHER half of the same branch: a numeric
+    text that forges narrative structure but carries no state of its own. Both rows stay: that
+    one keeps the sanitising guard honest for whatever text is still legitimately read (a
+    platform numeric leaf's own); this one proves a deny-listed field is withheld rather than
+    printed once its holder is walked instead.
+    """
+
+    password: str
+
+    def __new__(cls, cents: int, password: str) -> _NumberSubclassToStringDoor:
+        obj = super().__new__(cls, cents)
+        obj.password = password
+        return obj
+
+    def __str__(self) -> str:
+        return f"Amount{{password={self.password}, cents={int(self)}}}"
 
 
 class _HashCodeThrows:
@@ -349,6 +405,36 @@ class _FieldlessAbstractSubclassToStringDoor(collections.abc.Collection[object])
         return False
 
 
+_SIDE_TABLE: dict[int, object] = {}
+"""Module-level, identity-keyed table backing ``_FieldlessSideTableToStringDoor``'s secret text --
+the fixture's real state lives here, off the reflectable field graph ``_field_names``/
+``_has_instance_state`` walk. Keyed by ``id(instance)``, mirroring Java's static identity-keyed
+side table (``IdentityHashMap``)."""
+
+
+class _FieldlessSideTableToStringDoor:
+    """Python's twin of Java's fieldless class overriding ``toString()`` whose real state lives off
+    the reflectable-field graph, in a static identity-keyed side table (master corpus update,
+    2026-09-19) -- see the module docstring. Takes a payload, unlike
+    ``_FieldlessAbstractSubclassToStringDoor``, but never stores it as an instance attribute: it is
+    filed into :data:`_SIDE_TABLE` under this instance's own identity instead, so the fieldless
+    precondition (``_has_instance_state`` must stay ``False``) still holds.
+
+    ``read_calls`` is a CLASS attribute, not an instance one, for the same reason
+    ``_FieldlessAbstractSubclassToStringDoor.iterator_calls`` is: an instance-field spy would
+    populate ``__dict__`` and defeat the very fieldless precondition this fixture exists to hold.
+    Callers reset it (``read_calls = 0`` on the class) before use."""
+
+    read_calls: int = 0
+
+    def __init__(self, payload: object) -> None:
+        _SIDE_TABLE[id(self)] = payload
+
+    def __str__(self) -> str:
+        type(self).read_calls += 1
+        return f"FieldlessSideTableToStringDoor[{_secret_text(_SIDE_TABLE[id(self)])}]"
+
+
 @dataclasses.dataclass
 class _TokenBox:
     """A field named ``token`` -- the deny-list must win before the platform-type carve-out
@@ -472,6 +558,7 @@ _HOSTILE_MEMBERS: dict[str, Callable[[object], object]] = {
     "toStringHuge": lambda _p: _ToStringHuge(),
     "toStringNull": lambda _p: _ToStringNull(),
     "numberHostileToString": lambda _p: _NumberHostileToString(1),
+    "numberSubclassToStringDoor": lambda p: _NumberSubclassToStringDoor(1999, _secret_text(p)),
     "hashCodeThrows": lambda _p: _HashCodeThrows(),
     "equalsThrows": lambda _p: _EqualsThrows(),
     "getterThrows": lambda _p: _GetterThrows(),
@@ -483,6 +570,7 @@ _HOSTILE_MEMBERS: dict[str, Callable[[object], object]] = {
     "abstractMapSubclassOverride": _AbstractMapSubclassOverride,
     "abstractCollectionSubclassOverride": _AbstractCollectionSubclassOverride,
     "fieldlessAbstractSubclassToStringDoor": lambda _p: _FieldlessAbstractSubclassToStringDoor(),
+    "fieldlessSideTableToStringDoor": _FieldlessSideTableToStringDoor,
 }
 
 
