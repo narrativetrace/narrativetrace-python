@@ -14,7 +14,18 @@ years after each release). Pro is commercial.
 Which licence applies to what
 ------------------------------
 
-  every narrativetrace* distribution on PyPI shipped from this repository
+  narrativetrace-skills (the published skills carrier) and the copy of it
+  bundled as package data inside narrativetrace itself (narrativetrace/_skills/)
+      Apache License, Version 2.0 — see packages/narrativetrace-skills/LICENSE.
+      The rendered agent-skill pages (SKILL.md) and catalogue.json: resources
+      only, no Python API, what a consumer's `init` reads. Mirrors Java's
+      narrativetrace-skills module (licensing.properties:
+      module.narrativetrace-skills=open) — the typed catalogue that renders
+      it, narrativetrace-skills-catalogue, stays unpublished and BUSL-1.1
+      like everything else. Carries no per-file licence header, matching the
+      Java carrier's own whole-module licensing.
+
+  every other narrativetrace* distribution on PyPI shipped from this repository
       Business Source License 1.1 — see LICENSE.
       The runtime and its integrations. Free to use in production, including
       in products and services you provide to your own customers; the one

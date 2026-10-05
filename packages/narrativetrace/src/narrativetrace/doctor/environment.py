@@ -2,11 +2,17 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Builds a :class:`~narrativetrace.doctor.types.DoctorSnapshot` from the real filesystem and the
-running interpreter's installed-distribution metadata. The one impure module in the doctor package
-— mirrors the TypeScript runtime's ``doctor/environment.ts`` (bounded breadth-first walk, bucketed
+"""Builds a :class:`~narrativetrace_tooling.doctor.types.DoctorSnapshot` from the real filesystem
+and the running interpreter's installed-distribution metadata. The one impure module in the doctor —
+mirrors the TypeScript runtime's ``doctor/environment.ts`` (bounded breadth-first walk, bucketed
 into source/output/approved-dir files) in Python's own idiom (``importlib.metadata`` instead of
 ``require.resolve``, ``tomllib`` instead of parsing ``package.json``).
+
+Lives in this distribution rather than in :mod:`narrativetrace_tooling.doctor` beside the checks it
+feeds: it resolves configuration through :class:`~narrativetrace.config.ConfigResolver`, the same
+resolver the runtime uses, so the doctor reads a project exactly as the traced code does. A copy of
+that precedence inside a library that must not import the runtime would drift, and the first symptom
+would be a doctor that disagrees with the program it is diagnosing.
 """
 
 from __future__ import annotations
@@ -18,7 +24,13 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 from narrativetrace.config import ConfigResolver
-from narrativetrace.doctor.types import DoctorSnapshot, Env, PackageInfo
+from narrativetrace_tooling.doctor.types import DoctorSnapshot, Env, PackageInfo
+from narrativetrace_tooling.init import (
+    InstalledSkill,
+    project_family_version,
+    read_project_state,
+    resolve_carrier,
+)
 
 _EXCLUDED_DIRS = frozenset(
     {
@@ -84,6 +96,28 @@ def _resolve_installed_packages() -> dict[str, PackageInfo]:
 def _resolve_pytest11_entry_points() -> dict[str, str]:
     entry_points = importlib_metadata.entry_points(group="pytest11")
     return {entry_point.name: entry_point.value for entry_point in entry_points}
+
+
+def _resolve_installed_skills(root: Path) -> tuple[InstalledSkill, ...]:
+    """The project's own skill directories, read through the installer's own reader — never a
+    second parser (D9). Best-effort: a project that reader cannot read yields none, not a crash,
+    matching every other read in this walker."""
+    try:
+        return read_project_state(root).installed_skills
+    except (TypeError, ValueError, OSError):
+        return ()
+
+
+def _resolve_catalogue_skill_names() -> tuple[str, ...]:
+    """The names this environment's skills carrier ships, through the same resolution ``init``
+    uses. Best-effort: a carrier nobody could resolve yields none rather than a crash — this
+    runtime always bundles a fallback carrier as package data (Phase 3 milestone 1), so this is a
+    defensive floor, not the common case."""
+    try:
+        carrier = resolve_carrier()
+    except (ValueError, OSError):
+        return ()
+    return tuple(skill.name for skill in carrier.skills)
 
 
 def _read_text(path: Path) -> str:
@@ -173,8 +207,8 @@ class _Walker:
 
 
 def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
-    """Builds a :class:`~narrativetrace.doctor.types.DoctorSnapshot` from the real filesystem
-    rooted at ``cwd``."""
+    """Builds a :class:`~narrativetrace_tooling.doctor.types.DoctorSnapshot` from the real
+    filesystem rooted at ``cwd``."""
     root = Path(cwd)
     resolver = ConfigResolver(start_dir=root)
     config = resolver.file_values
@@ -193,4 +227,7 @@ def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
         approved_dir_files=walker.approved_dir_files,
         installed_packages=_resolve_installed_packages(),
         pytest11_entry_points=_resolve_pytest11_entry_points(),
+        installed_skills=_resolve_installed_skills(root),
+        catalogue_skill_names=_resolve_catalogue_skill_names(),
+        narrativetrace_version=project_family_version(),
     )

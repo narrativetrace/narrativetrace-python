@@ -1,6 +1,6 @@
 # Structural Trace Format (`.nt`)
 
-*(since 0.1.2)*. The AI-safe structural trace artifact (product ADR-002): one
+The AI-safe structural trace artifact (product ADR-002): one
 file per test scenario containing only the developer-authored *shape* of the behavior —
 zero runtime values. This format is **cross-platform**: every NarrativeTrace runtime emits
 the identical format, which is what lets approved traces and conformance fixtures travel
@@ -92,10 +92,10 @@ scenario: Weekend trip settles with three transfers
   and they appear at root level too when the work outlived its caller. Fire-and-forget
   renders `~ fire-and-forget` + children. Thread names/ids never appear.
 - **Excluded by design:** all argument/return values, exception messages, durations,
-  timestamps, thread identity, trace/span ids, trace names, run ids, run names *(since
-  0.1.2, unreleased — the run has a name too, see [Configuration Guide § The run has a
+  timestamps, thread identity, trace/span ids, trace names, run ids, run names (the run has a
+  name too, see [Configuration Guide § The run has a
   name](guides/configuration.md#the-run-has-a-name); it never enters this format, an
-  approved or received trace, an artifact filename, or a manifest per-scenario key)*, run
+  approved or received trace, an artifact filename, or a manifest per-scenario key), run
   results, and narration (resolved narration embeds values).
 - **Encoding:** UTF-8, LF, trailing newline. Identifiers pass through
   control-character sanitization.

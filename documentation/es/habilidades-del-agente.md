@@ -1,8 +1,6 @@
-<!-- source: documentation/agent-skills.md blob d443a71a2d4a | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob fbd057bd3765 | translated: 2026-09-14 | reviewed: - -->
 
 # Habilidades del agente
-
-*(since 0.1.2)*
 
 NarrativeTrace incluye **habilidades** (*skills*): procedimientos cargables por un agente que
 ejecutan comandos probados y condicionan su finalización a un paso `verify`, en lugar de
@@ -16,8 +14,9 @@ contexto.
 - **`add-narrative-tracing`** — instala NarrativeTrace en un proyecto y lo lleva hasta su primera
   traza: instala con el toolchain real (`uv add narrativetrace`), envuelve un objeto, renderiza y
   ejecuta la primera traza, y luego conecta un logger real (el puente de `logging` de la
-  biblioteca estándar). Termina ejecutando `uv run narrativetrace doctor` y entregando el control —
-  la costura entre las dos habilidades.
+  biblioteca estándar). Ejecuta `uv run narrativetrace doctor` y entrega el control — la costura
+  entre las dos habilidades — y termina *previsualizando* (nunca aplicando) `narrativetrace init`,
+  para que la próxima sesión encuentre estas habilidades ya instaladas sin que nadie se lo diga.
 - **`narrativetrace-doctor`** — solo diagnóstico, y **de solo lectura**: nunca edita, genera ni
   elimina un archivo. Ejecuta la CLI probada, lee su informe y recorre las partes que una simple
   salida de CLI no puede cubrir por sí sola: probar la ocultación en una prueba, leer una traza
@@ -33,16 +32,62 @@ hoy el doctor solo puede pedirte que añadas).
 ## La CLI `narrativetrace`
 
 Ambas habilidades ejecutan `uv run narrativetrace doctor` — el verbo `doctor` de la CLI gratuita,
-junto al script de consola `narrativetrace-approve` ya existente. De solo lectura, sin red,
-`--json` para salida legible por máquina, código de salida `0` (limpio), `1` (hallazgos) o `2` (no
-se pudo ejecutar). Once comprobaciones con identificadores estables y con puntos: las versiones de
+junto a `init`/`uninstall` ([Instalarlas](#instalarlas), más abajo) y el script de consola
+`narrativetrace-approve` ya existente. `doctor` es de solo lectura, sin red, `--json` para salida
+legible por máquina, código de salida `0` (limpio), `1` (hallazgos) o `2` (no se pudo ejecutar).
+Doce comprobaciones con identificadores estables y con puntos: las versiones de
 intérprete/pytest frente a lo declarado, los ocho paquetes `narrativetrace-*` de acuerdo en una
-sola versión, la ortografía de `NARRATIVETRACE_OUTPUT`, el registro del plugin de pytest, claves
-desconocidas en `narrativetrace.toml`, un marcador de ocultación importado pero nunca usado, los
+sola versión, la ortografía de `NARRATIVETRACE_OUTPUT`, el registro del plugin de pytest, si las
+habilidades del agente de NarrativeTrace están instaladas y actualizadas, claves desconocidas en
+`narrativetrace.toml`, un marcador de ocultación importado pero nunca usado, los
 parámetros de un método `*args` colapsando en un único valor `args: [...]`, si la ocultación está
 probada en una prueba, y diffs de trazas de aprobación obsoletos.
 
 ## Instalarlas
+
+El paquete `narrativetrace` (que `uv add narrativetrace` ya pone en tu `PATH`) lleva un verbo
+`init` que instala ambas habilidades por ti — sin red, y sin escribir nada hasta que tú lo digas:
+
+```bash
+uv run narrativetrace init --dry-run
+```
+
+<!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
+```json
+{
+  "carrier": "narrativetrace-skills==0.2.0",
+  "actions": [
+    {
+      "kind": "create",
+      "path": ".agents/skills/narrativetrace-doctor/SKILL.md",
+      "status": "planned"
+    },
+    {
+      "kind": "create",
+      "path": ".agents/skills/add-narrative-tracing/SKILL.md",
+      "status": "planned"
+    },
+    {
+      "kind": "create",
+      "path": "AGENTS.md",
+      "status": "planned"
+    }
+  ],
+  "exit_code": 0
+}
+```
+<!-- /snippet -->
+
+Ese es el sobre `--json`; sin la opción, el mismo comando imprime el plan como un diff unificado.
+Léelo, y luego ejecútalo de nuevo sin `--dry-run` para escribir `.agents/skills/` (y también
+`.claude/skills/`, en cuanto el proyecto tenga un directorio `.claude/` o un `CLAUDE.md`, o con
+`--vendor claude`) más una sección marcada en `AGENTS.md`. `narrativetrace uninstall` elimina
+exactamente lo que escribió y nada más; la comprobación `config.skills-installed` de
+`narrativetrace doctor` avisa cuando lo instalado queda desactualizado, así que mantenerlo al día
+más adelante es volver a ejecutar `init --dry-run`, no volver a copiar los archivos a mano.
+
+Copiar los archivos renderizados a mano sigue funcionando, y es el respaldo para una plataforma sin
+su propia convención de descubrimiento, o antes de haber añadido el paquete `narrativetrace`:
 
 - **Claude Code**: los archivos `SKILL.md` renderizados viven en
   [`.claude/skills/add-narrative-tracing/`](../../.claude/skills/add-narrative-tracing/SKILL.md) y
@@ -67,13 +112,13 @@ probada en una prueba, y diffs de trazas de aprobación obsoletos.
   siempre activo que el propio `AGENTS.md` de este repositorio lleva entre sus marcadores
   `<!-- narrativetrace:skills:start -->` — los nombres y descripciones de ambas habilidades, así
   que un agente que nunca pensó en buscarlas igual sabe que existen.
-- **Gemini y un instalador automático** están en la hoja de ruta pero aún no construidos —
-  hoy, copiar los archivos renderizados es el camino.
+- **Gemini** todavía no tiene una convención de descubrimiento de habilidades — está en la hoja
+  de ruta, no construida.
 
 ## Cómo se construyen
 
 Ninguna habilidad se edita nunca a mano.
-`packages/narrativetrace-skills/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` y
+`packages/narrativetrace-skills-catalogue/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` y
 `.../catalogue/narrativetrace_doctor.py` son las dos fuentes de verdad; `python
 scripts/skills_render.py --fix` regenera `.claude/skills/add-narrative-tracing/SKILL.md`,
 `.claude/skills/narrativetrace-doctor/SKILL.md`, sus equivalentes de Codex en `.agents/skills/` y
@@ -88,17 +133,17 @@ cita que nombra la nota no.
 
 ## Evaluarlas
 
-`packages/narrativetrace-skills/evals/` lleva la suite de Tier B (frases disparadoras, un caso de
-camino feliz por habilidad, un caso de desviación para la comprobación de ocultación del doctor) —
-nunca se ejecuta con `poe check`; el responsable la ejecuta a mano o desde el job nocturno, a
-través de CLIs de suscripción, nunca la API medida. Consulta [su propio
-README](../../packages/narrativetrace-skills/evals/README.md) para la política de los carriles
-esporádicos (Codex/Gemini) y la matriz de promoción.
+`packages/narrativetrace-skills-catalogue/evals/` lleva la suite de Tier B (frases disparadoras, un
+caso de camino feliz por habilidad, un caso de desviación para la comprobación de ocultación del
+doctor) — nunca se ejecuta con `poe check`; el responsable la ejecuta a mano o desde el job
+nocturno, a través de CLIs de suscripción, nunca la API medida. Consulta [su propio
+README](../../packages/narrativetrace-skills-catalogue/evals/README.md) para la política de los
+carriles esporádicos (Codex/Gemini) y la matriz de promoción.
 
 ## Ver también
 
-- [`narrativetrace-skills`](../../packages/narrativetrace-skills/README.md) — el paquete del
-  catálogo tipado
+- [`narrativetrace-skills-catalogue`](../../packages/narrativetrace-skills-catalogue/README.md) —
+  el paquete del catálogo tipado
 - [Sesenta segundos](sesenta-segundos.md) — el recorrido de instalación y primera traza del que se
   extraen los pasos de `add-narrative-tracing`
 - [Qué commitear](que-commitear.md) — el estado de las trazas de aprobación que comprueba el cuarto

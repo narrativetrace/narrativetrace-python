@@ -21,7 +21,6 @@ def test_read_parses_an_entry_point_entry(tmp_path: Path) -> None:
             coordinate: "narrativetrace"
             page: "documentation/foo.md#anchor"
             claim: "narrativetrace resolves"
-            since: "0.1.0"
             documented_default: "PRESENT"
             probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
         """,
@@ -45,7 +44,6 @@ def test_read_accepts_expected_effect_as_the_expect_field(tmp_path: Path) -> Non
             kind: config-shape
             page: "documentation/foo.md#anchor"
             claim: "an example config shape produces an effect"
-            since: "0.1.0"
             expected_effect: "field redacted"
             probe: "probe.py"
         """,

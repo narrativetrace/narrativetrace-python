@@ -2,7 +2,7 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Entry-point probe (docs-vs-published-gate §2): proves a PyPI coordinate resolves at exactly
+"""Entry-point probe: proves a PyPI coordinate resolves at exactly
 the version claimed. `scripts/contract_check.py` installs every entry-point package into a fresh
 venv via `uv run --with <name>==<version> ...` before invoking this probe, so the interesting
 failure mode this guards against is not "the network has no answer" (that invocation would already

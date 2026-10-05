@@ -78,7 +78,7 @@ produce it. Full walkthrough with every decorator: [Decorators Guide](guides/dec
 | structlog processor / stdlib logging bridge | No |
 | A custom `ValueRenderer` your own code constructs | Yes — only by passing `RedactionPolicy.DISABLED` to `trace_object(obj, context, renderer=ValueRenderer(redaction_policy=RedactionPolicy.DISABLED))` explicitly |
 | `@not_traced` / `not_traced_field(...)` | Not applicable — it is the thing doing the redacting, and it always wins |
-| Structural `.nt` artifact *(since 0.1.2)* | Not applicable — it carries no values to redact in the first place |
+| Structural `.nt` artifact | Not applicable — it carries no values to redact in the first place |
 
 Every shipped integration renders values through the same `ValueRenderer`/`RedactionPolicy`
 mechanism `trace_object` uses by default (`RedactionPolicy.DEFAULT`) — none of them expose a
@@ -112,7 +112,7 @@ survives that one container deep. And it wins over a narration template that nam
 `{param.property}` in `@narrated`/`@on_error` resolves a path to a redacted member as
 `[REDACTED]`, at every depth along the path, never the literal value.
 
-**A composite's own stringification is never trusted** *(since 0.1.2)*. Any object carrying instance
+**A composite's own stringification is never trusted**. Any object carrying instance
 state — a dataclass, an attrs class, a `NamedTuple`, or a plain object with a populated
 `__dict__`/`__slots__` — is introspected field-by-field regardless of whether it also defines a
 custom `__str__`/`__repr__`; that hand-written method is never consulted for it. Before this fix,
@@ -125,7 +125,7 @@ what its value held. Both are now introspected and redaction-checked exactly lik
 value. `@narrative_summary` is unaffected and remains the supported way to give a composite a
 curated one-line rendering instead of the field-by-field default.
 
-**Carrying no readable field earns no trust either** *(since 0.1.3, unreleased)*. A value whose state
+**Carrying no readable field earns no trust either**. A value whose state
 introspection cannot see — a `ctypes.Structure` subclass or an extension type holding its fields
 in a C struct, a class keeping its state in a module-level table keyed by identity or in a
 closure — used to count as a leaf and stand behind its own `__str__`/`__repr__`, which could
@@ -136,7 +136,8 @@ in the trace, bounded, and unread. What may still speak for itself is decided by
 paragraph) and by nothing else; `@narrative_summary` remains the supported way for a type to
 narrate itself.
 
-**A platform-defined type is trusted for its own `str()` even though it carries state** *(since 0.1.2)*. The rule above is correct for application types but was too broad for the
+**A platform-defined type is trusted for its own `str()` even though it carries state**.
+The rule above is correct for application types but was too broad for the
 standard library's own value types — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
 `fractions.Fraction` and `ipaddress.*` all carry instance state and were being walked field-by-field
 into unreadable or inaccessible output instead of their normal short form. The carve-out is decided
@@ -153,7 +154,8 @@ class-identity axis, as the deny-list and shape checks above: a platform type ca
 application's own deny-listed field, so trusting its text is both the readable answer and the safe
 one.
 
-When a `@narrative_summary` method, a custom `__str__`, or a field's own getter raises *(since 0.1.2)*, that one part renders `<error: <TypeName>>` — the exception's own type name
+When a `@narrative_summary` method, a custom `__str__`, or a field's own getter raises, that
+one part renders `<error: <TypeName>>` — the exception's own type name
 (`<error: ValueError>`,
 `<error: RecursionError>`) substituted for that part only. The exception's *message* is
 deliberately never rendered, because a message can carry the very value that failed to render;
@@ -186,7 +188,7 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
 - **Introspection reads stored data, not code.** Field names come from `dataclasses.fields()`,
   attrs metadata, a `NamedTuple`'s `_fields`, or the instance `__dict__` — a computed `@property`
   getter is never enumerated and never runs during introspection.
-- **The structural `.nt` artifact has no runtime values at all** *(since 0.1.2)*.
+- **The structural `.nt` artifact has no runtime values at all**.
   Names, call hierarchy and outcome kinds only — zero prompt-injection surface, pinned by a
   byte-for-byte conformance test against the reference format, not a policy someone could
   forget to apply. Its `scenario:` header is covered by that: one invocation of a
@@ -195,7 +197,7 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
   filename — is a different question; see the non-guarantee below.
 - **A trace's name and a run's name carry no data.** Both are a deterministic three-word phrase
   derived from a random id (see [Configuration Guide § The run has a
-  name](guides/configuration.md#the-run-has-a-name) *(since 0.1.2)*) — never from
+  name](guides/configuration.md#the-run-has-a-name)) — never from
   anything captured — so neither can leak a runtime value, and both stay out of the structural
   `.nt` artifact for the same reason everything else in it does.
 
@@ -220,7 +222,7 @@ Full detail and worked examples: [Decorators Guide](guides/decorators.md).
   `scenario:`/`**Scenario:**` header and its filename verbatim (humanized, never redacted), and
   `manifest.json` names the scenario the same way. No deny-list is consulted for it, and this is
   by design (cross-port structural-header contract) — the one place this *is* handled for you is
-  the value-free `.nt` artifact *(since 0.1.2)*: an invocation's structural header is
+  the value-free `.nt` artifact: an invocation's structural header is
   titled by the method and its invocation index, never by the display name a parametrize id
   interpolated arguments into (see the guarantee above and
   [Structural Trace Format](structural-trace-format.md)). Keep secrets out of `parametrize` ids

@@ -18,10 +18,14 @@ import pytest
 from examples.import_and_use import write_artifact as write_import_and_use_artifact
 from examples.not_traced_fields import write_artifact as write_not_traced_fields_artifact
 from examples.place_order import write_artifact as write_place_order_artifact
-from examples.sixty_seconds.tutorial_artifacts import write_artifacts
+from examples.sixty_seconds.tutorial_artifacts import (
+    write_agent_skills_preview,
+    write_artifacts,
+)
 from scripts.snippet_check import (
     _english_markdown_files,
     _strip_license_header,
+    check_all,
     check_repository,
     expected_content,
     parse_spans,
@@ -467,6 +471,7 @@ class TestRealRepository:
     """Exercises the check/sync against this real repository's own documentation and source.
 
     Some snippet sources (``examples/sixty_seconds/build/*.txt``,
+    ``examples/sixty_seconds/build/agent-skills-init-preview.json``,
     ``examples/build/not_traced_fields.txt``, ``examples/build/import_and_use.txt``,
     ``examples/build/place_order_failing.txt``) are git-ignored, generated artifacts that only
     their own example's test module writes -- regenerated here too rather than relying on that
@@ -476,6 +481,7 @@ class TestRealRepository:
 
     def _regenerate_build_artifacts(self) -> None:
         write_artifacts()
+        write_agent_skills_preview()
         write_not_traced_fields_artifact()
         write_import_and_use_artifact()
         write_place_order_artifact()
@@ -513,3 +519,44 @@ def test_stamped_header_touching_the_tutorial_label_line_is_stripped_exactly() -
         "# main.py\nfrom narrativetrace import trace_object\n"
     )
     assert _strip_license_header(stamped) == "# main.py\nfrom narrativetrace import trace_object\n"
+
+
+class TestCheckAll:
+    """`poe snippet-check`'s actual entry point: block drift AND version talk, one gate."""
+
+    def _repository(self, root: Path) -> None:
+        _write(root, "pyproject.toml", '[project]\nname = "x"\nversion = "1.2.3"\n')
+        _write(root, "src/thing.py", "old content\n")
+        _write(root, "documentation/page.md", _SIMPLE_PAGE)
+
+    def test_a_clean_repository_reports_nothing(self, tmp_path: Path) -> None:
+        self._repository(tmp_path)
+
+        assert check_all(tmp_path) == []
+
+    def test_a_drifted_block_is_still_reported(self, tmp_path: Path) -> None:
+        self._repository(tmp_path)
+        _write(tmp_path, "src/thing.py", "new content\n")
+
+        (failure,) = check_all(tmp_path)
+
+        assert "has drifted from its source" in failure
+
+    def test_a_reintroduced_since_marker_fails_this_gate(self, tmp_path: Path) -> None:
+        self._repository(tmp_path)
+        _write(tmp_path, "documentation/guide.md", "# Guide\n\nIt does *(since 1.2.3)* this.\n")
+
+        (failure,) = check_all(tmp_path)
+
+        assert failure.startswith("documentation/guide.md:3:")
+        assert "*(since" in failure
+
+    def test_a_coordinate_pinned_off_the_version_source_fails_this_gate(
+        self, tmp_path: Path
+    ) -> None:
+        self._repository(tmp_path)
+        _write(tmp_path, "documentation/guide.md", "# Guide\n\n`uv add narrativetrace==9.9.9`\n")
+
+        (failure,) = check_all(tmp_path)
+
+        assert "NarrativeTrace coordinate pinned to 9.9.9" in failure

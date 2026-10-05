@@ -19,9 +19,7 @@ class Args:
 
 def parse(argv: list[str]) -> Args:
     parser = argparse.ArgumentParser(prog="contract-probe")
-    parser.add_argument(
-        "--version", required=True, help="the published version under test (e.g. 0.1.1)"
-    )
+    parser.add_argument("--version", required=True, help="the published version under test")
     parser.add_argument(
         "--contract",
         dest="contract_path",

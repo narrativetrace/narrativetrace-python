@@ -86,12 +86,14 @@ def run_glossary_mutation(repo_root: Path, log_dir: Path) -> MutationPackageResu
 
 def run_skills_mutation(repo_root: Path, log_dir: Path) -> MutationPackageResult:
     # mutmut derives a mutant's key from the path relative to its own cwd, so `poe mutate-skills`
-    # runs from packages/narrativetrace-skills/evals (see that directory's own pyproject.toml
-    # [tool.mutmut] comment) -- its mutants/ working copy lands there too, not under the package
-    # root like narrativetrace and narrativetrace-glossary.
-    stats_path = repo_root / "packages/narrativetrace-skills/evals/mutants/mutmut-cicd-stats.json"
+    # runs from packages/narrativetrace-skills-catalogue/evals (see that directory's own
+    # pyproject.toml [tool.mutmut] comment) -- its mutants/ working copy lands there too, not
+    # under the package root like narrativetrace and narrativetrace-glossary.
+    stats_path = (
+        repo_root / "packages/narrativetrace-skills-catalogue/evals/mutants/mutmut-cicd-stats.json"
+    )
     return run_mutation_package(
-        repo_root, log_dir, "narrativetrace-skills", "mutate-skills-gate", stats_path
+        repo_root, log_dir, "narrativetrace-skills-catalogue", "mutate-skills-gate", stats_path
     )
 
 
@@ -146,7 +148,7 @@ def build_mutation_row(
     return CategoryResult(
         category="mutation",
         tool=(
-            "mutmut (narrativetrace + narrativetrace-glossary + narrativetrace-skills; "
+            "mutmut (narrativetrace + narrativetrace-glossary + narrativetrace-skills-catalogue; "
             "80% kill-rate floor each)"
         ),
         status=status,

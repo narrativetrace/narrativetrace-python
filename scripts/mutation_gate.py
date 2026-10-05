@@ -56,7 +56,7 @@ def _load_packages() -> dict[str, MutatedPackage]:
     per package: mutmut derives a mutant's key from the path relative to its own cwd, so a
     package whose eval/tooling code is imported flat (not through its installed package name)
     must run mutmut from that code's own directory, not the package root -- see
-    packages/narrativetrace-skills/evals/pyproject.toml's [tool.mutmut] comment for the
+    packages/narrativetrace-skills-catalogue/evals/pyproject.toml's [tool.mutmut] comment for the
     concrete case this exists for.
     """
     with (REPO_ROOT / "pyproject.toml").open("rb") as handle:

@@ -4,9 +4,8 @@
 # Copyright (c) 2026 Empower Agile
 """`scripts/contract_check.py`: version resolution (`resolve_published_version`) and the
 `--with` argument list it builds for the nightly `uv run --project contract-probe` invocation.
-The real subprocess/network path is exercised by hand (documentation/contract-gate.md) and by the
-proof in the docs-vs-published-gate design note's own record -- these tests cover the pure,
-offline decision logic around it.
+The real subprocess/network path is exercised by hand (documentation/contract-gate.md) -- these
+tests cover the pure, offline decision logic around it.
 """
 
 from __future__ import annotations

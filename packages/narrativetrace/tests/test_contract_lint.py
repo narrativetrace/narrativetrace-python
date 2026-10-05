@@ -3,9 +3,9 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """`scripts/contract_lint.py`: schema/linkage validation of `documentation/contract.yaml`
-(`slugify`/`heading_anchors`/`parse_page_ref`/`parse`/`lint`), plus the holds/fails/
-not-applicable-before-since decision logic (`is_applicable`/`decide`) both `contract-probe`
-(nightly, against a real registry) and this module's own fixture tests below exercise.
+(`slugify`/`heading_anchors`/`parse_page_ref`/`parse`/`lint`), plus the two-verdict holds/fails
+decision logic (`decide`) both `contract-probe` (nightly, against a real registry) and this
+module's own fixture tests below exercise.
 """
 
 from __future__ import annotations
@@ -19,14 +19,11 @@ from scripts.contract_lint import (
     ContractVerdict,
     decide,
     heading_anchors,
-    headings_with_since_marker,
-    is_applicable,
     lint,
     parse,
     parse_page_ref,
     slugify,
 )
-from scripts.translation_check import REPO_ROOT
 
 # ---- slugify / heading_anchors ------------------------------------------------------------
 
@@ -52,103 +49,6 @@ def test_heading_anchors_disambiguates_repeated_slugs(tmp_path: Path) -> None:
     page = tmp_path / "page.md"
     page.write_text("# Title\n## Properties\nsome text\n## Properties\n", encoding="utf-8")
     assert heading_anchors(page) == {"title", "properties", "properties-1"}
-
-
-# ---- headings_with_since_marker --------------------------------------------------------------
-# Port of the TS repo's tools/contract-lint.ts `headingsWithSinceMarker` / Java's
-# `ContractLintSupport.headingsWithSinceMarker` (read-only references, not shared code): a
-# heading carrying an inline `(since ...)` marker changes its own GitHub anchor slug the instant
-# the release publish script's tag rewrite touches the marker, breaking every inbound link and
-# contract.yaml anchor -- see contract_lint.headings_with_since_marker's own docstring.
-
-
-def test_headings_with_since_marker_flags_a_heading_carrying_an_inline_marker(
-    tmp_path: Path,
-) -> None:
-    page = tmp_path / "documentation" / "foo.md"
-    page.parent.mkdir(parents=True)
-    page.write_text("## A heading *(since 0.2.0)*\n\nbody text\n", encoding="utf-8")
-
-    hits = headings_with_since_marker(tmp_path)
-
-    assert hits == [
-        "documentation/foo.md:1: since-markers belong in the body: heading anchors "
-        "must survive the tag rewrite"
-    ]
-
-
-def test_headings_with_since_marker_does_not_flag_a_marker_in_the_body(tmp_path: Path) -> None:
-    page = tmp_path / "documentation" / "foo.md"
-    page.parent.mkdir(parents=True)
-    page.write_text("## A heading\n\n*(since 0.2.0)* body text\n", encoding="utf-8")
-
-    assert headings_with_since_marker(tmp_path) == []
-
-
-def test_headings_with_since_marker_flags_a_translated_mirror_heading(tmp_path: Path) -> None:
-    # Translated mirrors under documentation/<lang>/ are in scope regardless of their own
-    # translation-header staleness -- the anchor-stability problem applies to every language.
-    mirror = tmp_path / "documentation" / "es" / "foo.md"
-    mirror.parent.mkdir(parents=True)
-    mirror.write_text(
-        "<!-- source: documentation/foo.md blob 000000000000 | translated: 2026-09-17 "
-        "| reviewed: - -->\n\n## Un encabezado *(since 0.2.0)*\n",
-        encoding="utf-8",
-    )
-
-    hits = headings_with_since_marker(tmp_path)
-
-    assert len(hits) == 1
-    assert hits[0].startswith("documentation/es/foo.md:3:")
-
-
-def test_headings_with_since_marker_flags_the_root_readme(tmp_path: Path) -> None:
-    (tmp_path / "README.md").write_text("## A heading *(since 0.2.0)*\n", encoding="utf-8")
-
-    hits = headings_with_since_marker(tmp_path)
-
-    assert hits == [
-        "README.md:1: since-markers belong in the body: heading anchors "
-        "must survive the tag rewrite"
-    ]
-
-
-def test_headings_with_since_marker_flags_a_root_readme_translated_mirror(
-    tmp_path: Path,
-) -> None:
-    mirror = tmp_path / "LEAME.md"
-    mirror.write_text(
-        "<!-- source: README.md blob 000000000000 | translated: 2026-09-17 | reviewed: - -->\n\n"
-        "## Un encabezado *(since 0.2.0)*\n",
-        encoding="utf-8",
-    )
-
-    hits = headings_with_since_marker(tmp_path)
-
-    assert len(hits) == 1
-    assert hits[0].startswith("LEAME.md:3:")
-
-
-def test_headings_with_since_marker_ignores_a_root_markdown_file_that_is_not_a_readme_mirror(
-    tmp_path: Path,
-) -> None:
-    # A root-level markdown file with no translation header at all must never be swept in just
-    # because it happens to sit next to README.md.
-    (tmp_path / "CHANGELOG.md").write_text("## A heading *(since 0.2.0)*\n", encoding="utf-8")
-
-    assert headings_with_since_marker(tmp_path) == []
-
-
-def test_headings_with_since_marker_returns_nothing_when_documentation_does_not_exist(
-    tmp_path: Path,
-) -> None:
-    assert headings_with_since_marker(tmp_path) == []
-
-
-def test_headings_with_since_marker_real_tree_has_zero_violations() -> None:
-    # Guards the actual repository, not just fixtures: a heading marker anywhere under
-    # documentation/ or a README mirror breaks its own anchor the instant a release settles it.
-    assert headings_with_since_marker(REPO_ROOT) == []
 
 
 # ---- parse_page_ref -------------------------------------------------------------------------
@@ -179,7 +79,6 @@ _VALID_ENTRY_POINT_ENTRY = """\
     coordinate: "narrativetrace"
     page: "documentation/foo.md#some-anchor"
     claim: "narrativetrace resolves on PyPI"
-    since: "0.1.0"
     documented_default: "PRESENT"
     probe: "contract-probe/src/contract_probe/probes/entry_point_probe.py"
 """
@@ -207,7 +106,6 @@ def test_parse_accepts_expected_effect_as_the_expect_field(tmp_path: Path) -> No
     kind: config-shape
     page: "documentation/foo.md#some-anchor"
     claim: "an example config shape produces an effect"
-    since: "0.1.0"
     expected_effect: "field redacted"
     probe: "contract-probe/probe.py"
 """
@@ -234,7 +132,6 @@ def test_parse_entry_missing_expect_field_raises(tmp_path: Path) -> None:
     kind: probed-default
     page: "documentation/foo.md#some-anchor"
     claim: "something"
-    since: "0.1.0"
     probe: "probe.py"
 """
         ),
@@ -253,7 +150,6 @@ def test_parse_unknown_kind_raises(tmp_path: Path) -> None:
     kind: not-a-real-kind
     page: "documentation/foo.md#some-anchor"
     claim: "something"
-    since: "0.1.0"
     documented_default: "true"
     probe: "probe.py"
 """
@@ -272,7 +168,6 @@ def _entry(
     kind: str = "probed-default",
     page: str = "documentation/foo.md#heading",
     claim: str | None = None,
-    since: str = "0.1.0",
     expect: str = "true",
     probe: str = "probe.py",
     coordinate: str | None = None,
@@ -282,7 +177,6 @@ def _entry(
         kind=kind,
         page=page,
         claim=claim if claim is not None else f"claim {entry_id}",
-        since=since,
         expect=expect,
         probe=probe,
         coordinate=coordinate,
@@ -297,7 +191,7 @@ def test_lint_clean_document_has_no_problems(tmp_path: Path) -> None:
     (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
 
     document = ContractDocument("pyproject.toml#version", [_entry()])
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert problems == []
 
 
@@ -309,7 +203,7 @@ def test_lint_flags_duplicate_ids(tmp_path: Path) -> None:
     document = ContractDocument(
         "v", [_entry(entry_id="dup", claim="a"), _entry(entry_id="dup", claim="b")]
     )
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any("duplicate entry id" in p for p in problems)
 
 
@@ -325,18 +219,8 @@ def test_lint_flags_duplicate_claims(tmp_path: Path) -> None:
             _entry(entry_id="b", claim="same claim"),
         ],
     )
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any("same claim" in p for p in problems)
-
-
-def test_lint_flags_bad_since_format(tmp_path: Path) -> None:
-    page = tmp_path / "documentation" / "foo.md"
-    page.parent.mkdir(parents=True)
-    page.write_text("## Heading\n", encoding="utf-8")
-    (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
-    document = ContractDocument("v", [_entry(since="not-a-version")])
-    problems = lint(tmp_path, document, set())
-    assert any("not a real version string" in p for p in problems)
 
 
 def test_lint_flags_missing_probe_file(tmp_path: Path) -> None:
@@ -344,14 +228,14 @@ def test_lint_flags_missing_probe_file(tmp_path: Path) -> None:
     page.parent.mkdir(parents=True)
     page.write_text("## Heading\n", encoding="utf-8")
     document = ContractDocument("v", [_entry(probe="does-not-exist.py")])
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any("does not exist" in p and "does-not-exist.py" in p for p in problems)
 
 
 def test_lint_flags_missing_page_file(tmp_path: Path) -> None:
     (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
     document = ContractDocument("v", [_entry(page="documentation/missing.md#heading")])
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any('page "documentation/missing.md" does not exist' in p for p in problems)
 
 
@@ -361,7 +245,7 @@ def test_lint_flags_anchor_not_found_on_an_existing_page(tmp_path: Path) -> None
     page.write_text("## A Different Heading\n", encoding="utf-8")
     (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
     document = ContractDocument("v", [_entry(page="documentation/foo.md#heading")])
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any('anchor "#heading" not found' in p for p in problems)
 
 
@@ -371,35 +255,11 @@ def test_lint_flags_an_entry_point_with_no_coordinate(tmp_path: Path) -> None:
     page.write_text("## Heading\n", encoding="utf-8")
     (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
     document = ContractDocument("v", [_entry(kind="entry-point")])
-    problems = lint(tmp_path, document, set())
+    problems = lint(tmp_path, document)
     assert any('entry-point requires "coordinate"' in p for p in problems)
 
 
-def test_lint_flags_an_unreleased_marker_version_with_no_contract_entry(tmp_path: Path) -> None:
-    page = tmp_path / "documentation" / "foo.md"
-    page.parent.mkdir(parents=True)
-    page.write_text("## Heading\n", encoding="utf-8")
-    (tmp_path / "probe.py").write_text("# probe", encoding="utf-8")
-    document = ContractDocument("v", [_entry(since="0.2.2")])
-    problems = lint(tmp_path, document, {"0.2.2", "0.3.0"})
-    assert any('since: "0.3.0"' in p for p in problems)
-    assert not any('since: "0.2.2"' in p for p in problems)
-
-
-# ---- is_applicable / decide ----------------------------------------------------------------
-
-
-def test_is_applicable_when_since_is_earlier_than_installed() -> None:
-    assert is_applicable("0.1.0", "0.2.1") is True
-
-
-def test_is_applicable_when_since_equals_installed() -> None:
-    # Ruling 1: exempt only while STRICTLY later than installed -- equal still applies.
-    assert is_applicable("0.2.1", "0.2.1") is True
-
-
-def test_not_applicable_when_since_is_later_than_installed() -> None:
-    assert is_applicable("0.2.2", "0.2.1") is False
+# ---- decide ----------------------------------------------------------------
 
 
 def test_decide_holds_when_observed_matches_expectation() -> None:
@@ -407,16 +267,10 @@ def test_decide_holds_when_observed_matches_expectation() -> None:
     assert outcome.verdict == ContractVerdict.HOLDS
 
 
-def test_decide_skips_a_future_since_regardless_of_observed() -> None:
-    outcome = decide(_entry(since="0.2.2", expect="true"), "0.2.1", "false")
-    assert outcome.verdict == ContractVerdict.NOT_APPLICABLE_BEFORE_SINCE
-
-
 def test_decide_fails_and_names_all_four_facts_when_observed_differs() -> None:
     outcome = decide(
         _entry(
             entry_id="narrativetrace-output",
-            since="0.2.2",
             expect="true",
             coordinate="narrativetrace",
         ),
@@ -430,7 +284,7 @@ def test_decide_fails_and_names_all_four_facts_when_observed_differs() -> None:
     assert '"false"' in outcome.message
 
 
-# ---- the four historical instances (docs-vs-published-gate §3) ----------------------------
+# ---- the four historical instances this gate was built for -------------------------------
 # Each fixture proves the DECISION LOGIC would have fired: a contract entry shaped like the real
 # defect, paired with the probe result the real defect would have produced, run through the exact
 # `decide()` `contract_check.py` uses. These are not re-runs of history (the defects are fixed);
@@ -444,7 +298,6 @@ def test_row2_java_doc_coordinate_that_does_not_resolve_would_have_failed() -> N
     row2 = _entry(
         entry_id="entry-point-proxy",
         kind="entry-point",
-        since="0.1.0",
         expect="PRESENT",
         coordinate="ai.narrativetrace:narrativetrace-proxy",
     )
@@ -453,7 +306,7 @@ def test_row2_java_doc_coordinate_that_does_not_resolve_would_have_failed() -> N
 
 
 def test_row3_python_output_doc_says_true_wheel_default_false_would_have_failed() -> None:
-    row3 = _entry(entry_id="output-default", kind="probed-default", since="0.1.1", expect="true")
+    row3 = _entry(entry_id="output-default", kind="probed-default", expect="true")
     outcome = decide(row3, "0.1.1", "false")
     assert outcome.verdict == ContractVerdict.FAILS
     assert 'documented default "true"' in outcome.message
@@ -463,9 +316,7 @@ def test_row3_python_output_doc_says_true_wheel_default_false_would_have_failed(
 def test_row4_dotnet_doc_committed_after_publish_still_off_would_have_failed() -> None:
     # The doc author believed the config was already on; probing the PUBLISHED package directly
     # (never what the commit believed) is what catches it regardless of intent.
-    row4 = _entry(
-        entry_id="proxy-options-redaction", kind="probed-default", since="0.1.3", expect="true"
-    )
+    row4 = _entry(entry_id="proxy-options-redaction", kind="probed-default", expect="true")
     outcome = decide(row4, "0.1.3", "false")
     assert outcome.verdict == ContractVerdict.FAILS
 
@@ -475,7 +326,6 @@ def test_row5_typescript_config_example_silent_no_op_would_have_failed() -> None
     row5 = _entry(
         entry_id="trace-object-methods",
         kind="config-shape",
-        since="0.1.1",
         expect="return value redacted",
     )
     outcome = decide(row5, "0.1.1", "no effect")

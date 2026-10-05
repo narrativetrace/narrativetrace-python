@@ -27,6 +27,7 @@ PLAIN_ARTIFACT = "see_a_trace.txt"
 WITH_LOGGER_ARTIFACT = "see_a_trace_with_logger.txt"
 WITH_REDACTION_ARTIFACT = "see_a_trace_with_redaction.txt"
 WITH_LOGURU_ARTIFACT = "see_a_trace_with_loguru.txt"
+AGENT_SKILLS_INIT_PREVIEW_ARTIFACT = "agent-skills-init-preview.json"
 
 
 def _run_script(name: str) -> str:
@@ -77,3 +78,30 @@ def write_artifacts() -> tuple[str, str, str, str]:
     _save(WITH_LOGURU_ARTIFACT, with_loguru)
 
     return plain, with_logger, with_redaction, with_loguru
+
+
+def write_agent_skills_preview() -> str:
+    """Runs the real ``narrativetrace init --dry-run --json`` against this fixture and saves its
+    stdout for ``documentation/agent-skills.md`` to embed -- the exact command
+    ``add-narrative-tracing``'s own last step replays (see
+    ``narrativetrace_skills.catalogue.installer_commands``), so the doc can never quietly drift
+    from what the skill and Tier A2 already prove executable.
+
+    Verified empirically before this was written (Phase 3 milestone 5): unlike the Java reference,
+    which embeds this preview from a built jar because an exploded classpath run stamps
+    ``unknown``, this port's carrier resolution reads real distribution metadata even from an
+    editable/workspace install (milestone 2's own `resolve_carrier` audit), so a plain ``uv run``
+    here already stamps the true release -- no separate wheel-built venv is needed just for a docs
+    snippet. ``--dry-run`` writes nothing, proven the same way ``write_artifacts`` above is safe to
+    call from more than one test.
+    """
+    result = subprocess.run(  # nosec B603, B607 - fixed argv, no shell, no untrusted input
+        ["uv", "run", "narrativetrace", "init", "--dry-run", "--json"],
+        cwd=HERE,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        capture_output=True,
+        encoding="utf-8",
+        check=True,
+    )
+    _save(AGENT_SKILLS_INIT_PREVIEW_ARTIFACT, result.stdout)
+    return result.stdout

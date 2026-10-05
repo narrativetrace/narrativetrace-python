@@ -3,17 +3,28 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """`scripts/skills_render.py`: `.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/
-SKILL.md`, `.agents/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md` and this
-repository's own `AGENTS.md` managed section are BUILD OUTPUT of the typed `narrativetrace_skills`
-catalogue — this drift check is what `poe check`'s own `skills-check` task runs, exercised here
-too so a plain `uv run poe coverage` run also measures and gates it (`scripts/skills_render.py`
-itself is a CLI entry point, not imported by anything else that would otherwise cover it)."""
+SKILL.md`, `.agents/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`, this
+repository's own `AGENTS.md` managed section, the published `narrativetrace-skills` distribution's
+`skills/**` payload and its byte-identical copy bundled as `narrativetrace`'s own package data
+(`narrativetrace/_skills/**`) are BUILD OUTPUT of the typed `narrativetrace_skills` catalogue —
+this drift check is what `poe check`'s own `skills-check` task runs, exercised here too so a plain
+`uv run poe coverage` run also measures and gates it (`scripts/skills_render.py` itself is a CLI
+entry point, not imported by anything else that would otherwise cover it)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.skills_render import _check_all, _fix_all, _rendered_agents_md, _rendered_skill_files
+from scripts.skills_render import (
+    _carrier_skills_dir,
+    _check_all,
+    _core_bundled_skills_dir,
+    _fix_all,
+    _rendered_agents_md,
+    _rendered_carrier_files,
+    _rendered_skill_files,
+    _stray_carrier_files,
+)
 from scripts.translation_check import REPO_ROOT
 
 
@@ -47,10 +58,7 @@ class TestRenderedArtifactsMatchTheTypedCatalogue:
         real one: this test also runs inside the mutmut sandbox, where the mutated catalogue
         renderer would write a mutant's output over tracked `SKILL.md`/`AGENTS.md` files
         (2026-09-17 nightly finding F2's second writer)."""
-        for path, content in _rendered_skill_files(tmp_path).items():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
-        (tmp_path / "AGENTS.md").write_text(_rendered_agents_md(tmp_path), encoding="utf-8")
+        _fix_all(tmp_path)
         assert _check_all(tmp_path) == []
         before = {
             path: path.read_text(encoding="utf-8") for path in _rendered_skill_files(tmp_path)
@@ -68,3 +76,45 @@ class TestRenderedArtifactsMatchTheTypedCatalogue:
         assert written
         assert all(tmp_path in path.parents for path in written)
         assert {path: path.read_bytes() for path in before} == before
+
+
+class TestCarrierTreesMatchTheTypedCatalogue:
+    """The published `narrativetrace-skills` payload and `narrativetrace`'s own bundled copy --
+    Phase 3 milestone 1, D1/D2."""
+
+    def test_rendering_twice_is_identical(self) -> None:
+        assert _rendered_carrier_files() == _rendered_carrier_files()
+
+    def test_the_carrier_and_the_bundled_copy_are_byte_identical(self) -> None:
+        carrier = {
+            path.relative_to(_carrier_skills_dir()): content
+            for path, content in _rendered_carrier_files().items()
+            if _carrier_skills_dir() in path.parents
+        }
+        bundled = {
+            path.relative_to(_core_bundled_skills_dir()): content
+            for path, content in _rendered_carrier_files().items()
+            if _core_bundled_skills_dir() in path.parents
+        }
+        assert carrier == bundled
+        assert carrier
+
+    def test_no_drift_against_the_committed_carrier_files(self) -> None:
+        assert _check_all() == []
+
+    def test_a_removed_skills_leftover_page_is_flagged_as_a_stray(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        stray = _carrier_skills_dir(tmp_path) / "claude" / "retired-skill" / "SKILL.md"
+        stray.parent.mkdir(parents=True)
+        stray.write_text("stale", encoding="utf-8")
+        assert stray in _stray_carrier_files(tmp_path)
+        assert stray in _check_all(tmp_path)
+
+    def test_fix_removes_a_stray_carrier_file(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        stray = _core_bundled_skills_dir(tmp_path) / "agents" / "retired-skill" / "SKILL.md"
+        stray.parent.mkdir(parents=True)
+        stray.write_text("stale", encoding="utf-8")
+        _fix_all(tmp_path)
+        assert not stray.exists()
+        assert _check_all(tmp_path) == []

@@ -16,6 +16,10 @@ and :class:`TestEveryBuiltArtifact` builds the artifacts and reads the licence b
 the gate fails on the wheel itself rather than on a proxy for it. Discovery runs off the root
 pyproject's own workspace glob, so a ninth distribution is swept in the moment it is added rather
 than quietly skipped.
+
+One reviewed exception (:data:`APACHE_DISTRIBUTIONS`): ``narrativetrace-skills`` ships Apache-2.0,
+mirroring the Java carrier it is a straight port of (``licensing.properties``:
+``module.narrativetrace-skills=open``). Every other distribution stays BUSL-1.1.
 """
 
 from __future__ import annotations
@@ -48,6 +52,14 @@ def _repo_root() -> Path:
 
 REPO_ROOT = _repo_root()
 ROOT_LICENSE = REPO_ROOT / "LICENSE"
+ROOT_LICENSE_APACHE = REPO_ROOT / "LICENSE-APACHE"
+
+# The one reviewed exception (Phase 3 milestone 1): narrativetrace-skills mirrors Java's
+# narrativetrace-skills module (licensing.properties: module.narrativetrace-skills=open) and ships
+# Apache-2.0 like the carrier it is, not BUSL-1.1 like the runtime it is bundled alongside. Every
+# other distribution is BUSL-1.1 -- a plain constant, not a second properties file, because one
+# exception does not earn a new mechanism.
+APACHE_DISTRIBUTIONS = frozenset({"narrativetrace-skills"})
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -115,18 +127,35 @@ class TestTheLicenceTheDistributionsCopy:
         assert text.startswith("Business Source License 1.1")
         assert "Licensor:             Empower Agile" in text
 
+    def test_the_root_apache_licence_is_the_apache_licence(self) -> None:
+        text = ROOT_LICENSE_APACHE.read_text(encoding="utf-8")
+        assert "Apache License" in text
+        assert "Version 2.0, January 2004" in text
+
     def test_the_sweep_finds_the_workspace_distributions(self) -> None:
         assert "narrativetrace" in DISTRIBUTION_IDS
+
+    def test_the_apache_exception_names_a_real_workspace_distribution(self) -> None:
+        assert APACHE_DISTRIBUTIONS <= set(DISTRIBUTION_IDS)
 
 
 @pytest.mark.parametrize("distribution", DISTRIBUTIONS, ids=DISTRIBUTION_IDS)
 class TestEveryDistribution:
-    def test_carries_a_licence_byte_identical_to_the_root_one(self, distribution: Path) -> None:
-        assert (distribution / "LICENSE").read_bytes() == ROOT_LICENSE.read_bytes()
+    def _expected_licence_expression(self, distribution: Path) -> str:
+        return "Apache-2.0" if distribution.name in APACHE_DISTRIBUTIONS else "BUSL-1.1"
+
+    def _expected_licence_text(self, distribution: Path) -> Path:
+        return ROOT_LICENSE_APACHE if distribution.name in APACHE_DISTRIBUTIONS else ROOT_LICENSE
+
+    def test_carries_a_licence_byte_identical_to_the_one_its_expression_names(
+        self, distribution: Path
+    ) -> None:
+        expected = self._expected_licence_text(distribution)
+        assert (distribution / "LICENSE").read_bytes() == expected.read_bytes()
 
     def test_declares_the_licence_expression_the_owner_fixed(self, distribution: Path) -> None:
         project = _read_toml(distribution / "pyproject.toml")["project"]
-        assert project["license"] == "BUSL-1.1"
+        assert project["license"] == self._expected_licence_expression(distribution)
 
     def test_tells_the_build_backend_to_ship_that_licence(self, distribution: Path) -> None:
         project = _read_toml(distribution / "pyproject.toml")["project"]
@@ -144,14 +173,21 @@ class TestEveryBuiltArtifact:
     ordinary test suite still runs it.
     """
 
+    def _expected_licence_text(self, distribution: Path) -> Path:
+        return ROOT_LICENSE_APACHE if distribution.name in APACHE_DISTRIBUTIONS else ROOT_LICENSE
+
+    def _expected_licence_expression(self, distribution: Path) -> str:
+        return "Apache-2.0" if distribution.name in APACHE_DISTRIBUTIONS else "BUSL-1.1"
+
     def test_the_wheel_contains_the_licence_text(
         self, distribution: Path, built_distributions: Path
     ) -> None:
         artifacts = _artifacts_of(distribution)
+        expected = self._expected_licence_text(distribution)
         with zipfile.ZipFile(built_distributions / artifacts.wheel) as wheel:
             licence = f"{artifacts.dist_info}/licenses/LICENSE"
             assert licence in wheel.namelist()
-            assert wheel.read(licence) == ROOT_LICENSE.read_bytes()
+            assert wheel.read(licence) == expected.read_bytes()
 
     def test_the_wheel_metadata_records_the_licence(
         self, distribution: Path, built_distributions: Path
@@ -159,16 +195,17 @@ class TestEveryBuiltArtifact:
         artifacts = _artifacts_of(distribution)
         with zipfile.ZipFile(built_distributions / artifacts.wheel) as wheel:
             headers = wheel.read(f"{artifacts.dist_info}/METADATA").decode("utf-8").splitlines()
-        assert "License-Expression: BUSL-1.1" in headers
+        assert f"License-Expression: {self._expected_licence_expression(distribution)}" in headers
         assert "License-File: LICENSE" in headers
 
     def test_the_sdist_contains_the_licence_text(
         self, distribution: Path, built_distributions: Path
     ) -> None:
         artifacts = _artifacts_of(distribution)
+        expected = self._expected_licence_text(distribution)
         with tarfile.open(built_distributions / artifacts.sdist) as sdist:
             licence = f"{artifacts.sdist_root}/LICENSE"
             assert licence in sdist.getnames()
             carried = sdist.extractfile(licence)
             assert carried is not None
-            assert carried.read() == ROOT_LICENSE.read_bytes()
+            assert carried.read() == expected.read_bytes()

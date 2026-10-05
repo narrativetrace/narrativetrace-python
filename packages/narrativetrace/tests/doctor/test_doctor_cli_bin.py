@@ -15,7 +15,8 @@ from pathlib import Path
 import pytest
 
 from narrativetrace.doctor.cli_bin import CliDeps, main, run_cli
-from narrativetrace.doctor.types import DoctorSnapshot
+from narrativetrace_tooling.doctor.types import DoctorSnapshot
+from narrativetrace_tooling.init import Carrier
 
 
 def _snapshot(**overrides: object) -> DoctorSnapshot:
@@ -35,6 +36,12 @@ def _snapshot(**overrides: object) -> DoctorSnapshot:
     return DoctorSnapshot(**base)  # type: ignore[arg-type]
 
 
+def _no_carrier(from_path: str | None) -> Carrier:
+    """Mirrors the Java port's `CliTest.noCarrier`: the doctor verb must never open a carrier, so
+    every case here fails loudly rather than silently resolving the real one."""
+    raise AssertionError(f"the doctor must not open a carrier (asked for {from_path!r})")
+
+
 def _deps(snapshot: DoctorSnapshot | None = None) -> tuple[CliDeps, list[str], list[str]]:
     logs: list[str] = []
     errors: list[str] = []
@@ -43,6 +50,8 @@ def _deps(snapshot: DoctorSnapshot | None = None) -> tuple[CliDeps, list[str], l
         cwd="/project",
         env={},
         build_snapshot=lambda cwd, env: resolved,
+        open_carrier=_no_carrier,
+        project_version=lambda: "1.2.3",
         log=logs.append,
         error=errors.append,
     )
@@ -66,6 +75,14 @@ class TestRunCliUsage:
         assert run_cli(["frobnicate"], deps) == 2
         assert "Unknown command: frobnicate" in errors[0]
 
+    def test_an_empty_verb_is_an_unknown_command_not_a_missing_one(self) -> None:
+        """`[""]` is not `[]`: something was typed, so the answer names what it was (nothing) rather
+        than printing the "no command given" usage."""
+        deps, logs, errors = _deps()
+        assert run_cli([""], deps) == 2
+        assert errors[0].startswith("Unknown command: \n")
+        assert logs == []
+
 
 class TestRunCliDoctor:
     def test_doctor_help_prints_usage_and_exits_zero(self) -> None:
@@ -73,10 +90,28 @@ class TestRunCliDoctor:
         assert run_cli(["doctor", "--help"], deps) == 0
         assert "Read-only" in logs[0]
 
+    def test_the_short_spelling_of_help_works_too(self) -> None:
+        deps, logs, _ = _deps()
+        assert run_cli(["doctor", "-h"], deps) == 0
+        assert "Read-only" in logs[0]
+
     def test_unknown_flag_exits_two(self) -> None:
         deps, _, errors = _deps()
         assert run_cli(["doctor", "--bogus"], deps) == 2
         assert "Unknown argument(s) for doctor: --bogus" in errors[0]
+
+    def test_several_unknown_flags_are_listed_together(self) -> None:
+        deps, _, errors = _deps()
+        assert run_cli(["doctor", "--bogus", "--worse"], deps) == 2
+        assert "Unknown argument(s) for doctor: --bogus, --worse" in errors[0]
+
+    def test_help_wins_over_an_unknown_flag_beside_it(self) -> None:
+        """The same precedence the installer verbs have, on the doctor's own, differently shaped
+        argument reader: a mistyped line can still ask how the verb works."""
+        deps, logs, errors = _deps()
+        assert run_cli(["doctor", "--bogus", "--help"], deps) == 0
+        assert "Read-only" in logs[0]
+        assert errors == []
 
     def test_no_readable_pyproject_exits_two(self) -> None:
         deps, _, errors = _deps(_snapshot(root_pyproject=None))
@@ -95,7 +130,7 @@ class TestRunCliDoctor:
         deps, logs, _ = _deps(_snapshot(source_files=source))
         run_cli(["doctor", "--json"], deps)
         payload = json.loads(logs[0])
-        assert len(payload["findings"]) == 11
+        assert len(payload["findings"]) == 12
 
     def test_exit_code_matches_the_report(self) -> None:
         deps, _, _ = _deps(_snapshot(python_version="3.9.0"))

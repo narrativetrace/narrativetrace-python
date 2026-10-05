@@ -6,12 +6,11 @@
 shrinks what `capture_trace()` returns -- the captured trace and the log line are two independent
 readers of the same captured events -- documentation/faq.md `#two-dials-two-paths`.
 
-`export_to_logger` is new at 0.1.2 -- it does not exist in the 0.1.1 wheel's public API at all, so
-its import is deferred into `_replay_at_critical` rather than sitting at module level (same
-reasoning as `export_to_logger_probe.py`): every probe module is imported by
-`contract_probe.runner` regardless of whether its own entry is applicable at the installed
-version. `ContextVarNarrativeContext`/`trace_object`/`Threw` exist at every version this contract
-still checks, so those stay at module level.
+`export_to_logger`'s import is deferred into `_replay_at_critical` rather than sitting at module
+level (same reasoning as `export_to_logger_probe.py`): `contract_probe.runner` imports every probe
+module together, and this runner can be pointed at an older published artifact whose public API
+may not carry that symbol. `ContextVarNarrativeContext`/`trace_object`/`Threw` are long-standing
+public API, so those stay at module level.
 
 The probe traces one call that raises, so the capture includes an exception exit -- the kind of
 line the logger normally reports at WARNING. It then replays the SAME captured trace through a

@@ -1,18 +1,17 @@
 # narrativetrace-skills
 
-Typed catalogue source for [narrativetrace](../narrativetrace)'s agent skills *(since 0.1.2,
-unreleased)* — the single source of truth `.claude/skills/{doctor,add}/SKILL.md` and this
-repository's own `AGENTS.md` managed section are generated from, never hand-edited.
+The published skills carrier: rendered agent-skill pages (`skills/claude/<name>/SKILL.md`,
+`skills/agents/<name>/SKILL.md`) and `skills/catalogue.json` for narrativetrace's free skills.
+Resources only — no Python API, nothing to import. `narrativetrace` bundles a byte-identical copy
+of the same tree as package data so `init` works without this distribution installed; when this
+distribution *is* present in a project, `init` prefers its copy at the project's own resolved
+version.
 
-* `narrativetrace_skills.SKILLS` — the two free skills (`narrativetrace-doctor`,
-  `add-narrative-tracing`) as typed `Skill` dataclasses: steps, `verify` commands, failure notes,
-  always/never rules.
-* `narrativetrace_skills.render` — pure functions turning a `Skill` into a rendered `SKILL.md` page
-  or the `AGENTS.md` snippet.
-* `narrativetrace_skills.lints` — Tier A lints: description budget, closed command vocabulary,
-  no private-planning-note citations, Pro-listing status agreement with the feature guide.
-* `narrativetrace_skills.replay` — Tier A2 oracle replay: mechanically executes a skill's own step
-  data against its fixture, no LLM.
+Licensed Apache License, Version 2.0 — unlike every other `narrativetrace*` distribution, which is
+BUSL-1.1 (see the root `NOTICE`). This mirrors the Java port's own module split exactly:
+`narrativetrace-skills` is `open` (Apache-2.0) in `licensing.properties`, while the typed catalogue
+that renders it, [`narrativetrace-skills-catalogue`](../narrativetrace-skills-catalogue), stays
+unpublished and BUSL-1.1 like the runtime.
 
-See `documentation/agent-skills.md` for what the two skills do and how they're built, and
-`packages/narrativetrace-skills/evals/README.md` for the Tier B (LLM trial) suite.
+Built entirely as generated output of `narrativetrace-skills-catalogue`'s render step — never
+hand-edited. See that package's `README.md` for where the source of truth lives.

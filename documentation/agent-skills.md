@@ -1,7 +1,5 @@
 # Agent skills
 
-*(since 0.1.2)*
-
 NarrativeTrace ships **skills**: agent-loadable procedures that run tested commands and gate
 completion on a `verify` step, rather than docs an agent might or might not read. A skill is thin
 by design — the checking, diagnosis, or generation logic lives in tested library code; the skill's
@@ -11,8 +9,10 @@ own job is knowing when to act, invoking that tested code, and interpreting the 
 
 - **`add-narrative-tracing`** — installs NarrativeTrace into a project and gets it to a first
   trace: install with the real toolchain (`uv add narrativetrace`), wrap an object, render and run
-  the first trace, then wire a real logger (the stdlib `logging` bridge). Ends by running `uv run
-  narrativetrace doctor` and handing off — the seam between the two skills.
+  the first trace, then wire a real logger (the stdlib `logging` bridge). Runs `uv run
+  narrativetrace doctor` and hands off — the seam between the two skills — then ends by
+  *previewing* (never applying) `narrativetrace init`, so the next session finds these skills
+  already installed without being told about them.
 - **`narrativetrace-doctor`** — diagnosis only, and **read-only**: it never edits, generates, or
   deletes a file. Runs the tested CLI, reads its report, and walks through the parts a plain CLI
   output can't cover on its own: proving redaction in a test, reading a rendered trace before
@@ -26,16 +26,64 @@ Either path ends at the doctor — it owns diagnosis from there. A later skill w
 
 ## The `narrativetrace` CLI
 
-Both skills run `uv run narrativetrace doctor` — the free CLI's `doctor` verb, alongside the
-existing `narrativetrace-approve` console script. Read-only, zero network, `--json` for machine
-output, exit `0` (clean), `1` (findings), or `2` (could not run). Eleven checks with stable, dotted
-ids: interpreter/pytest versions against what's declared, the eight `narrativetrace-*` packages
-agreeing on one version, `NARRATIVETRACE_OUTPUT`'s spelling, the pytest plugin's registration,
-unrecognized `narrativetrace.toml` keys, an imported-but-unused redaction marker, a `*args`
-method's parameters collapsing to one `args: [...]` value, whether redaction is proven in a test,
-and stale approval-trace diffs.
+Both skills run `uv run narrativetrace doctor` — the free CLI's `doctor` verb, alongside
+`init`/`uninstall` ([Installing them](#installing-them), below) and the existing
+`narrativetrace-approve` console script.
+`doctor` is read-only, zero network, `--json` for machine output, exit `0` (clean), `1` (findings),
+or `2` (could not run). Twelve checks with stable, dotted ids: interpreter/pytest versions against
+what's declared, the eight `narrativetrace-*` packages agreeing on one version,
+`NARRATIVETRACE_OUTPUT`'s spelling, the pytest plugin's registration, whether the NarrativeTrace
+agent skills are installed and current, unrecognized `narrativetrace.toml` keys, an
+imported-but-unused redaction marker, a `*args` method's parameters collapsing to one
+`args: [...]` value, whether redaction is proven in a test, and stale
+approval-trace diffs.
 
 ## Installing them
+
+The `narrativetrace` package (already on your `PATH` as `uv add narrativetrace` puts it there)
+carries an `init` verb that installs both skills for you — zero network, and nothing written until
+you say so:
+
+```bash
+uv run narrativetrace init --dry-run
+```
+
+<!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
+```json
+{
+  "carrier": "narrativetrace-skills==0.2.0",
+  "actions": [
+    {
+      "kind": "create",
+      "path": ".agents/skills/narrativetrace-doctor/SKILL.md",
+      "status": "planned"
+    },
+    {
+      "kind": "create",
+      "path": ".agents/skills/add-narrative-tracing/SKILL.md",
+      "status": "planned"
+    },
+    {
+      "kind": "create",
+      "path": "AGENTS.md",
+      "status": "planned"
+    }
+  ],
+  "exit_code": 0
+}
+```
+<!-- /snippet -->
+
+That is the `--json` envelope; without the flag the same command prints the plan as a unified
+diff. Read it, then run it again without `--dry-run` to write `.agents/skills/` (and
+`.claude/skills/` too, once this project has a `.claude/` directory or `CLAUDE.md`, or with
+`--vendor claude`) plus one marked section in `AGENTS.md`. `narrativetrace uninstall` removes
+exactly what it wrote and nothing else; `narrativetrace doctor`'s `config.skills-installed` check
+reports when what's installed is stale, so keeping it current later is `init --dry-run` again, not
+a byte-for-byte re-copy.
+
+Copying the rendered files by hand still works, and is the fallback for a platform without its own
+discovery convention, or before you have added the `narrativetrace` package at all:
 
 - **Claude Code**: rendered `SKILL.md` files live at
   [`.claude/skills/add-narrative-tracing/`](../.claude/skills/add-narrative-tracing/SKILL.md) and
@@ -58,13 +106,12 @@ and stale approval-trace diffs.
   repository's own `AGENTS.md` carries between its `<!-- narrativetrace:skills:start -->` markers
   — both skills' names and descriptions, so an agent that never thought to look still knows they
   exist.
-- **Gemini and an automatic installer** are on the roadmap but not built yet — today, copying the
-  rendered files is the path for any platform without its own discovery convention.
+- **Gemini** has no skill-discovery convention yet — on the roadmap, not built.
 
 ## How they're built
 
 Neither skill is ever hand-edited.
-`packages/narrativetrace-skills/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` and
+`packages/narrativetrace-skills-catalogue/src/narrativetrace_skills/catalogue/add_narrative_tracing.py` and
 `.../catalogue/narrativetrace_doctor.py` are the two sources of truth; `python
 scripts/skills_render.py --fix` regenerates `.claude/skills/add-narrative-tracing/SKILL.md`,
 `.claude/skills/narrativetrace-doctor/SKILL.md`, their `.agents/skills/` Codex counterparts, and
@@ -78,16 +125,16 @@ does not.
 
 ## Evaluating them
 
-`packages/narrativetrace-skills/evals/` carries the Tier B suite (trigger phrasings, a happy-path
-case per skill, a deviation case for the doctor's redaction check) — never run by `poe check`; the
-owner runs it by hand or from the nightly job, through subscription CLIs, never the metered API.
-See [its own README](../packages/narrativetrace-skills/evals/README.md) for the sporadic-lane
-policy (Codex/Gemini) and the promotion matrix.
+`packages/narrativetrace-skills-catalogue/evals/` carries the Tier B suite (trigger phrasings, a
+happy-path case per skill, a deviation case for the doctor's redaction check) — never run by
+`poe check`; the owner runs it by hand or from the nightly job, through subscription CLIs, never
+the metered API. See [its own README](../packages/narrativetrace-skills-catalogue/evals/README.md)
+for the sporadic-lane policy (Codex/Gemini) and the promotion matrix.
 
 ## See also
 
-- [`narrativetrace-skills`](../packages/narrativetrace-skills/README.md) — the typed catalogue
-  package
+- [`narrativetrace-skills-catalogue`](../packages/narrativetrace-skills-catalogue/README.md) — the
+  typed catalogue package
 - [Sixty Seconds](sixty-seconds.md) — the install-and-first-trace walkthrough
   `add-narrative-tracing`'s steps are drawn from
 - [What to Commit](what-to-commit.md) — the approval-trace state the doctor's fourth step checks

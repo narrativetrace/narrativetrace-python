@@ -9,12 +9,15 @@ never breaks these tests."""
 from __future__ import annotations
 
 from collections.abc import Iterator
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import pytest
 
 from narrativetrace.doctor import environment
 from narrativetrace.doctor.environment import _resolve_package_info, build_snapshot
+from narrativetrace_tooling.init import provenance
+from narrativetrace_tooling.init.project_state import Presence
 
 
 def _write(path: Path, content: str = "") -> None:
@@ -139,6 +142,64 @@ class TestBuildSnapshot:
         _write(tmp_path / "b.py", "2")
         snapshot = build_snapshot(str(tmp_path), {})
         assert len(snapshot.source_files) <= 1
+
+
+class TestBuildSnapshotAgentSkills:
+    """The agent-skills half: read through the installer's own readers, never a second parser
+    (D9) — exercised against this dev container's real, editable install rather than a mock, the
+    same "tested against a real install" stance milestone 2 established for `resolve_carrier`."""
+
+    def test_no_skills_directory_gives_no_installed_skills(self, tmp_path: Path) -> None:
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.installed_skills == ()
+
+    def test_an_installed_skill_is_read_through_the_installers_own_reader(
+        self, tmp_path: Path
+    ) -> None:
+        page = provenance.line("narrativetrace-skills==1.2.3") + "\n\nBody.\n"
+        _write(tmp_path / ".agents" / "skills" / "narrativetrace-doctor" / "SKILL.md", page)
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert len(snapshot.installed_skills) == 1
+        skill = snapshot.installed_skills[0]
+        assert skill.name == "narrativetrace-doctor"
+        assert skill.presence is Presence.OURS
+        assert skill.coordinate == "narrativetrace-skills==1.2.3"
+
+    def test_a_broken_project_state_read_leaves_installed_skills_empty_not_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _raises(*_args: object, **_kwargs: object) -> None:
+            raise ValueError("simulated unreadable project")
+
+        monkeypatch.setattr(environment, "read_project_state", _raises)
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.installed_skills == ()
+
+    def test_catalogue_skill_names_reflects_the_real_bundled_carrier(self, tmp_path: Path) -> None:
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert "narrativetrace-doctor" in snapshot.catalogue_skill_names
+        assert "add-narrative-tracing" in snapshot.catalogue_skill_names
+
+    def test_a_broken_carrier_resolution_leaves_catalogue_names_empty_not_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _raises(*_args: object, **_kwargs: object) -> None:
+            raise ValueError("simulated: no carrier resolves")
+
+        monkeypatch.setattr(environment, "resolve_carrier", _raises)
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.catalogue_skill_names == ()
+
+    def test_narrativetrace_version_is_the_installed_release(self, tmp_path: Path) -> None:
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.narrativetrace_version == importlib_metadata.version("narrativetrace")
+
+    def test_no_narrativetrace_installed_leaves_the_version_unknown(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(environment, "project_family_version", lambda: None)
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.narrativetrace_version is None
 
 
 class TestResolvePackageInfo:

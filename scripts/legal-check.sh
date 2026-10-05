@@ -102,21 +102,42 @@ done
 [ "$any_markers_checked" = 1 ] && note "marker well-formedness checked: ${MARKER_FILES[*]}"
 
 # --------------------------------------------------------------------------- #
-# (b) packages/*/LICENSE byte-equal root LICENSE                              #
+# (b) packages/*/LICENSE byte-equal the root licence its own expression names #
 # --------------------------------------------------------------------------- #
+# One reviewed exception, mirrored from packages/narrativetrace/tests/test_distribution_licensing.py's
+# APACHE_DISTRIBUTIONS: narrativetrace-skills ships Apache-2.0 like the Java carrier it ports
+# (licensing.properties: module.narrativetrace-skills=open), so its LICENSE copies LICENSE-APACHE,
+# not the BUSL root LICENSE every other distribution copies.
+APACHE_DISTRIBUTIONS=(narrativetrace-skills)
 ROOT_LICENSE="$REPO_ROOT/LICENSE"
-if [ ! -f "$ROOT_LICENSE" ]; then
-    issue "root LICENSE is missing"
+ROOT_LICENSE_APACHE="$REPO_ROOT/LICENSE-APACHE"
+is_apache_distribution() {
+    local name="$1" candidate
+    for candidate in "${APACHE_DISTRIBUTIONS[@]}"; do
+        [ "$candidate" = "$name" ] && return 0
+    done
+    return 1
+}
+if [ ! -f "$ROOT_LICENSE" ] || [ ! -f "$ROOT_LICENSE_APACHE" ]; then
+    issue "root LICENSE or LICENSE-APACHE is missing"
 else
     checked=0
     for lic in "$REPO_ROOT"/packages/*/LICENSE; do
         [ -f "$lic" ] || continue
         checked=$((checked + 1))
-        if ! cmp -s "$ROOT_LICENSE" "$lic"; then
-            issue "${lic#"$REPO_ROOT"/} is not byte-identical to root LICENSE"
+        dist_name="$(basename "$(dirname "$lic")")"
+        if is_apache_distribution "$dist_name"; then
+            expected="$ROOT_LICENSE_APACHE"
+            expected_name="root LICENSE-APACHE"
+        else
+            expected="$ROOT_LICENSE"
+            expected_name="root LICENSE"
+        fi
+        if ! cmp -s "$expected" "$lic"; then
+            issue "${lic#"$REPO_ROOT"/} is not byte-identical to $expected_name"
         fi
     done
-    note "packages/*/LICENSE byte-equality checked against root LICENSE ($checked distribution(s))."
+    note "packages/*/LICENSE byte-equality checked against the licence each declares ($checked distribution(s))."
 fi
 
 # --------------------------------------------------------------------------- #

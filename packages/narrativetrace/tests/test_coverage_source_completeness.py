@@ -20,7 +20,8 @@ closes.
 ``[tool.coverage.narrativetrace_extra_source]`` (2026-09-13) accounts for the inverse case: a
 ``source`` entry that is a bare path rather than a packages/*/ import name, for code that is
 still house-standard production code (test-driven, coverage-gated) but does not live under a
-``src/<name>`` layout -- e.g. ``packages/narrativetrace-skills/evals``, the Tier B eval runner.
+``src/<name>`` layout -- e.g. ``packages/narrativetrace-skills-catalogue/evals``, the Tier B eval
+runner.
 """
 
 from __future__ import annotations
@@ -112,7 +113,7 @@ class TestCoverageSourceListIsComplete:
 
         ``[tool.coverage.narrativetrace_extra_source]`` is the one documented exception: a
         ``source`` entry that is a bare path, not a packages/*/ import name (2026-09-13, the
-        Tier B eval runner under ``packages/narrativetrace-skills/evals/`` -- not a
+        Tier B eval runner under ``packages/narrativetrace-skills-catalogue/evals/`` -- not a
         ``src/<name>`` layout, so it has no import name to appear in ``real_names``). Entries
         there are subtracted before this check, so a *documented* extra path is fine; an
         undocumented one still fails it.

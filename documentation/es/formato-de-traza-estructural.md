@@ -1,8 +1,8 @@
-<!-- source: documentation/structural-trace-format.md blob 5a69bc325262 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob 1fd743b54770 | translated: 2026-09-17 | reviewed: - -->
 
 # Formato de traza estructural (`.nt`)
 
-*(since 0.1.2)*. El artefacto de traza estructural seguro para IA (ADR-002 del
+El artefacto de traza estructural seguro para IA (ADR-002 del
 producto): un archivo por escenario de prueba que contiene únicamente la *forma* del
 comportamiento autorada por el desarrollador — cero valores en tiempo de ejecución. Este formato
 es **multiplataforma**: cada implementación de NarrativeTrace emite el formato idéntico, que es lo
@@ -100,11 +100,11 @@ scenario: Weekend trip settles with three transfers
   nombres/ids de hilo nunca aparecen.
 - **Excluido por diseño:** todos los valores de argumento/retorno, mensajes de excepción,
   duraciones, marcas de tiempo, identidad de hilo, ids de traza/span, nombres de traza, ids de
-  ejecución, nombres de ejecución *(since 0.1.2, unreleased — la ejecución también tiene un
+  ejecución, nombres de ejecución (la ejecución también tiene un
   nombre, consulta [Guía de configuración § La ejecución tiene un
   nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre); nunca entra en este
   formato, en una traza aprobada o recibida, en el nombre de un artefacto, ni en una clave por
-  escenario del manifiesto)*, resultados de ejecución, y la narración (la narración resuelta
+  escenario del manifiesto), resultados de ejecución, y la narración (la narración resuelta
   incrusta valores).
 - **Codificación:** UTF-8, LF, salto de línea final. Los identificadores pasan por saneamiento de
   caracteres de control.

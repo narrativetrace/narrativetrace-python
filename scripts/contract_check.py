@@ -2,13 +2,12 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Nightly docs-vs-published contract gate (docs-vs-published-gate-2026-09-12.md §2, ruling 4):
-resolves the published version the same way `scripts/verify_publication_registry.py`'s own lookup
-works (the newest reachable `v*` tag, else PyPI's own JSON "latest" for `narrativetrace`),
-installs it into a FRESH temporary environment -- never this checkout's own `.venv`, never the
-workspace's editable install standing in for the real answer -- and runs `contract-probe/`'s
-runner against it. This is the "fresh-temp-dir install helper" the design note asks for, mirroring
-Java's `scripts/contract-check.sh`; never per commit -- it makes real registry calls (see
+"""Nightly contract gate (`documentation/contract-gate.md`): resolves the published version the
+same way `scripts/verify_publication_registry.py`'s own lookup works (the newest reachable `v*`
+tag, else PyPI's own JSON "latest" for `narrativetrace`), installs it into a FRESH temporary
+environment -- never this checkout's own `.venv`, never the workspace's editable install standing
+in for the real answer -- and runs `contract-probe/`'s runner against it, mirroring Java's
+`scripts/contract-check.sh`; never per commit -- it makes real registry calls (see
 `documentation/security-tooling.md`'s per-commit/nightly split, which this gate follows for the
 same reason).
 
@@ -30,12 +29,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from scripts.llms_banner import fetch_latest_version
 from scripts.verify_publication_packages import (
     WorkspacePackage,
     derive_workspace_packages,
     latest_git_tag_version,
 )
+from scripts.verify_publication_registry import fetch_latest_version
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTRACT_PROBE_DIR = REPO_ROOT / "contract-probe"
@@ -148,7 +147,7 @@ def run_contract_probe(version: str, out_path: Path, *, cache_dir: Path, venv_di
     cache directory AND an isolated project venv -- never this checkout's own `~/.cache/uv`, never
     `contract-probe/.venv`, never a locally-built wheel of the same version standing in for the
     real registry answer) and runs `contract-probe`'s runner against it. Returns the runner's own
-    exit code (0 only if every applicable entry holds)."""
+    exit code (0 only if every entry holds)."""
     print(
         f">> installing every publishable package at {version} into a fresh uv cache and "
         "a fresh project venv, then running contract-probe",
@@ -166,7 +165,7 @@ def run_contract_probe(version: str, out_path: Path, *, cache_dir: Path, venv_di
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="contract_check.py",
-        description="Nightly docs-vs-published contract gate against the real PyPI index.",
+        description="Nightly contract gate against the real PyPI index.",
     )
     parser.add_argument(
         "version",

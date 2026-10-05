@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.1.2"
+version = "0.2.0"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.
@@ -17,7 +17,9 @@ narrativetrace-glossary = { workspace = true }
 narrativetrace-otel = { workspace = true }
 narrativetrace-pytest = { workspace = true }
 narrativetrace-skills = { workspace = true }
+narrativetrace-skills-catalogue = { workspace = true }
 narrativetrace-structlog = { workspace = true }
+narrativetrace-tooling = { workspace = true }
 
 [tool.uv]
 package = false
@@ -111,12 +113,18 @@ cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
 cwd = "packages/narrativetrace-glossary"
 help = "Mutation testing for the glossary distribution (config in its own pyproject.toml)"
 
+[tool.poe.tasks.mutate-tooling]
+cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
+cwd = "packages/narrativetrace-tooling"
+help = """Mutation testing for the tooling library — the doctor's checks and the agent-skills \
+installer (config in its own pyproject.toml)"""
+
 [tool.poe.tasks.mutate-skills]
 cmd = "python ${POE_ROOT}/scripts/mutation_workers.py"
-cwd = "packages/narrativetrace-skills/evals"
+cwd = "packages/narrativetrace-skills-catalogue/evals"
 help = """Mutation testing for the Tier B eval runner (run.py, quota.py, platform_presets.py, \
-tier_precondition.py; config in packages/narrativetrace-skills/evals/pyproject.toml -- mutmut \
-runs from evals/ itself, not the package root, to match the runner's flat imports). Case \
+tier_precondition.py; config in packages/narrativetrace-skills-catalogue/evals/pyproject.toml -- \
+mutmut runs from evals/ itself, not the package root, to match the runner's flat imports). Case \
 content (prompts, fixtures, graders, trigger sets, YAML/JSON) is data, out of scope by \
 construction -- mutmut only ever mutates the four listed .py files."""
 
@@ -142,14 +150,23 @@ sequence = [
     { cmd = "python scripts/mutation_gate.py narrativetrace-glossary" },
 ]
 
+[tool.poe.tasks.mutate-tooling-gate]
+help = """Mutation kill-rate floor for narrativetrace-tooling, same 80-of-100 formula as \
+mutate-gate (killed / (total - mutation/tooling-equivalents.txt)); wired into the CI mutation job, \
+not poe check -- see mutation/tooling-equivalents.txt for the last measured score."""
+sequence = [
+    { ref = "mutate-tooling" },
+    { cmd = "python scripts/mutation_gate.py narrativetrace-tooling" },
+]
+
 [tool.poe.tasks.mutate-skills-gate]
-help = """Mutation kill-rate floor for narrativetrace-skills' eval runner, same 80-of-100 \
-formula as mutate-gate (killed / (total - mutation/skills-evals-equivalents.txt)); scheduled/\
-nightly cadence, not poe check -- see mutation/skills-evals-equivalents.txt for the last \
-measured score."""
+help = """Mutation kill-rate floor for narrativetrace-skills-catalogue's eval runner, same \
+80-of-100 formula as mutate-gate (killed / (total - \
+mutation/skills-catalogue-evals-equivalents.txt)); scheduled/nightly cadence, not poe check -- \
+see mutation/skills-catalogue-evals-equivalents.txt for the last measured score."""
 sequence = [
     { ref = "mutate-skills" },
-    { cmd = "python scripts/mutation_gate.py narrativetrace-skills" },
+    { cmd = "python scripts/mutation_gate.py narrativetrace-skills-catalogue" },
 ]
 
 [tool.poe.tasks.demo]
@@ -267,6 +284,7 @@ cmd = """python -m narrativetrace_glossary.clarity_scan \
     packages/narrativetrace-glossary/src \
     packages/narrativetrace-pytest/src \
     packages/narrativetrace-structlog/src \
+    packages/narrativetrace-tooling/src \
     --min-score 0.5 --output-dir build/narrativetrace --glossary-dir ."""
 help = "Naming-clarity gate over package sources (fails below --min-score; glossary-aware)"
 
@@ -321,16 +339,20 @@ Java's ./gradlew translationStatus)"""
 [tool.poe.tasks.snippet-check]
 cmd = "python scripts/snippet_check.py"
 help = """Docs-as-tests gate (rule 8): every '<!-- snippet: ... -->' block in an English \
-documentation page still matches what its source renders (masked per its options) — no network, \
-reads files only. Depends on 'coverage' having just run: that is what produces \
-examples/sixty_seconds/build/*.txt, the tutorial page's embedded output blocks."""
+documentation page still matches what its source renders (masked per its options), AND no public \
+document talks about a NarrativeTrace version (scripts/version_literals.py: a pinned install \
+coordinate must equal this repo's own version; a '*(since X)*' marker or docs-vs-published banner \
+is forbidden) — no network, reads files only. Depends on 'coverage' having just run: that is what \
+produces examples/sixty_seconds/build/*.txt, the tutorial page's embedded output blocks."""
 
 [tool.poe.tasks.snippet-sync]
 cmd = "python scripts/snippet_sync.py"
 help = """Rewrites every drifted '<!-- snippet: ... -->' block in place, English pages only \
-(translated mirrors are never touched — see scripts/snippet_check.py). Run this, then \
-'poe snippet-check', after touching a snippeted source; a page that changes is a finding, not \
-routine maintenance (rule 8)."""
+(translated mirrors are never touched — see scripts/snippet_check.py), and every NarrativeTrace \
+install coordinate in every public document to this repo's own version (mirrors included — a \
+coordinate is language-neutral). The only writer of a coordinate: never hand-type one. Run this, \
+then 'poe snippet-check', after touching a snippeted source or bumping the version; a page that \
+changes is a finding, not routine maintenance (rule 8)."""
 
 [tool.poe.tasks.legal-check]
 cmd = "scripts/legal-check.sh"
@@ -403,12 +425,12 @@ help = "Regenerates .claude/skills/{doctor,add}/SKILL.md and the AGENTS.md manag
 
 [tool.poe.tasks.promotion-check]
 cmd = "python scripts/promotion_render.py --check"
-help = """Tier B promotion-matrix gate: packages/narrativetrace-skills/ledger/promotion.md must \
-match ledger/runs.jsonl -- fails naming the drift; 'poe promotion-render' fixes it."""
+help = """Tier B promotion-matrix gate: packages/narrativetrace-skills-catalogue/ledger/promotion.md \
+must match ledger/runs.jsonl -- fails naming the drift; 'poe promotion-render' fixes it."""
 
 [tool.poe.tasks.promotion-render]
 cmd = "python scripts/promotion_render.py --fix"
-help = "Regenerates packages/narrativetrace-skills/ledger/promotion.md from ledger/runs.jsonl."
+help = "Regenerates packages/narrativetrace-skills-catalogue/ledger/promotion.md from ledger/runs.jsonl."
 
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
@@ -457,7 +479,7 @@ slice of."""
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["packages/narrativetrace/src"]
+src = ["packages/narrativetrace/src", "packages/narrativetrace-tooling/src"]
 
 [tool.ruff.lint]
 select = [
@@ -539,24 +561,36 @@ files = [
     "packages/narrativetrace-structlog/tests",
     "packages/narrativetrace-security-tests/src",
     "packages/narrativetrace-security-tests/tests",
-    "packages/narrativetrace-skills/src",
-    "packages/narrativetrace-skills/tests",
-    "packages/narrativetrace-skills/evals",
+    "packages/narrativetrace-skills-catalogue/src",
+    "packages/narrativetrace-skills-catalogue/tests",
+    "packages/narrativetrace-skills-catalogue/evals",
+    "packages/narrativetrace-tooling/src",
+    "packages/narrativetrace-tooling/tests",
     "examples",
 ]
-mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src:packages/narrativetrace-skills/src:contract-probe/src"
+mypy_path = "packages/narrativetrace/src:packages/narrativetrace-pytest/src:packages/narrativetrace-diagrams/src:packages/narrativetrace-otel/src:packages/narrativetrace-asgi/src:packages/narrativetrace-clarity/src:packages/narrativetrace-glossary/src:packages/narrativetrace-structlog/src:packages/narrativetrace-security-tests/src:packages/narrativetrace-skills-catalogue/src:packages/narrativetrace-tooling/src:contract-probe/src"
 # examples/sixty_seconds/main*.py are excluded, not silenced: they are the "See a trace in 60
 # seconds" page's code blocks (documentation/sixty-seconds.md), documentation/llms.txt's
 # "Install and first trace" block (main_llms.py), and the Logging Guide's Loguru section
 # (main_with_loguru.py), byte-identical on purpose (rule 8, docs as tests) -- a beginner's
 # untyped script, not this repo's own typed example style every other examples/* module follows.
 # test_sixty_seconds.py stays checked like any other test module.
+# redaction_llms.py is the same class of thing: llms.txt's "Add one test" step, embedded
+# byte-identical, never this repo's own typed source style.
 # The redaction-gap eval fixture is the same class of thing: a deliberately minimal Tier B
 # fixture script, not this repo's own typed source style.
 exclude = [
+    # mutmut's working copy (`<package_dir>/mutants/`, gitignored) duplicates the sources and
+    # tests it mutates. Every `files` entry but one names `src`/`tests` subdirectories, so
+    # `packages/<name>/mutants/` is never walked; `evals` is listed whole (its mutation
+    # `package_dir` IS that directory -- [tool.narrativetrace.mutation.package_dir]), so a dev
+    # tree where the skills-catalogue mutation gate has run otherwise fails mypy with
+    # "Duplicate module named platform_presets". A clean CI clone never sees it; the dev tree must.
+    '/mutants/',
     '(^|/)conftest\.py$',
     'examples/sixty_seconds/main(_with_logger|_llms|_with_loguru)?\.py$',
-    'packages/narrativetrace-skills/evals/fixtures/redaction-gap/main\.py$',
+    'examples/sixty_seconds/redaction_llms\.py$',
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/redaction-gap/main\.py$',
 ]
 
 # atheris is platform-conditional (see the `security` dependency group below and
@@ -617,13 +651,16 @@ source = [
     # 2026-09-10, real number, not gamed: 98% (162 stmts, 1 miss; 32 branches, 2 partial).
     "narrativetrace_pytest",
     "narrativetrace_skills",
+    # Added 2026-09-26 (Phase 3 milestone 2): the tooling library the narrativetrace console script
+    # launches -- the doctor's pure checks and the agent-skills installer.
+    "narrativetrace_tooling",
     # Added 2026-09-13 ("everything a skill invokes is normal source code, held to the full house
     # standard"). The Tier B eval runner (run.py/quota.py/platform_presets.py/tier_precondition.py)
     # is deliberately NOT under src/narrativetrace_skills/ (see evals/README.md's layout), so the
     # "narrativetrace_skills" entry above never reached it -- a bare directory path is this list's
     # one documented exception; see [tool.coverage.narrativetrace_extra_source] below, which
     # test_coverage_source_completeness.py reads so this entry can never silently drift.
-    "packages/narrativetrace-skills/evals",
+    "packages/narrativetrace-skills-catalogue/evals",
 ]
 branch = true
 # Needed for narrativetrace_pytest's subprocess-measured coverage above: each pytester subprocess
@@ -637,7 +674,7 @@ parallel = true
 # is never imported there by design -- all of its coverage data arrives already-combined from the
 # subprocess-written files instead.
 disable_warnings = ["module-not-imported"]
-# The "packages/narrativetrace-skills/evals" source entry above is a bare directory, unlike every
+# The "packages/narrativetrace-skills-catalogue/evals" source entry above is a bare directory, unlike every
 # other entry's package-name form, so it would otherwise also measure its own test_*.py files
 # (there is no separate tests/ subdirectory to exclude by omission the way every src/ layout
 # already does). Case content (fixtures/graders/prompts/YAML/JSON under evals/) is never Python,
@@ -654,7 +691,7 @@ narrativetrace_security_tests = "src/narrativetrace_security_tests/__init__.py i
 # `[tool.coverage.run] source` entries that are bare paths, not packages/*/ import names, and why
 # each is legitimate -- read by test_coverage_source_completeness.py so that
 # `source - real_names` only ever contains entries accounted for here, never a silent addition.
-"packages/narrativetrace-skills/evals" = "Tier B eval runner code (run.py/quota.py/platform_presets.py/tier_precondition.py), not under src/narrativetrace_skills/ -- see evals/README.md's layout; 2026-09-13 ruling that eval-invoked code is normal source code held to the full house standard."
+"packages/narrativetrace-skills-catalogue/evals" = "Tier B eval runner code (run.py/quota.py/platform_presets.py/tier_precondition.py), not under src/narrativetrace_skills/ -- see evals/README.md's layout; 2026-09-13 ruling that eval-invoked code is normal source code held to the full house standard."
 
 [tool.coverage.report]
 fail_under = 95  # ratchet toward the Java 98% gate; raise as headroom allows
@@ -687,24 +724,26 @@ exclude_also = [
 narrativetrace = "mutation/equivalents.txt"
 narrativetrace-glossary = "mutation/glossary-equivalents.txt"
 # Scoped to the Tier B eval runner only (evals/run.py, quota.py, platform_presets.py,
-# tier_precondition.py -- see packages/narrativetrace-skills/evals/pyproject.toml's
+# tier_precondition.py -- see packages/narrativetrace-skills-catalogue/evals/pyproject.toml's
 # [tool.mutmut]); src/narrativetrace_skills/ (catalogue/render) is not yet mutation-tested (same
 # mutmut multi-root limitation the other DEFERRED entries below note) and stays out of that
 # config's source_paths, so it is untouched by `poe mutate-skills`.
-narrativetrace-skills = "mutation/skills-evals-equivalents.txt"
+narrativetrace-skills-catalogue = "mutation/skills-catalogue-evals-equivalents.txt"
+narrativetrace-tooling = "mutation/tooling-equivalents.txt"
 
 [tool.narrativetrace.mutation.package_dir]
 # Override for a `tested` package whose mutmut run root is a subdirectory of packages/<name>, not
 # packages/<name> itself -- read by scripts/mutation_gate.py's _load_packages(). Every entry here
 # must have a matching `[tool.mutmut]` section at that path, since that is where `poe mutate-*`
 # actually invokes mutmut (see this package's own pyproject.toml comment there for why).
-narrativetrace-skills = "packages/narrativetrace-skills/evals"
+narrativetrace-skills-catalogue = "packages/narrativetrace-skills-catalogue/evals"
 
 [tool.narrativetrace.mutation.exempt]
 # packages/*/ directories with no [tool.mutmut] section/mutate task, and why -- read by
 # test_mutation_accounting.py, which requires every packages/*/ directory to be in exactly one of
 # `tested` above or this table.
 narrativetrace-security-tests = "src/narrativetrace_security_tests/__init__.py is a 13-line marker stub; every real line (corpus reader, oracle helpers, the property tests themselves) lives under tests/ -- itself a test suite, so mutating it tests nothing."
+narrativetrace-skills = "resources-only distribution (Phase 3 milestone 1): skills/**/SKILL.md + catalogue.json, no Python source at all -- BUILD OUTPUT of narrativetrace-skills-catalogue's render step (itself not yet mutation-tested, see that package's own entry above), nothing here to mutate."
 narrativetrace-asgi = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet: mutmut has no multi-root mode, so each further distribution needs its own config and task before it can be mutation-tested."
 narrativetrace-clarity = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
 narrativetrace-diagrams = "DEFERRED -- no [tool.mutmut] section/mutate task exists yet (mutmut multi-root limitation, as for narrativetrace-asgi)."
@@ -722,21 +761,26 @@ root_packages = [
     "narrativetrace_otel",
     "narrativetrace_pytest",
     "narrativetrace_structlog",
+    "narrativetrace_tooling",
 ]
 
 # The ArchUnit/JDepend analog. One layers contract encodes the
-# sanctioned shape, matching the Java module graph: core at the bottom;
-# clarity above it; glossary and diagrams above clarity (Java glossary depends
-# on clarity); the framework integrations on top — pytest is a composition
-# module like Java's junit5 (which depends on diagrams, clarity, glossary).
+# sanctioned shape, matching the Java module graph: the zero-dependency tooling
+# library at the very bottom (Java's narrativetrace-tooling, which never links
+# against the runtime it diagnoses); core above it, because the narrativetrace
+# console script launches it; clarity above core; glossary and diagrams above
+# clarity (Java glossary depends on clarity); the framework integrations on top —
+# pytest is a composition module like Java's junit5 (which depends on diagrams,
+# clarity, glossary).
 # "|" = siblings within a layer may not import one another; higher layers may
 # import lower, never the reverse.
 [[tool.importlinter.contracts]]
-name = "package layering (integrations | glossary, diagrams | clarity | core)"
+name = "package layering (integrations | glossary, diagrams | clarity | core | tooling)"
 type = "layers"
 layers = [
     "narrativetrace_asgi | narrativetrace_otel | narrativetrace_pytest | narrativetrace_structlog",
     "narrativetrace_glossary | narrativetrace_diagrams",
     "narrativetrace_clarity",
     "narrativetrace",
+    "narrativetrace_tooling",
 ]

@@ -48,7 +48,6 @@ def test_a_bogus_entry_without_a_dispatch_is_caught(tmp_path: Path) -> None:
             kind: probed-default
             page: "documentation/foo.md#anchor"
             claim: "a bogus claim used only to prove the dispatch guard fires"
-            since: "0.1.2"
             documented_default: "true"
             probe: "contract-probe/src/contract_probe/probes/does_not_exist_probe.py"
         """,

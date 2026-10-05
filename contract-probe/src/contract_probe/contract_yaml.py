@@ -30,7 +30,6 @@ class ContractEntry:
     kind: str
     page: str
     claim: str
-    since: str
     expect: str
     probe: str
     coordinate: str | None
@@ -47,7 +46,6 @@ def _entry_from_raw(raw: dict[str, Any]) -> ContractEntry:
         kind=raw["kind"],
         page=raw["page"],
         claim=raw["claim"],
-        since=raw["since"],
         expect=expect,
         probe=raw["probe"],
         coordinate=raw.get("coordinate"),

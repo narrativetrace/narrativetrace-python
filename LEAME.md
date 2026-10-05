@@ -1,4 +1,4 @@
-<!-- source: README.md blob 7c09fbf37bce | translated: 2026-09-19 | reviewed: - -->
+<!-- source: README.md blob d77dcabe946e | translated: 2026-09-19 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -6,7 +6,32 @@
 
 ## Empieza aquí
 
-[Ve una traza en 60 segundos](documentation/es/sesenta-segundos.md) — un script sencillo, una ejecución, y la traza aparece en tu terminal.
+- [Ve una traza en 60 segundos](documentation/es/sesenta-segundos.md) — un script sencillo, una ejecución, y la traza aparece en tu terminal.
+- ¿Trabajas con un agente de IA? Pega esto:
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+1. Read https://narrativetrace.ai/python/llms.txt first. It carries the install block and the
+known traps. Do not guess versions or artifact names.
+2. If this directory has no project yet, create the smallest console app that
+llms.txt's "Install and first trace" block describes. Otherwise work inside the existing
+project and trace one real service boundary.
+3. Add the `narrativetrace` package the way llms.txt shows, then run `uv run narrativetrace
+init --dry-run` and show me the diff. It installs the NarrativeTrace agent skills into this
+project and adds a marked section to AGENTS.md. Run it for real only after I have seen the
+diff.
+4. If the `add-narrative-tracing` skill is now available, follow it. Otherwise follow the
+"Install and first trace (copy this)" block in llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and asserts the trace
+shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`uv run narrativetrace doctor`). Paste
+the trace and the doctor report, explain the trace in two sentences, and list exactly what
+changed in the project.
+Rules: never disable redaction; do not commit `.received.nt` files; apply
+`@not_traced` to the real parameter, because importing it protects nothing; run everything in
+the foreground and read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Demo
 
@@ -261,9 +286,7 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Ejecuta la suite — los artefactos se escriben por defecto** *(since 0.1.2)* — la
-versión publicada en PyPI, `0.1.1`, todavía los trae desactivados; activa
-`NARRATIVETRACE_OUTPUT=true` explícitamente en esa versión:
+**3. Ejecuta la suite — los artefactos se escriben por defecto:**
 
 ```bash
 uv run pytest
@@ -349,7 +372,7 @@ integración](documentation/es/eligiendo-una-integracion.md).
 
 | Paquete | Propósito |
 |---|---|
-| [`narrativetrace`](packages/narrativetrace) | Núcleo sin dependencias: captura, decoradores, renderizado, ocultación, concurrencia, exportación JSON, puente de logging |
+| [`narrativetrace`](packages/narrativetrace) | Núcleo, sin dependencias de terceros: captura, decoradores, renderizado, ocultación, concurrencia, exportación JSON, puente de logging |
 | [`narrativetrace-pytest`](packages/narrativetrace-pytest) | Plugin de pytest: fixture `narrative_trace` por prueba, artefactos, pie de claridad |
 | [`narrativetrace-diagrams`](packages/narrativetrace-diagrams) | Renderizadores de diagramas de secuencia Mermaid + PlantUML |
 | [`narrativetrace-otel`](packages/narrativetrace-otel) | Puente de spans de OpenTelemetry (listener en vivo + exportador por lotes) |
@@ -390,11 +413,11 @@ ocultación](documentation/es/privacidad-y-ocultacion.md) para conocer el alcanc
   curado, un `__str__` personalizado cuando el tipo no porta ningún campo o está definido por la
   plataforma, y las rutas de propiedades nombradas en una plantilla `@narrated`/`@on_error` —
   mantenlos puros, como lo harías para un depurador. El propio `__str__` de un compuesto de otro
-  modo nunca es de confianza *(since 0.1.2)*: cualquier objeto que porte estado de
+  modo nunca es de confianza: cualquier objeto que porte estado de
   instancia se introspecciona campo por campo sin importar si define un `__str__` personalizado,
   así que uno escrito a mano no puede sortear la ocultación, ni directamente ni a través de un
   objeto anidado — una clave de dict/map pasa por la misma comprobación. La única excepción es un
-  tipo que la propia plataforma define *(since 0.1.2)* — `pathlib.Path`, `datetime`,
+  tipo que la propia plataforma define — `pathlib.Path`, `datetime`,
   `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*` — decidido por origen (su
   `__module__`, nunca un prefijo de nombre), así que un impostor o una subclase se siguen
   introspeccionando. Un resumen/`__str__`/getter que lanza excepción renderiza `<error: TypeName>`
@@ -477,7 +500,7 @@ Para profundizar:
 
 - [Privacidad y ocultación](documentation/es/privacidad-y-ocultacion.md) — el contrato de ocultación fila por fila, verificado contra el código
 - [Qué commitear](documentation/es/que-commitear.md) — qué archivos generados son artefactos de CI, y cuáles (si los hay) son líneas base revisadas
-- [Habilidades del agente](documentation/es/habilidades-del-agente.md) — `narrativetrace-doctor`, una habilidad de agente sencilla y de solo lectura sobre `uv run narrativetrace doctor` *(since 0.1.2)*
+- [Habilidades del agente](documentation/es/habilidades-del-agente.md) — `narrativetrace-doctor`, una habilidad de agente sencilla y de solo lectura sobre `uv run narrativetrace doctor`
 - [Solución de problemas](documentation/es/solucion-de-problemas.md) — síntoma → causa → arreglo para los fallos que la gente realmente encuentra
 - [Guía de pytest](documentation/es/guia-de-pytest.md) · [Guía de FastAPI/ASGI](documentation/es/guia-de-fastapi-asgi.md) · [Guía de OpenTelemetry](documentation/es/guia-de-opentelemetry.md) · [Guía de logging](documentation/es/guia-de-logging.md) · [Guía de claridad](documentation/es/guia-de-claridad.md)
 - [Guía de funcionalidades](documentation/es/guia-de-funcionalidades.md) — cada funcionalidad que esta implementación publica, con nivel y estado

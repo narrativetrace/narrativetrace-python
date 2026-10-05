@@ -2,13 +2,15 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""The standalone runner behind `contract-probe` (docs-vs-published-gate §2) -- reads
-`documentation/contract.yaml`, decides which entries apply at the installed version (ruling 1:
-exempt only while `since` is strictly later than installed), runs the applicable ones' dispatched
-probe against a PUBLISHED install (never `mavenLocal`/workspace-equivalent, never `--find-links`),
-and prints holds/fails/not-applicable-before-since per entry plus one summary line. Writes a JSON
-result when `--out` is given. Exits 1 on any FAILS -- the signal `scripts/contract_check.py` (the
-nightly wrapper) keys off.
+"""The standalone runner behind `contract-probe` -- reads `documentation/contract.yaml`, runs
+every entry's dispatched probe against a PUBLISHED install (never a workspace equivalent, never
+`--find-links`), and prints holds/fails per entry plus one summary line. Writes a JSON result when
+`--out` is given. Exits 1 on any FAILS -- the signal `scripts/contract_check.py` (the nightly
+wrapper) keys off.
+
+Two verdicts, not three. The contract describes the code on `main`, which IS the published code
+(owner ruling 2026-09-25), so there is no "this claim has not shipped yet" state to report: every
+entry is checked, every run.
 """
 
 from __future__ import annotations
@@ -38,7 +40,6 @@ from contract_probe.probes import (
     structlog_dependency_probe,
     typed_error_marker_probe,
 )
-from contract_probe.versions import is_applicable
 
 _ENTRY_POINT_IDS = frozenset(
     {
@@ -90,16 +91,11 @@ def _failure_message(entry: ContractEntry, installed_version: str, observed: str
     shown = observed if observed is not None else "<no answer>"
     return (
         f'documentation/contract.yaml: {entry.id} documented default "{entry.expect}" '
-        f'(since {entry.since}) but {coordinate} {installed_version} (published) reads "{shown}"'
+        f'but {coordinate} {installed_version} (published) reads "{shown}"'
     )
 
 
 def _entry_outcome(entry: ContractEntry, version: str) -> tuple[str, str]:
-    if not is_applicable(entry.since, version):
-        return (
-            "not-applicable-before-since",
-            f"since {entry.since} is later than installed {version}",
-        )
     observed = _observe(entry, version)
     if observed == entry.expect:
         return "holds", f'observed "{observed}"'
@@ -108,27 +104,23 @@ def _entry_outcome(entry: ContractEntry, version: str) -> tuple[str, str]:
 
 def run(args: Args) -> int:
     entries = read(Path(args.contract_path))
-    counts = {"holds": 0, "not-applicable-before-since": 0, "fails": 0}
+    counts = {"holds": 0, "fails": 0}
     json_entries: list[dict[str, str]] = []
 
     for entry in entries:
         verdict, detail = _entry_outcome(entry, args.version)
         counts[verdict] += 1
-        print(f"{entry.id:<50} {verdict:<30} {detail}")
+        print(f"{entry.id:<50} {verdict:<10} {detail}")
         json_entries.append(
             {
                 "id": entry.id,
                 "kind": entry.kind,
-                "since": entry.since,
                 "verdict": verdict,
                 "detail": detail,
             }
         )
 
-    summary = (
-        f"{counts['holds']} holds, {counts['not-applicable-before-since']} "
-        f"not-applicable-before-since, {counts['fails']} fails (installed version {args.version})"
-    )
+    summary = f"{counts['holds']} holds, {counts['fails']} fails (installed version {args.version})"
     print()
     print(summary)
 
@@ -136,11 +128,7 @@ def run(args: Args) -> int:
         payload = {
             "version": args.version,
             "entries": json_entries,
-            "summary": {
-                "holds": counts["holds"],
-                "notApplicableBeforeSince": counts["not-applicable-before-since"],
-                "fails": counts["fails"],
-            },
+            "summary": {"holds": counts["holds"], "fails": counts["fails"]},
         }
         Path(args.out_path).write_text(json.dumps(payload), encoding="utf-8")
 

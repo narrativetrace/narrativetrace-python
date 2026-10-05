@@ -6,11 +6,9 @@ produces. `contract-probe/` proves or disproves each one against a **published**
 never this workspace, never `--find-links`), so a doc page and the package someone actually `uv
 add`ed can never quietly disagree without a gate noticing.
 
-This is the third leg of the docs-vs-published family, alongside the
-`*(since X.Y.Z[, unreleased])*` markers inline in prose and the generated banner under
-[`llms.txt`](llms.txt)'s own H1 — see those markers throughout `documentation/*.md` for the
-disclosure half of the same problem. This page is the enforcement half: a marker says "this is
-new"; the contract gate says "and it is really true of what shipped."
+The contract describes the code on `main`, which is the published code — the public snapshot and
+the packages are published together — so every entry is checked on every run and a claim is either
+proven or broken.
 
 ## What it catches
 
@@ -23,22 +21,16 @@ Four kinds of claim, each checked a different way:
 | `probed-default` | A default only visible at runtime (a config-resolution default, a plugin-gated behavior) | `NARRATIVETRACE_APPROVAL` defaults to `false` |
 | `config-shape` | A documented configuration shape produces the effect the docs claim | `export_to_logger(trace)` actually emits log records |
 
-Each entry also carries `since`: the version the claim first holds. An entry whose `since` is
-**later than the version actually installed** that run is reported `not-applicable-before-since`
-— never `fails` — so a documented default for a feature that has not shipped yet does not fail
-the gate before its own release does. The exemption is keyed on the version genuinely installed,
-never on this repository's own `pyproject.toml` version, which this project keeps at the last
-published number until a release tag bumps it (see the `*(since X.Y.Z, unreleased)*` markers
-already on many pages).
+Two verdicts, `holds` and `fails` — there is no third. A claim is about the code this file is
+committed with, and that code is what ships, so "documented but not released yet" is not a state
+this gate can be in.
 
 ## Two gates, two cadences
 
 - **`uv run poe contract-lint`** — part of `poe check`, every commit, no network. Validates
-  `documentation/contract.yaml` itself: the schema parses, every `since` is a real version string,
-  no two entries make the same claim, every entry's `probe` file exists, every `page#anchor`
-  pointer resolves to a heading that actually exists on that page, and every
-  `*(since X.Y.Z, unreleased)*` marker anywhere in the English docs has at least one contract
-  entry recording that version — the mechanical link between the inline markers and this file.
+  `documentation/contract.yaml` itself: the schema parses, no two entries make the same claim,
+  every entry's `probe` file exists, and every `page#anchor` pointer resolves to a heading that
+  actually exists on that page.
 - **`python -m scripts.contract_check`** — nightly, registry-backed, never per commit (the same
   "no network in the per-commit gate" rule `security-tooling.md` describes for the scanners).
   Resolves the version to check the way `scripts/verify_publication_registry.py`'s own lookup
@@ -51,7 +43,7 @@ already on many pages).
 Run the nightly gate by hand against a specific version:
 
 ```bash
-python -m scripts.contract_check 0.1.1
+python -m scripts.contract_check <version>
 python -m scripts.contract_check            # omit the version: checks the last published one
 python -m scripts.contract_check --dry-run
 ```
@@ -60,7 +52,7 @@ A failure names all four facts in one line, so a skim is enough:
 
 ```
 documentation/contract.yaml: probed-pytest-artifacts-default documented default "true"
-(since 0.1.2) but narrativetrace-pytest 0.1.2 (published) reads "false"
+but narrativetrace-pytest <version> (published) reads "false"
 ```
 
 ## `contract-probe/`
@@ -79,8 +71,8 @@ Run it directly (mirrors what `scripts/contract_check.py` does for you, one vers
 
 ```bash
 cd contract-probe
-uv run --with narrativetrace==0.1.1 --with narrativetrace-pytest==0.1.1 ... \
-    python -m contract_probe.runner --version=0.1.1 \
+uv run --with narrativetrace==<version> --with narrativetrace-pytest==<version> ... \
+    python -m contract_probe.runner --version=<version> \
     --contract=../documentation/contract.yaml --out=contract-result.json
 ```
 
@@ -101,10 +93,10 @@ OTHER probe's import too, not just its own (see `export_to_logger_probe.py` for 
 `contract.yaml` is updated **in the same commit** as the feature that ships a new documented
 default — the same discipline the Pro repository's `pro/schema/*.json` files follow. Adding one:
 
-1. Write the sentence in the doc page first, with its `*(since X.Y.Z, unreleased)*` marker if the
-   version has not tagged yet.
+1. Write the sentence in the doc page first, in the present tense — it describes the code the
+   commit ships.
 2. Add the entry to `documentation/contract.yaml`: `id`, `kind`, `page` (the doc path and the
-   anchor of the heading carrying the sentence), `claim`, `since`,
+   anchor of the heading carrying the sentence), `claim`,
    `documented_default`/`expected_effect`, and `probe`.
 3. Write the probe module under `contract-probe/src/contract_probe/probes/...`. Use only stable
    public API that already exists at the OLDEST version the contract still checks, or defer the
@@ -112,11 +104,10 @@ default — the same discipline the Pro repository's `pro/schema/*.json` files f
    `contract-probe` imports every probe module together regardless of which single version is
    under test, so a bare, module-level import of an API that only exists in a newer release
    breaks every other entry's import too.
-4. `uv run poe contract-lint` — confirms the shape, the anchor and the since-marker link.
-5. `cd contract-probe && uv run --with <name>==<last-published> ... python -m
-   contract_probe.runner --version=<last-published>` — confirms the new entry reports
-   `not-applicable-before-since` against today's published version (it should, if the feature has
-   not released yet) and, once released, reports `holds` against the version it landed in.
+4. `uv run poe contract-lint` — confirms the shape and the anchor.
+5. `cd contract-probe && uv run --with <name>==<published> ... python -m contract_probe.runner
+   --version=<published>` — confirms the new entry reports `holds` against the published
+   packages.
 
 ## What this deliberately does not cover
 
@@ -128,9 +119,6 @@ default — the same discipline the Pro repository's `pro/schema/*.json` files f
 - **Full behavioral equivalence of a complex config object** — one named, checkable
   `expected_effect` per `config-shape` entry, never a spec of the whole feature the shape
   configures.
-- **A marker correctly flagged `unreleased` for a version genuinely ahead of the one installed** —
-  that is disclosure's job (the inline marker and the generated `llms.txt` banner), not this
-  gate's; a `since` later than the installed version is skipped, on purpose, every time.
 
 ## See also
 

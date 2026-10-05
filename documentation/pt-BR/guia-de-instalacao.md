@@ -1,8 +1,8 @@
-<!-- source: documentation/guides/installation.md blob f42e3e987a39 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/installation.md blob 625a9fe01d77 | translated: 2026-09-12 | reviewed: - -->
 
 # Instalação
 
-O NarrativeTrace tem como alvo o Python ≥ 3.12 e é distribuído como um conjunto de pacotes: um core sem dependências
+O NarrativeTrace tem como alvo o Python ≥ 3.12 e é distribuído como um conjunto de pacotes: um core sem dependências de terceiros
 mais integrações opcionais.
 
 ```bash
@@ -17,13 +17,11 @@ uv add narrativetrace-glossary        # glossário de domínio + tradução de t
 ```
 
 `pip install narrativetrace` funciona da mesma forma. Adicione somente as integrações que você usa — o core
-não carrega dependências de terceiros. Todos os pacotes acima estão no PyPI, publicados na
-versão `0.1.1`.
+não carrega dependências de terceiros. Todos os pacotes acima estão no PyPI.
 
-`narrativetrace-structlog` traz `structlog` como dependência própria *(since 0.1.2)*
-— na versão publicada no PyPI, `0.1.1`, ela é um extra opcional, então `uv add
-narrativetrace-structlog` sozinho não instala `structlog`; adicione-o explicitamente (`uv add
-structlog`) nessa versão.
+`narrativetrace-structlog` traz `structlog` como dependência própria, então
+`uv add narrativetrace-structlog` é tudo de que o processador precisa — sem um
+`uv add structlog` à parte.
 
 ## A partir deste repositório (workspace)
 

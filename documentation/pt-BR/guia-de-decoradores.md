@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob c4f5e00e06e9 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob ef9043e6620e | translated: 2026-09-17 | reviewed: - -->
 
 # Decoradores
 
@@ -193,7 +193,7 @@ O que é invocado, e o que não é:
   Um `NamedTuple` é introspectado pelo nome do campo em vez de renderizado como uma lista anônima de
   valores posicionais, então um campo oculto permanece oculto da mesma forma que um campo de
   dataclass.
-- **Um `__str__` personalizado nunca é confiável para os seus próprios tipos** *(since 0.1.2)*.
+- **Um `__str__` personalizado nunca é confiável para os seus próprios tipos**.
   Qualquer objeto que carregue estado de instância — uma dataclass, uma classe attrs, um
   `NamedTuple`, ou um objeto simples com `__dict__`/`__slots__` preenchido — é introspectado campo
   a campo independente de também definir `__str__`/`__repr__`; esse método escrito à mão nunca é
@@ -206,7 +206,7 @@ O que é invocado, e o que não é:
   um valor. Dê a um composto um método `@narrative_summary` quando você quiser um resumo curado de
   uma linha em vez do padrão campo a campo — esse mecanismo não é afetado e continua sendo a forma
   suportada de controlar exatamente o que é mostrado.
-- **Não declarar nenhum campo também não conquista confiança** *(since 0.1.3, unreleased)*. Um
+- **Não declarar nenhum campo também não conquista confiança**. Um
   valor cujo estado a introspecção não consegue ver — uma subclasse de `ctypes.Structure` ou um
   tipo de extensão que guarda seus campos em uma struct C, uma classe que guarda seu estado em uma
   tabela de nível de módulo indexada por identidade ou em um closure — contava como folha e era
@@ -217,7 +217,7 @@ O que é invocado, e o que não é:
   continuam sendo renderizados pelo seu próprio texto curto — essa confiança é decidida pela
   origem, e por nada mais.
 - **Um resumo, `__str__` ou getter que lança exceção renderiza um marcador de erro tipado, nunca
-  sua própria mensagem** *(since 0.1.2)*. `<error: ValueError>`, `<error: RecursionError>`, e assim por diante — o
+  sua própria mensagem**. `<error: ValueError>`, `<error: RecursionError>`, e assim por diante — o
   nome do próprio TIPO da exceção da parte que falha, substituído só para aquela parte (nunca o
   trace inteiro, nunca um `<error>` nu). A *mensagem* da exceção deliberadamente nunca é
   renderizada: uma mensagem pode carregar o próprio valor que falhou ao renderizar

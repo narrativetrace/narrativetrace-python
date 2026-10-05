@@ -1,0 +1,49 @@
+[project]
+name = "narrativetrace-tooling"
+version = "0.2.0"
+description = "The free-tier tooling library: the read-only doctor that diagnoses a project, and the installer that copies the agent skills into it. Standard library only, zero network"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BUSL-1.1"
+# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
+# distribution, because PEP 639 forbids reaching out of the project directory.
+license-files = ["LICENSE"]
+authors = [{ name = "narrativetrace contributors" }]
+keywords = ["tracing", "observability", "doctor", "agent-skills"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+# Zero dependencies, by contract — the standard library and nothing else. This library never links
+# against the runtime it diagnoses: it reads a project's configuration, source tree and rendered
+# output as text, and it reads a skills carrier through `importlib.metadata`, which resolves an
+# installed distribution's own files without importing it. That is what lets the `narrativetrace`
+# console script sit ABOVE this library and depend on it without a cycle, and it is pinned by
+# tests/test_architecture.py and by the root pyproject's import-linter contract.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/narrativetrace/narrativetrace-python"
+Source = "https://github.com/narrativetrace/narrativetrace-python"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/narrativetrace_tooling"]
+
+# Mutation config lives here, not at the workspace root, and `poe mutate-tooling` runs with this
+# directory as its cwd — the same reason packages/narrativetrace/pyproject.toml gives: mutmut keys
+# a mutant by its path relative to the run root and only strips a leading `src/`, so a run rooted
+# at the workspace would key mutants the tests' own imports can never match.
+[tool.mutmut]
+source_paths = ["src/narrativetrace_tooling/"]
+also_copy = ["tests/"]
+# "not stress" is restated rather than assumed: pytest keeps only the LAST -m it sees, so a bare
+# marker expression here would silently override the root addopts' own exclusion.
+pytest_add_cli_args_test_selection = ["tests/", "-m", "not stress"]
+# The plugin distribution imports narrativetrace at plugin-load time, before the mutated copy is on
+# sys.path — loading it would test the installed package instead of the mutant.
+pytest_add_cli_args = ["-p", "no:narrativetrace"]

@@ -14,10 +14,13 @@ name: Publish
 # PyPI API token exists anywhere to leak or rotate. Each narrativetrace* project's Trusted
 # Publisher settings on pypi.org pin this exact repository, this exact workflow file path
 # (.github/workflows/publish.yml — renaming it breaks publishing on purpose) and the `release`
-# environment. Eight of the nine workspace members publish; narrativetrace-security-tests
-# carries "Private :: Do Not Upload" and is deliberately never built or uploaded here (see its
-# pyproject.toml) — its source still ships in the public snapshot, only the PyPI upload is
-# skipped, mirroring the Java module of the same name and shape.
+# environment. Ten of the twelve workspace members publish; narrativetrace-security-tests and
+# narrativetrace-skills-catalogue carry "Private :: Do Not Upload" and are deliberately never
+# built or uploaded here (see their pyproject.toml files) — their source still ships in the
+# public snapshot, only the PyPI upload is skipped, mirroring the Java modules of the same name
+# and shape. The list below is pinned to the workspace by
+# packages/narrativetrace/tests/test_publish_workflow_packages.py: add a publishable package
+# there and here in the same change, or the build is red.
 
 on:
   push:
@@ -34,7 +37,7 @@ on:
           Space-separated subset of the publishable packages, or empty for all of them.
           A subset exists for one reason: PyPI rate-limits NEW PROJECT creation, so a
           release can legitimately reach the names that already exist before the rest.
-          Every name must still be one of the eight below; publishing a subset is safe
+          Every name must still be one of the names below; publishing a subset is safe
           because the dependency direction is one-way (every package depends on
           narrativetrace, nothing depends on the optional integrations). Dispatch this
           workflow on the release tag (e.g. `--ref v0.1.2`), never on `main` — the job
@@ -56,7 +59,9 @@ env:
     narrativetrace-glossary
     narrativetrace-otel
     narrativetrace-pytest
+    narrativetrace-skills
     narrativetrace-structlog
+    narrativetrace-tooling
 
 jobs:
   publish:
@@ -92,7 +97,7 @@ jobs:
       # (detect_version + the *-SNAPSHOT*/*-dev*/0.0.0 refusal) — repeated here because the
       # tag is what actually triggers this job, and the workflow must not trust that the tag
       # it was handed is one the script produced. Every publishable package's own pyproject.toml
-      # is read (not just the root one): the eight distributions are versioned in lockstep, and
+      # is read (not just the root one): the publishable distributions are versioned in lockstep, and
       # a sibling that drifted out of step must fail the release, not publish silently apart
       # from what the tag claims.
       - name: Assert tag matches the workspace version

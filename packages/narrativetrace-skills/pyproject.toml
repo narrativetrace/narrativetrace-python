@@ -1,30 +1,26 @@
 [project]
 name = "narrativetrace-skills"
-version = "0.1.2"
-description = "Typed catalogue source for NarrativeTrace's agent skills — renders SKILL.md/AGENTS.md"
+version = "0.2.0"
+description = "The published skills carrier: rendered agent-skill pages (SKILL.md) + catalogue.json for narrativetrace's free skills -- resources only, no Python API"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "BUSL-1.1"
-# See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
-# distribution, because PEP 639 forbids reaching out of the project directory.
+license = "Apache-2.0"
+# Apache-2.0, not BUSL-1.1 like every other distribution in this repository: mirrors the Java
+# carrier this ports (licensing.properties: module.narrativetrace-skills=open). One byte-identical
+# copy of the root LICENSE-APACHE, because PEP 639 forbids reaching out of the project directory —
+# see packages/narrativetrace/tests/test_distribution_licensing.py's APACHE_DISTRIBUTIONS.
 license-files = ["LICENSE"]
 authors = [{ name = "narrativetrace contributors" }]
 keywords = ["tracing", "observability", "agent-skills"]
-# "Private :: Do Not Upload" is the standard PyPI/twine convention for a package that must never
-# reach the index (see packages/narrativetrace-security-tests/pyproject.toml). This is a
-# build-time catalogue source -- it renders SKILL.md/AGENTS.md, never something a consumer
-# installs -- and scripts/verify_publication_packages.py derives "publishable" from the absence
-# of this classifier, so without it the nightly canary would expect this package on PyPI forever.
 classifiers = [
-    "Private :: Do Not Upload",
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
-    "Typing :: Typed",
 ]
-# Deliberately dependency-free, same discipline as the core `narrativetrace` distribution: a
-# catalogue of prose and shell-command strings needs nothing at runtime, and never imports
-# `narrativetrace` itself -- the two skills invoke the free CLI as a subprocess, they do not call
-# into the library.
+# No sources and no dependencies, mirroring Java's narrativetrace-skills module exactly: what an
+# installer reads out of this distribution is text (SKILL.md pages + catalogue.json), never
+# something imported. Published (no "Private :: Do Not Upload" classifier) -- unlike the typed
+# catalogue that renders it (narrativetrace-skills-catalogue), this is the artifact a consumer's
+# `init` verb (a future milestone) actually resolves, at exactly the project's installed version.
 dependencies = []
 
 [project.urls]
@@ -35,11 +31,15 @@ Source = "https://github.com/narrativetrace/narrativetrace-python"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# No Python package: the wheel's payload is the `skills/` directory itself (rendered pages +
+# catalogue.json), installed as a plain top-level directory under site-packages -- there is no
+# `narrativetrace_skills_carrier` import name to resolve, deliberately, since nothing in this
+# distribution is ever imported (see the dependencies comment above). Checked in as committed
+# BUILD OUTPUT of narrativetrace-skills-catalogue's render step (scripts/skills_render.py), never
+# hand-edited; the packaging test (test_carrier_wheel_contents.py) opens the real built wheel and
+# asserts its exact member list.
 [tool.hatch.build.targets.wheel]
-packages = ["src/narrativetrace_skills"]
+packages = ["skills"]
 
-# Mutation config for the Tier B eval runner lives in evals/pyproject.toml, not here -- mutmut
-# runs from evals/ itself (`uv run poe mutate-skills`), not from this package's root, because the
-# runner's cross-imports are flat (`import quota`, not `narrativetrace_skills.evals.quota`) and
-# mutmut derives a mutant's key from the path relative to its own cwd. See that file's own
-# comment, and [tool.narrativetrace.mutation.package_dir] in the root pyproject.toml.
+[tool.hatch.build.targets.sdist]
+include = ["skills/**", "LICENSE", "README.md", "pyproject.toml"]

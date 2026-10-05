@@ -2,10 +2,11 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""The promotion-matrix renderer: ``packages/narrativetrace-skills/ledger/promotion.md`` is
-regenerated from ``ledger/runs.jsonl`` — never hand-edited; drift fails ``poe check``'s
-``promotion-check`` task (``promotion-render`` fixes it). Mirrors ``scripts/skills_render.py``'s
-own drift-check discipline for the SKILL.md/AGENTS.md build output.
+"""The promotion-matrix renderer:
+``packages/narrativetrace-skills-catalogue/ledger/promotion.md`` is regenerated from
+``ledger/runs.jsonl`` — never hand-edited; drift fails ``poe check``'s ``promotion-check`` task
+(``promotion-render`` fixes it). Mirrors ``scripts/skills_render.py``'s own drift-check discipline
+for the SKILL.md/AGENTS.md build output.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from narrativetrace_skills import SKILLS
 from scripts.translation_check import REPO_ROOT
 
-_LEDGER_DIR = REPO_ROOT / "packages" / "narrativetrace-skills" / "ledger"
+_LEDGER_DIR = REPO_ROOT / "packages" / "narrativetrace-skills-catalogue" / "ledger"
 _RUNS_PATH = _LEDGER_DIR / "runs.jsonl"
 _PROMOTION_PATH = _LEDGER_DIR / "promotion.md"
 

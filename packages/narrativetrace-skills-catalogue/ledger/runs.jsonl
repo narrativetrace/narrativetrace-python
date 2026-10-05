@@ -1,0 +1,8 @@
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-empty-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "fail"}
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-existing-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "fail"}
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-empty-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "pass"}
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-existing-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "pass"}
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-empty-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "pass"}
+{"date": "2026-09-25", "skill": "add-narrative-tracing", "case": "init-prompt-existing-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "pass"}
+{"date": "2026-09-26", "skill": "add-narrative-tracing", "case": "init-prompt-empty-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "pass"}
+{"date": "2026-09-26", "skill": "add-narrative-tracing", "case": "init-prompt-existing-project", "platform": "claude", "model": "haiku", "trial": 1, "result": "fail"}

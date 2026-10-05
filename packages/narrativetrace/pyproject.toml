@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace"
-version = "0.1.2"
+version = "0.2.0"
 description = "Narrative execution tracing for Python — human- and LLM-readable traces"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,7 +16,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
 ]
-dependencies = []
+# One dependency, and it carries no further ones: narrativetrace-tooling is this family's own
+# standard-library-only library (its architecture test pins that), holding the doctor's checks and
+# the agent-skills installer behind the `narrativetrace` console script declared below. No
+# third-party code reaches a consumer's environment through this distribution.
+dependencies = ["narrativetrace-tooling"]
 
 [project.urls]
 Homepage = "https://github.com/narrativetrace/narrativetrace-python"

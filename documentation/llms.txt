@@ -1,17 +1,42 @@
 # narrativetrace-python
 
-*(Docs and published both at 0.1.2; 2 behaviours marked unreleased.)*
-
 > Zero-boilerplate execution tracing: your method and parameter names become the log. A uv
-> workspace with a dependency-free core and thin integration packages.
+> workspace with a core that carries no third-party dependencies, plus thin integration packages.
 
 Wrap an object with `trace_object(obj, context)`; call it; render `context.capture_trace()`.
 The narrative is generated from names and values — no logging calls in the business code.
+
+## Start here (paste this into your agent)
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+1. Read https://narrativetrace.ai/python/llms.txt first. It carries the install block and the
+known traps. Do not guess versions or artifact names.
+2. If this directory has no project yet, create the smallest console app that
+llms.txt's "Install and first trace" block describes. Otherwise work inside the existing
+project and trace one real service boundary.
+3. Add the `narrativetrace` package the way llms.txt shows, then run `uv run narrativetrace
+init --dry-run` and show me the diff. It installs the NarrativeTrace agent skills into this
+project and adds a marked section to AGENTS.md. Run it for real only after I have seen the
+diff.
+4. If the `add-narrative-tracing` skill is now available, follow it. Otherwise follow the
+"Install and first trace (copy this)" block in llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and asserts the trace
+shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`uv run narrativetrace doctor`). Paste
+the trace and the doctor report, explain the trace in two sentences, and list exactly what
+changed in the project.
+Rules: never disable redaction; do not commit `.received.nt` files; apply
+`@not_traced` to the real parameter, because importing it protects nothing; run everything in
+the foreground and read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Install and first trace (copy this)
 
 ```bash
 uv add narrativetrace
+uv add --dev pytest narrativetrace-pytest
 ```
 
 <!-- snippet: examples/sixty_seconds/main_llms.py -->
@@ -49,19 +74,67 @@ OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantit
 ```
 <!-- /snippet -->
 
+Add one test that proves it — the deny-list needs no `@not_traced`; it matches a parameter like
+`payment_token` by name alone:
+
+<!-- snippet: examples/sixty_seconds/redaction_llms.py -->
+```python
+# test_redaction.py
+from narrativetrace import IndentedTextRenderer, trace_object
+
+
+class PaymentService:
+    def charge_card(self, payment_token, amount):
+        return "captured"
+
+
+def test_deny_listed_parameter_is_redacted(narrative_trace):
+    service = trace_object(PaymentService(), narrative_trace)
+    service.charge_card("tok_live_4242", 1999)
+
+    rendered = IndentedTextRenderer().render(narrative_trace.capture_trace())
+
+    assert "[REDACTED]" in rendered
+    assert "1999" in rendered
+```
+<!-- /snippet -->
+
+Run: `uv run pytest`. Expected: `1 passed`.
+
 ## Before you start
 
-- One `LoggingTraceConsumer` per event stream, always — on PyPI `0.1.1` a second one on the same events silently corrupts `nt.depth`; each instance counts its own depth *(since 0.1.2)* so this no longer happens, but a second instance is still needless (add `logging.Handler`s instead).
-- Sending a trace to your logger: on `0.1.1`, replay `store.events()` through `LoggingTraceConsumer` by hand; one-call `export_to_logger(trace)` *(since 0.1.2)*.
+- One `LoggingTraceConsumer` per event stream: each instance counts its own depth, so a second one on the same events still reports correctly — it is simply needless (add `logging.Handler`s instead).
+- Sending a trace to your logger is one call: `export_to_logger(trace)`.
 - Every package installs from PyPI today (`uv add ...`); a workspace checkout is only for contributing to this repo, never required to use it.
-- `narrativetrace-pytest` artifact-writing defaults **on** *(since 0.1.2)* — PyPI's published `0.1.1` still ships it **off**; set `NARRATIVETRACE_OUTPUT=true` explicitly until the next release.
-- `narrativetrace-structlog` pulls in `structlog` itself *(since 0.1.2)* — on PyPI's published `0.1.1` it is an optional extra; add it explicitly (`uv add structlog`) on that version.
+- `narrativetrace-pytest` artifact-writing defaults **on**; `NARRATIVETRACE_OUTPUT=false` opts out.
+- `narrativetrace-structlog` pulls in `structlog` itself — `uv add narrativetrace-structlog` is all the processor needs.
 - Loguru needs no NarrativeTrace-specific bridge at all — point Loguru's own documented `InterceptHandler` recipe at the stdlib root logger and `export_to_logger(trace)` reaches your Loguru sink (see [Logging Guide § Loguru](guides/logging.md#loguru)).
-- A composite's own `__str__`/`__repr__` is never trusted for redaction *(since 0.1.2)* — any object carrying instance state is introspected field-by-field regardless, **except a platform-defined type** (`pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*`), which keeps its own short `str()` — decided by origin (`__module__`, never a name prefix), so a lookalike or a subclass is still walked (see [Privacy and Redaction](privacy-and-redaction.md)).
+- A composite's own `__str__`/`__repr__` is never trusted for redaction — any object carrying instance state is introspected field-by-field regardless, **except a platform-defined type** (`pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction`, `ipaddress.*`), which keeps its own short `str()` — decided by origin (`__module__`, never a name prefix), so a lookalike or a subclass is still walked (see [Privacy and Redaction](privacy-and-redaction.md)).
 - `__nt_not_traced__` is a class attribute — a tuple/list/set of field names — for redacting fields on any object a dataclass field can't reach (see the [Decorators guide](guides/decorators.md)).
-- `narrativetrace-pytest` now also writes a value-free `.nt` structural artifact per test invocation, with a `manifest.json` index and a last-green delta on the suite footer *(since 0.1.2)*; `NARRATIVETRACE_APPROVAL=true` turns on approval mode against a committed `.approved.nt` trace, promoted with `uv run poe approve` / `narrativetrace-approve` (see [Structural Trace Format](structural-trace-format.md)).
-- The run has a name *(since 0.1.2)*: one id per pytest session, its three-word phrase in the suite footer, `manifest.json`'s top-level `run` object, every trace document's frontmatter, and the logging bridge's `runName` key — never in the structural `.nt` text (see [Configuration Guide § The run has a name](guides/configuration.md#the-run-has-a-name)).
+- `narrativetrace-pytest` also writes a value-free `.nt` structural artifact per test invocation, with a `manifest.json` index and a last-green delta on the suite footer; `NARRATIVETRACE_APPROVAL=true` turns on approval mode against a committed `.approved.nt` trace, promoted with `uv run poe approve` / `narrativetrace-approve` (see [Structural Trace Format](structural-trace-format.md)).
+- The run has a name: one id per pytest session, its three-word phrase in the suite footer, `manifest.json`'s top-level `run` object, every trace document's frontmatter, and the logging bridge's `runName` key — never in the structural `.nt` text (see [Configuration Guide § The run has a name](guides/configuration.md#the-run-has-a-name)).
 - Importing `not_traced` or `narrated` protects nothing by itself — apply each to a real parameter/field/method and prove it with `assert "[REDACTED]" in rendered`; `uv run narrativetrace doctor` catches the unapplied-marker shape of this (`trap.silent-sink`, `trap.redaction-proof`) — see [Privacy and Redaction § You imported this — apply it like this](privacy-and-redaction.md#you-imported-this--apply-it-like-this).
+
+## Agent skills
+
+Two skills ship with the packages. `uv run narrativetrace init --dry-run` installs them (see "The doctor" below and [Agent Skills](agent-skills.md)); copying the rendered pages by hand into `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/` or `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` (Codex CLI) still works, and the always-on `AGENTS.md` pointer names them either way:
+
+- `narrativetrace-doctor` — Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being traced, no trace output files appear, DuplicateConfigurationError shows up on startup, a *args method's parameters render as one args: [...] value, or you are not sure NarrativeTrace is wired up correctly. Read-only -- makes no changes.
+- `add-narrative-tracing` — Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- then previews the agent-skills install so the next session finds them.
+
+## The doctor
+
+```bash
+uv run narrativetrace doctor
+```
+
+`uv add narrativetrace` — the install block above — already puts this console script on your path; nothing else to install. `--json` emits the same report as machine-readable JSON. Twelve checks, `config.skills-installed` among them: whether the agent skills above are installed under `.agents/skills/` and current with this project's release.
+
+```bash
+uv run narrativetrace init --dry-run   # preview installing the agent skills; --json for the envelope
+uv run narrativetrace init             # apply it, once you've read the diff
+uv run narrativetrace uninstall        # remove exactly what init wrote
+```
 
 ## Field notes from AI agents (self-reported, not a benchmark)
 We asked AI agents to build a claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. The reports so far are from the Java runtime; the same exercise runs for Python next, and the principle they describe — the trace as evidence, redaction by parameter name, output on by default — is the same here. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying
@@ -90,7 +163,7 @@ We asked AI agents to build a claims service with NarrativeTrace and write up th
 - [Logging, structlog & Loguru](guides/logging.md)
 - [OpenTelemetry](guides/opentelemetry.md)
 - [Clarity](guides/clarity.md)
-- [Agent Skills](agent-skills.md): `add-narrative-tracing` — install and first trace, ending at the doctor — and `narrativetrace-doctor` — a thin, read-only agent skill over `uv run narrativetrace doctor`, installable today via `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/`, `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` for Codex CLI, or the always-on `AGENTS.md` pointer *(since 0.1.2)*
+- [Agent Skills](agent-skills.md) — see [Agent skills](#agent-skills) above
 
 ## Examples
 

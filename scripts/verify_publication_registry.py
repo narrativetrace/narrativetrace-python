@@ -28,6 +28,7 @@ Two independent checks share the same registry, for opposite reasons:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from time import monotonic
@@ -80,6 +81,28 @@ def default_fetch_status(url: str) -> int:
         return exc.code
     except URLError:
         return 0
+
+
+def fetch_latest_version(name: str, *, registry_base: str = DEFAULT_REGISTRY_BASE) -> str | None:
+    """The latest version the registry serves for `name`, or `None` for "no answer" — the same
+    sentinel `default_fetch_status`'s `0` plays for the status lookups above, so a caller never has
+    to tell a network failure from a malformed payload. Never raises on either.
+
+    `scripts/contract_check.py` uses this to resolve which published version to install when no
+    `v*` tag is reachable: that is a fact about the ARTIFACT to probe, not version talk in a
+    document (`scripts/version_literals.py`), so it stays.
+    """
+    try:
+        with urlopen(  # nosec B310 - registry_base is DEFAULT_REGISTRY_BASE (https, fixed) unless
+            # a caller deliberately overrides it (e.g. a rehearsal against TestPyPI).
+            project_url(registry_base, name),
+            timeout=DEFAULT_FETCH_TIMEOUT_SECONDS,
+        ) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (URLError, HTTPError, TimeoutError, ValueError):
+        return None
+    version = payload.get("info", {}).get("version")
+    return version if isinstance(version, str) and version else None
 
 
 def classify_presence(version_status: int, project_status: int | None) -> Presence:

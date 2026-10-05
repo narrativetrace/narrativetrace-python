@@ -1,7 +1,7 @@
 # narrativetrace-python — full reference
 
 Zero-boilerplate execution tracing where your method and parameter names are the log. A uv
-workspace: a dependency-free core plus thin integration packages.
+workspace: a core that carries no third-party dependencies, plus thin integration packages.
 
 ## Core concept
 

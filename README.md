@@ -4,7 +4,32 @@
 
 ## Start here
 
-[See a trace in 60 seconds](documentation/sixty-seconds.md) — a plain script, one run, and the trace is in your terminal.
+- [See a trace in 60 seconds](documentation/sixty-seconds.md) — a plain script, one run, and the trace is in your terminal.
+- Working with an AI agent? Paste this:
+
+```text
+Set up NarrativeTrace in this project and show me its first trace.
+1. Read https://narrativetrace.ai/python/llms.txt first. It carries the install block and the
+known traps. Do not guess versions or artifact names.
+2. If this directory has no project yet, create the smallest console app that
+llms.txt's "Install and first trace" block describes. Otherwise work inside the existing
+project and trace one real service boundary.
+3. Add the `narrativetrace` package the way llms.txt shows, then run `uv run narrativetrace
+init --dry-run` and show me the diff. It installs the NarrativeTrace agent skills into this
+project and adds a marked section to AGENTS.md. Run it for real only after I have seen the
+diff.
+4. If the `add-narrative-tracing` skill is now available, follow it. Otherwise follow the
+"Install and first trace (copy this)" block in llms.txt.
+5. Add one test that traces a call with a deny-listed parameter and asserts the trace
+shows `[REDACTED]` for it.
+6. Run the program, then run the doctor (`uv run narrativetrace doctor`). Paste
+the trace and the doctor report, explain the trace in two sentences, and list exactly what
+changed in the project.
+Rules: never disable redaction; do not commit `.received.nt` files; apply
+`@not_traced` to the real parameter, because importing it protects nothing; run everything in
+the foreground and read the output before you report; if you cannot fetch URLs, say so and I
+will paste llms.txt.
+```
 
 ## Demo
 
@@ -258,9 +283,7 @@ class TestOrderService:
         service.place_order("C-1234", "SKU-KB", 2)
 ```
 
-**3. Run the suite — artifacts are written by default** *(since 0.1.2)* — PyPI's
-published `0.1.1` still ships this off; set `NARRATIVETRACE_OUTPUT=true` explicitly on that
-version:
+**3. Run the suite — artifacts are written by default:**
 
 ```bash
 uv run pytest
@@ -342,7 +365,7 @@ wrappers: [Choosing an Integration](documentation/choosing-an-integration.md).
 
 | Package | Purpose |
 |---|---|
-| [`narrativetrace`](packages/narrativetrace) | Dependency-free core: capture, decorators, rendering, redaction, concurrency, JSON export, logging bridge |
+| [`narrativetrace`](packages/narrativetrace) | Core, no third-party dependencies: capture, decorators, rendering, redaction, concurrency, JSON export, logging bridge |
 | [`narrativetrace-pytest`](packages/narrativetrace-pytest) | pytest plugin: per-test `narrative_trace` fixture, artifacts, clarity footer |
 | [`narrativetrace-diagrams`](packages/narrativetrace-diagrams) | Mermaid + PlantUML sequence-diagram renderers |
 | [`narrativetrace-otel`](packages/narrativetrace-otel) | OpenTelemetry span bridge (live listener + batch exporter) |
@@ -378,11 +401,11 @@ see [Privacy and Redaction](documentation/privacy-and-redaction.md) for the exac
   only members NarrativeTrace invokes are a curated `@narrative_summary` method, a custom
   `__str__` when the type carries no fields at all or is platform-defined, and property paths named
   in a `@narrated`/`@on_error` template — keep those pure, as you would for a debugger. A
-  composite's own `__str__` is otherwise never trusted *(since 0.1.2)*: any object
+  composite's own `__str__` is otherwise never trusted: any object
   carrying instance state is introspected field-by-field regardless of a custom `__str__`, so a
   hand-written one cannot bypass redaction, directly or via a nested object — a dict/map key goes
-  through the same check. The one exception is a type the platform itself defines
-  *(since 0.1.2)* — `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
+  through the same check. The one exception is a type the platform itself defines —
+  `pathlib.Path`, `datetime`, `decimal.Decimal`, `uuid.UUID`,
   `fractions.Fraction`, `ipaddress.*` — decided by origin (its `__module__`, never a name prefix),
   so a lookalike or a subclass is still walked. A raising summary/`__str__`/getter renders
   `<error: TypeName>` for that one part, never the exception's own message.
@@ -457,7 +480,7 @@ Going deeper:
 
 - [Privacy and Redaction](documentation/privacy-and-redaction.md) — the row-by-row redaction contract, verified against the code
 - [What to Commit](documentation/what-to-commit.md) — which generated files are CI artifacts, and which (if any) are reviewed baselines
-- [Agent Skills](documentation/agent-skills.md) — `narrativetrace-doctor`, a thin, read-only agent skill over `uv run narrativetrace doctor` *(since 0.1.2)*
+- [Agent Skills](documentation/agent-skills.md) — `narrativetrace-doctor`, a thin, read-only agent skill over `uv run narrativetrace doctor`
 - [Troubleshooting](documentation/troubleshooting.md) — symptom → cause → fix for the failure modes people actually hit
 - [pytest Guide](documentation/guides/pytest.md) · [FastAPI/ASGI Guide](documentation/guides/fastapi-asgi.md) · [OpenTelemetry Guide](documentation/guides/opentelemetry.md) · [Logging Guide](documentation/guides/logging.md) · [Clarity Guide](documentation/guides/clarity.md)
 - [Feature Guide](documentation/feature-guide.md) — every feature this runtime ships, with tier and status

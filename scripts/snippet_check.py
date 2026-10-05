@@ -60,8 +60,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.llms_banner import check_banner
 from scripts.translation_check import REPO_ROOT, translated_files
+from scripts.version_literals import check as check_version_literals
+from scripts.version_literals import read_version
 
 _MARKER_OPEN_RE = re.compile(r"^<!--\s*snippet:\s*(?P<rest>.+?)\s*-->\s*$")
 _MARKER_CLOSE = "<!-- /snippet -->"
@@ -314,14 +315,25 @@ def _check_file(repo_root: Path, path: Path) -> list[str]:
 
 
 def check_repository(repo_root: Path) -> list[str]:
-    """Every drifted snippet block across every English documentation page, in file/line order,
-    plus a stale `documentation/llms.txt` docs-vs-published banner line (`scripts/llms_banner.py`).
-    """
+    """Every drifted snippet block across every English documentation page, in file/line order."""
     failures: list[str] = []
     for path in _english_markdown_files(repo_root):
         failures.extend(_check_file(repo_root, path))
-    failures.extend(check_banner(repo_root))
     return failures
+
+
+def check_all(repo_root: Path) -> list[str]:
+    """Everything `poe snippet-check` gates: drifted snippet blocks (:func:`check_repository`) plus
+    every version-talk problem `scripts/version_literals.py` finds across every public document (a
+    NarrativeTrace install coordinate pinned somewhere other than this repository's own version, a
+    retired `*(since X)*` marker, a docs-vs-published banner).
+
+    The two rules share one gate for one reason: both say a page describes the code it ships with,
+    and `poe snippet-sync` is the only thing that writes either kind of generated content back.
+    They stay separate FUNCTIONS because only this one needs a version source -- `check_repository`
+    runs against a synthetic tree with no `pyproject.toml` in it, and reading one there would be a
+    crash, not a finding."""
+    return check_repository(repo_root) + check_version_literals(repo_root, read_version(repo_root))
 
 
 def _resync_lines(repo_root: Path, path: Path, lines: list[str], text: str) -> list[str]:
@@ -392,13 +404,16 @@ def sync_repository(repo_root: Path) -> list[str]:
 
 
 def main() -> int:
-    failures = check_repository(REPO_ROOT)
+    failures = check_all(REPO_ROOT)
     if failures:
-        print("ERROR: snippet-check found page content out of sync with its source:")
+        print("ERROR: snippet-check found pages out of step with the code they ship with:")
         for failure in failures:
             print(f"  {failure}")
         return 1
-    print("snippet-check: every embedded code/output block matches its source")
+    print(
+        "snippet-check: every embedded code/output block matches its source, and no public "
+        "document talks about a NarrativeTrace version"
+    )
     return 0
 
 

@@ -13,6 +13,8 @@ and backoff-loop logic against an injected fake clock/fetcher, matching the same
 
 from __future__ import annotations
 
+from urllib.error import URLError
+
 import pytest
 from scripts.verify_publication_registry import (
     PollOptions,
@@ -21,6 +23,7 @@ from scripts.verify_publication_registry import (
     check_presence_one,
     classify_absence,
     classify_presence,
+    fetch_latest_version,
     poll_presence,
     project_url,
     version_url,
@@ -195,3 +198,57 @@ class TestPollPresence:
 
         assert waits[0] == 1.0
         assert all(w <= 2.0 for w in waits)
+
+
+class _FakeResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+class TestFetchLatestVersion:
+    def test_reads_the_projects_own_latest_from_the_registry_json(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "scripts.verify_publication_registry.urlopen",
+            lambda url, timeout: _FakeResponse(b'{"info": {"version": "1.2.3"}}'),
+        )
+
+        assert fetch_latest_version("narrativetrace") == "1.2.3"
+
+    def test_an_unreachable_registry_is_no_answer_never_a_raise(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _refuse(url: str, timeout: float) -> object:
+            raise URLError("offline")
+
+        monkeypatch.setattr("scripts.verify_publication_registry.urlopen", _refuse)
+
+        assert fetch_latest_version("narrativetrace") is None
+
+    def test_a_payload_without_a_version_is_no_answer_too(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "scripts.verify_publication_registry.urlopen",
+            lambda url, timeout: _FakeResponse(b'{"info": {}}'),
+        )
+
+        assert fetch_latest_version("narrativetrace") is None
+
+    def test_unparseable_json_is_no_answer_too(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "scripts.verify_publication_registry.urlopen",
+            lambda url, timeout: _FakeResponse(b"not json"),
+        )
+
+        assert fetch_latest_version("narrativetrace") is None

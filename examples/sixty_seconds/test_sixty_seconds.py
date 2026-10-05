@@ -36,17 +36,24 @@ plugin (see ``conftest.py`` / ``pyproject.toml``'s ``addopts``, needed so pytest
 the same ``pytester`` technique ``packages/narrativetrace-pytest/tests/test_plugin.py`` uses --
 driving the identical ``OrderService.place_order`` call through the fixture and checking the
 artifact it writes.
+
+``redaction_llms.py`` is the same idea, one step further: the init prompt's "Add one test" step
+(documentation/llms.txt) names a fixture-carried snippet, not a script, so it is not named
+``main_*.py`` and never runs by ``_run_script`` -- it is fed, verbatim off disk, into the same
+``pytester`` subprocess as the fixture check above, proving the exact text `llms.txt` embeds is a
+real, passing test, not typed prose.
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import re
 from pathlib import Path
 
 import pytest
 
-from examples.sixty_seconds.tutorial_artifacts import write_artifacts
+from examples.sixty_seconds.tutorial_artifacts import write_agent_skills_preview, write_artifacts
 
 _HERE = Path(__file__).parent
 
@@ -148,6 +155,17 @@ def _assert_pytest_fixture_writes_an_artifact(pytester: pytest.Pytester) -> None
     assert len(artifacts) == 1, "narrativetrace-pytest must write a trace artifact by default"
 
 
+def _assert_redaction_snippet_passes(pytester: pytest.Pytester) -> None:
+    """Runs ``redaction_llms.py`` -- the file `llms.txt`'s "Add one test" step embeds -- for real,
+    through the ``narrative_trace`` fixture, in the same isolated subprocess technique as
+    ``_assert_pytest_fixture_writes_an_artifact`` above (this repo's own outer session disables
+    the plugin, so the snippet cannot be collected directly; see the module docstring)."""
+    source = (_HERE / "redaction_llms.py").read_text(encoding="utf-8")
+    pytester.makepyfile(source)
+    result = pytester.runpytest_subprocess()
+    result.assert_outcomes(passed=1)
+
+
 def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
     """Runs the tutorial call through the real traced proxy five ways, once per page/llms.txt/
     Logging Guide section:
@@ -157,7 +175,8 @@ def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
     - its redaction-wired sibling (llms.txt's "Install and first trace" block), same treatment;
     - its Loguru-wired sibling (the Logging Guide's Loguru section), same treatment;
     - the identical call again, through ``narrativetrace-pytest``'s fixture in an isolated
-      subprocess, proving the runtime's own test integration writes the artifact by default.
+      subprocess, proving the runtime's own test integration writes the artifact by default;
+    - `llms.txt`'s "Add one test" step (``redaction_llms.py``), the same way.
     """
     plain, with_logger, with_redaction, with_loguru = write_artifacts()
 
@@ -166,3 +185,19 @@ def test_see_a_trace_in_60_seconds(pytester: pytest.Pytester) -> None:
     _assert_redaction_output(with_redaction)
     _assert_loguru_output(with_loguru)
     _assert_pytest_fixture_writes_an_artifact(pytester)
+    _assert_redaction_snippet_passes(pytester)
+
+
+def test_the_agent_skills_init_preview_shows_a_clean_plan_and_writes_nothing() -> None:
+    """`documentation/agent-skills.md`'s "Installing them" section embeds this preview -- the same
+    `narrativetrace init --dry-run --json` command `add-narrative-tracing`'s own last step
+    replays (Tier A2). Proves it is safe to embed: a real plan, and nothing written."""
+    preview = json.loads(write_agent_skills_preview())
+
+    assert preview["exit_code"] == 0
+    assert preview["carrier"].startswith("narrativetrace")
+    paths = {action["path"] for action in preview["actions"]}
+    assert "AGENTS.md" in paths
+    assert any(path.startswith(".agents/skills/") for path in paths)
+    assert not (_HERE / "AGENTS.md").exists()
+    assert not (_HERE / ".agents").exists()

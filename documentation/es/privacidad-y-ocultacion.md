@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob f6ea3847f2f0 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 248d7821369f | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -75,7 +75,7 @@ con cada decorador: [Guía de decoradores](guia-de-decoradores.md).
 | Procesador de structlog / puente de logging de la stdlib | No |
 | Un `ValueRenderer` personalizado que construya tu propio código | Sí — solo pasando `RedactionPolicy.DISABLED` a `trace_object(obj, context, renderer=ValueRenderer(redaction_policy=RedactionPolicy.DISABLED))` explícitamente |
 | `@not_traced` / `not_traced_field(...)` | No aplica — es lo que provoca la ocultación, y siempre gana |
-| Artefacto estructural `.nt` *(since 0.1.2)* | No aplica — no lleva ningún valor que ocultar en primer lugar |
+| Artefacto estructural `.nt` | No aplica — no lleva ningún valor que ocultar en primer lugar |
 
 Cada integración distribuida renderiza valores mediante el mismo mecanismo `ValueRenderer`/
 `RedactionPolicy` que usa `trace_object` por defecto (`RedactionPolicy.DEFAULT`) — ninguna expone un
@@ -113,7 +113,7 @@ dataclass — la ocultación sobrevive ese nivel de contenedor. Y gana sobre una
 que lo nombra: `{param.property}` en `@narrated`/`@on_error` resuelve una ruta hacia un miembro
 oculto como `[REDACTED]`, en cada nivel de la ruta, nunca con el valor literal.
 
-**El propio `__str__`/`__repr__` de un tipo compuesto nunca es de confianza** *(since 0.1.2)*. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`, o
+**El propio `__str__`/`__repr__` de un tipo compuesto nunca es de confianza**. Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`, o
 un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin importar
 si además define un `__str__`/`__repr__` personalizado; ese método escrito a mano nunca se consulta
 para él. Antes de esta corrección, `ValueRenderer` confiaba en el `__str__` propio de una clase
@@ -127,7 +127,7 @@ exactamente igual que un valor ordinario. `@narrative_summary` no se ve afectado
 forma admitida de darle a un compuesto un resumen curado de una línea en vez del predeterminado
 campo por campo.
 
-**No exponer ningún campo legible tampoco otorga confianza** *(since 0.1.3, unreleased)*. Un valor
+**No exponer ningún campo legible tampoco otorga confianza**. Un valor
 cuyo estado la introspección no puede ver — una subclase de `ctypes.Structure` o un tipo de
 extensión que guarda sus campos en una estructura C, una clase que guarda su estado en una tabla a
 nivel de módulo indexada por identidad o en un cierre — se contaba como hoja y respondía por sí
@@ -139,8 +139,8 @@ puede alcanzar. Ese valor ahora se renderiza solo como el nombre de su tipo —
 mismo lo decide el origen (el párrafo siguiente) y nada más; `@narrative_summary` sigue siendo la
 forma admitida de que un tipo se narre a sí mismo.
 
-**Un tipo definido por la plataforma es de confianza para su propio `str()` aunque porte estado**
-*(since 0.1.2)*. La regla anterior es correcta para tipos de aplicación, pero era
+**Un tipo definido por la plataforma es de confianza para su propio `str()` aunque porte estado**.
+La regla anterior es correcta para tipos de aplicación, pero era
 demasiado amplia para los propios tipos de valor de la biblioteca estándar — `pathlib.Path`,
 `datetime`, `decimal.Decimal`, `uuid.UUID`, `fractions.Fraction` e `ipaddress.*` portan todos
 estado de instancia y se estaban introspeccionando campo por campo hasta producir una salida
@@ -161,7 +161,7 @@ portar un campo de aplicación en la lista de denegación, así que confiar en s
 respuesta legible y la segura.
 
 Cuando un método `@narrative_summary`, un `__str__` personalizado, o el propio getter de un campo
-lanza una excepción *(since 0.1.2)*, esa parte se renderiza como `<error: <TypeName>>` — el nombre del TIPO de la
+lanza una excepción, esa parte se renderiza como `<error: <TypeName>>` — el nombre del TIPO de la
 excepción (`<error: ValueError>`, `<error: RecursionError>`) sustituido solo para esa parte. El
 *mensaje* de la excepción deliberadamente nunca se renderiza, porque un mensaje puede llevar el
 mismo valor que falló al renderizarse; solo el nombre del tipo llega a la salida, nunca `str(exc)`.
@@ -196,7 +196,7 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
   `dataclasses.fields()`, los metadatos de attrs, el `_fields` de un `NamedTuple`, o el
   `__dict__`/`__slots__` de la instancia — un getter `@property` calculado nunca se enumera ni se
   ejecuta durante la introspección.
-- **El artefacto estructural `.nt` no lleva ningún valor en tiempo de ejecución** *(since 0.1.2)*. Solo nombres, jerarquía de llamadas y tipos de desenlace — cero superficie de
+- **El artefacto estructural `.nt` no lleva ningún valor en tiempo de ejecución**. Solo nombres, jerarquía de llamadas y tipos de desenlace — cero superficie de
   inyección de prompts, fijado por una prueba de conformidad byte a byte contra el formato de
   referencia, no una política que alguien pueda olvidar aplicar. Su encabezado `scenario:` queda
   cubierto por esa misma garantía: una invocación de un caso `@pytest.mark.parametrize` se titula
@@ -206,7 +206,7 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
 - **El nombre de una traza y el nombre de una ejecución no llevan ningún dato.** Ambos son una
   frase determinista de tres palabras derivada de un id aleatorio (consulta [Guía de
   configuración § La ejecución tiene un
-  nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre) *(since 0.1.2)*) — nunca de nada capturado — así que ninguno de los dos puede filtrar un valor en
+  nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre)) — nunca de nada capturado — así que ninguno de los dos puede filtrar un valor en
   tiempo de ejecución, y ambos se mantienen fuera del artefacto estructural `.nt` por la misma
   razón que todo lo demás en él.
 
@@ -232,7 +232,7 @@ Detalle completo y ejemplos trabajados: [Guía de decoradores](guia-de-decorador
   `scenario:`/`**Scenario:**` de Markdown/JSON y en su nombre de archivo, y `manifest.json` nombra el
   escenario de la misma forma. Ninguna lista de denegación se consulta para él, y esto es deliberado
   (contrato multiplataforma del encabezado estructural) — el único lugar donde esto *sí* está
-  resuelto por ti es el artefacto `.nt` libre de valores *(since 0.1.2)*: el encabezado
+  resuelto por ti es el artefacto `.nt` libre de valores: el encabezado
   estructural de una invocación se titula por el método y su índice de invocación, nunca por el
   nombre visible en el que un id de parametrize interpoló argumentos (ver la garantía de arriba y el
   [Formato de traza estructural](formato-de-traza-estructural.md)). Mantén los secretos fuera de los

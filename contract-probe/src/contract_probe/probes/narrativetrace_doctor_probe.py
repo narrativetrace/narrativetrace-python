@@ -6,13 +6,11 @@
 (parses, carries all eleven finding ids) -- documentation/agent-skills.md
 `#the-narrativetrace-cli`.
 
-`narrativetrace doctor` is new at 0.1.2 -- the `narrativetrace.doctor` package does not exist at
-all in the 0.1.1 wheel's public API, so the import is deferred into `observe()` rather than
-sitting at module level: every probe module is imported by `contract_probe.runner` regardless of
-whether its own entry is applicable at the installed version (docs-vs-published-gate: a `since`
-later than installed is skipped, never failed), and a module-level import of a symbol that does
-not exist yet at an older installed version would break every OTHER probe's import too, not just
-this one's (see `export_to_logger_probe.py` for the pattern).
+The import is deferred into `observe()` rather than sitting at module level: `contract_probe.
+runner` imports every probe module together, and this runner can be pointed at an OLDER published
+artifact (`python -m scripts.contract_check <version>`), whose public API may not carry the
+`narrativetrace.doctor` package at all -- a module-level import of it would then break every OTHER
+probe's import too, not just this one's (see `export_to_logger_probe.py` for the pattern).
 
 Calls `narrativetrace.doctor.cli_bin.main` in-process (never a subprocess) against the current
 working directory -- whatever project `contract-probe` itself runs from (its own `pyproject.toml`

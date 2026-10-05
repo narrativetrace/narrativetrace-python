@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob c4f5e00e06e9 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob ef9043e6620e | translated: 2026-09-17 | reviewed: - -->
 
 # Guía de decoradores
 
@@ -195,7 +195,7 @@ Qué se invoca y qué no:
   introspección. Un `NamedTuple` se introspecciona por nombre de campo en lugar de renderizarse
   como una lista anónima de valores posicionales, de modo que un campo oculto permanece oculto de
   la misma manera que un campo de dataclass.
-- **Un `__str__` personalizado nunca es de confianza para tus propios tipos** *(since 0.1.2)*.
+- **Un `__str__` personalizado nunca es de confianza para tus propios tipos**.
   Cualquier objeto que porte estado de instancia — una dataclass, una clase attrs, un `NamedTuple`,
   o un objeto plano con `__dict__`/`__slots__` poblado — se introspecciona campo por campo sin
   importar si además define `__str__`/`__repr__`; ese método escrito a mano nunca se consulta,
@@ -208,7 +208,7 @@ Qué se invoca y qué no:
   valor. Dale a un compuesto un método `@narrative_summary` cuando quieras un resumen curado de una
   línea en lugar del predeterminado campo por campo — ese mecanismo no se ve afectado y sigue
   siendo la forma admitida de controlar exactamente qué se muestra.
-- **No declarar ningún campo tampoco otorga confianza** *(since 0.1.3, unreleased)*. Un valor cuyo
+- **No declarar ningún campo tampoco otorga confianza**. Un valor cuyo
   estado la introspección no puede ver — una subclase de `ctypes.Structure` o un tipo de extensión
   que guarda sus campos en una estructura C, una clase que guarda su estado en una tabla a nivel de
   módulo indexada por identidad o en un cierre — se contaba como hoja y se renderizaba mediante su
@@ -218,7 +218,7 @@ Qué se invoca y qué no:
   `uuid.UUID`, `decimal.Decimal`, un miembro de `Enum`, …) siguen renderizándose con su propio texto
   breve — esa confianza la decide el origen, y nada más.
 - **Un resumen, `__str__` o getter que lanza excepción renderiza un marcador de error tipado,
-  nunca su propio mensaje** *(since 0.1.2)*. `<error: ValueError>`, `<error: RecursionError>`, y así sucesivamente
+  nunca su propio mensaje**. `<error: ValueError>`, `<error: RecursionError>`, y así sucesivamente
   — el nombre del propio TIPO de la excepción de la parte que falla, sustituido solo para esa
   parte (nunca toda la traza, nunca un `<error>` desnudo). El *mensaje* de la excepción
   deliberadamente nunca se renderiza: un mensaje puede llevar el mismo valor que falló al
