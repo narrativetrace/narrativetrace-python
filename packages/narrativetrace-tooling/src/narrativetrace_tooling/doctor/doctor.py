@@ -3,11 +3,15 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """Every check ``narrativetrace doctor`` runs, in stable, documented order. Adding a check means
-appending here — the id is what stays stable across releases, not the position."""
+appending here — the id is what stays stable across releases, not the position. The framework
+checks (``config.<framework>-*``) are not listed by hand: one is built per framework-table row
+(:mod:`narrativetrace_tooling.frameworks.table`), in table order, after the core checks."""
 
 from __future__ import annotations
 
+from narrativetrace_tooling.doctor.checks.approval_mode import check_approval_mode
 from narrativetrace_tooling.doctor.checks.approval_traces import check_approval_traces
+from narrativetrace_tooling.doctor.checks.framework_wiring import framework_wiring_check
 from narrativetrace_tooling.doctor.checks.llms_before_you_start import check_llms_before_you_start
 from narrativetrace_tooling.doctor.checks.not_traced_unused import check_not_traced_unused
 from narrativetrace_tooling.doctor.checks.output_env import check_output_env
@@ -22,6 +26,7 @@ from narrativetrace_tooling.doctor.checks.redaction_proof import check_redaction
 from narrativetrace_tooling.doctor.checks.skills_installed import check_skills_installed
 from narrativetrace_tooling.doctor.checks.unknown_config_keys import check_unknown_config_keys
 from narrativetrace_tooling.doctor.types import DoctorCheck, DoctorReport, DoctorSnapshot
+from narrativetrace_tooling.frameworks.table import rows_with_wiring_checks
 
 DOCTOR_CHECKS: tuple[DoctorCheck, ...] = (
     check_python_version,
@@ -36,6 +41,8 @@ DOCTOR_CHECKS: tuple[DoctorCheck, ...] = (
     check_redaction_proof,
     check_approval_traces,
     check_llms_before_you_start,
+    check_approval_mode,
+    *(framework_wiring_check(row) for row in rows_with_wiring_checks()),
 )
 
 

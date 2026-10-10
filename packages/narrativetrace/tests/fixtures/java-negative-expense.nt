@@ -1,8 +1,8 @@
 scenario: Negative expense is rejected before touching the ledger
 
-- TripSettlementService.recordExpense(tripName, expense) !! InvalidExpenseException
-  - ExpenseValidator.ensureValid(expense) !! InvalidExpenseException
-- TripSettlementService.settleTrip(tripName) → value
-  - TripLedger.expensesOf(tripName) → value
-  - BalanceCalculator.computeBalances(expenses) → value
-  - SettlementPlanner.planTransfers(balances) → value
+#1 - TripSettlementService.recordExpense(tripName, expense) !! InvalidExpenseException
+  #1.1 - ExpenseValidator.ensureValid(expense) !! InvalidExpenseException
+#2 - TripSettlementService.settleTrip(tripName) → value
+  #2.1 - TripLedger.expensesOf(tripName) → value
+  #2.2 - BalanceCalculator.computeBalances(expenses) → value
+  #2.3 - SettlementPlanner.planTransfers(balances) → value

@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-skills-catalogue"
-version = "0.2.0"
+version = "0.3.0"
 description = "Typed catalogue source for NarrativeTrace's agent skills -- renders the published narrativetrace-skills carrier, .claude/skills/AGENTS.md, and narrativetrace's bundled copy"
 readme = "README.md"
 requires-python = ">=3.12"

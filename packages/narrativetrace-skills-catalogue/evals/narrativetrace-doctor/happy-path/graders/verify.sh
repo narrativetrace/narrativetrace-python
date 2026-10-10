@@ -12,8 +12,8 @@ echo "$report" | uv run python -c '
 import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-if not isinstance(findings, list) or len(findings) != 11:
-    print("expected 11 findings, got", len(findings) if isinstance(findings, list) else findings, file=sys.stderr)
+if not isinstance(findings, list) or len(findings) != 19:
+    print("expected 19 findings, got", len(findings) if isinstance(findings, list) else findings, file=sys.stderr)
     sys.exit(1)
 print("verify.sh: doctor report is well-formed")
 '

@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/logging.md blob 9fdb7c4fa586 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/guides/logging.md blob 91ee7bcf15f3 | translated: 2026-09-17 | reviewed: - -->
 
 # Logging, structlog y Loguru
 
@@ -203,7 +203,7 @@ uv run main.py
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms #1
 DEBUG | → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
 DEBUG | ← returned: "ORD-cust-1-prod-42-3"
 ```

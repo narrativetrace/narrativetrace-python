@@ -29,13 +29,20 @@ def _is_surrogate(codepoint: int) -> bool:
     return 0xD800 <= codepoint <= 0xDFFF
 
 
+def _is_line_separator(codepoint: int) -> bool:
+    """U+2028 and U+2029: not ISO controls, but line terminators to regex engines, JavaScript and
+    many log viewers, so a raw one forges a line exactly as ``\\n`` does."""
+    return codepoint in (0x2028, 0x2029)
+
+
 def control_sanitize(text: str) -> str:
     """Renders every control character and surrogate code point as an inert escape, leaving
     quotes/backslashes intact.
 
     Common controls map to ``\\n``/``\\r``/``\\t``/``\\b``/``\\f`` mnemonics; every other ISO
-    control code point, and every surrogate code point (a security fuzz suite finding, mirrors
-    Java's ``ControlEscape`` fix), maps to ``\\uXXXX``. Quotes and backslashes are legitimate
+    control code point, every surrogate code point (a security fuzz suite finding, mirrors
+    Java's ``ControlEscape`` fix), and the Unicode line and paragraph separators U+2028/U+2029
+    map to ``\\uXXXX``. Quotes and backslashes are legitimate
     value content and pass through unchanged.
 
     A surrogate is not a control character, but no UTF-8 sink can encode it either -- and unlike
@@ -50,7 +57,9 @@ def control_sanitize(text: str) -> str:
         mnemonic = _MNEMONICS.get(char)
         if mnemonic is not None:
             out.append(mnemonic)
-        elif _is_iso_control(codepoint) or _is_surrogate(codepoint):
+        elif (
+            _is_iso_control(codepoint) or _is_surrogate(codepoint) or _is_line_separator(codepoint)
+        ):
             out.append(f"\\u{codepoint:04x}")
         else:
             out.append(char)

@@ -61,11 +61,12 @@ class TestSequenceGrammarShape:
             f"SequenceGrammar.{hook_name} should return the composed diagram text"
         )
 
-    def test_there_are_ten_hooks(self) -> None:
-        # header, participant, call_arrow, activate, return_arrow, throw_arrow, deactivate,
-        # incomplete, limited_note, footer -- eight mirror the Java reference's SequenceGrammar,
-        # activate/deactivate are PlantUML-lifelines-only extras with no Java counterpart.
-        assert len(_hook_names()) == 10
+    def test_there_are_eleven_hooks(self) -> None:
+        # header, participant, call_arrow, activate, span_note, return_arrow, throw_arrow,
+        # deactivate, incomplete, limited_note, footer -- nine mirror the Java reference's
+        # SequenceGrammar, activate/deactivate are PlantUML-lifelines-only extras with no Java
+        # counterpart.
+        assert len(_hook_names()) == 11
 
 
 class TestDiagramLabelConstructionIsClosed:

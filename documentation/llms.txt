@@ -68,9 +68,9 @@ Run: `uv run main.py`. Expected output (duration varies by machine):
 
 <!-- snippet: examples/sixty_seconds/build/see_a_trace_with_redaction.txt mask=duration,traceName -->
 ```text
-trace: meek gull dips (6a17832)
+trace: rural ore thaws (be5e635)
 
-OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+OrderService.place_order(customer_id: [REDACTED], product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms #1
 ```
 <!-- /snippet -->
 
@@ -117,10 +117,16 @@ Run: `uv run pytest`. Expected: `1 passed`.
 
 ## Agent skills
 
-Two skills ship with the packages. `uv run narrativetrace init --dry-run` installs them (see "The doctor" below and [Agent Skills](agent-skills.md)); copying the rendered pages by hand into `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/` or `.agents/skills/{add-narrative-tracing,narrativetrace-doctor}/` (Codex CLI) still works, and the always-on `AGENTS.md` pointer names them either way:
+Six skills ship with the packages. `uv run narrativetrace init --dry-run` installs them (see "The doctor" below and [Agent Skills](agent-skills.md)); copying the rendered pages by hand into `.claude/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug}/` or `.agents/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug}/` (Codex CLI) still works, and the always-on `AGENTS.md` pointer names them either way.
+
+They are also reachable from two registries, each landing the same pages `init` then adopts. The Claude Code plugin marketplace carries them too: `/plugin marketplace add narrativetrace/narrativetrace-python`, then `/plugin install narrativetrace-python@narrativetrace-python` — then run `uv run narrativetrace init --dry-run`, read the diff, and run it without the flag so `AGENTS.md` points at them. `npx skills add narrativetrace/narrativetrace-python` installs the open-standard pages directly into the project — then run `uv run narrativetrace init --dry-run`, read the diff, and run it without the flag so `AGENTS.md` points at them.
 
 - `narrativetrace-doctor` — Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being traced, no trace output files appear, DuplicateConfigurationError shows up on startup, a *args method's parameters render as one args: [...] value, or you are not sure NarrativeTrace is wired up correctly. Read-only -- makes no changes.
-- `add-narrative-tracing` — Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- then previews the agent-skills install so the next session finds them.
+- `add-narrative-tracing` — Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Applies the doctor's framework-wiring fixes for the frameworks the project already uses, and runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- then previews the agent-skills install so the next session finds them.
+- `narrativetrace-feedback` — Reports a defect in NarrativeTrace itself: a doctor check that is wrong or whose fix does not work, a skill step that cannot be followed, wording in the install prompt that led somewhere wrong, or the library misbehaving on a correctly configured project. Drafts the report from your project (the install coordinates, the doctor's own JSON report, and at most one structural trace), refuses to write one that carries a value from your traces, shows you the whole draft, and asks once whether to file it publicly. Files nothing without your answer and sends nothing anywhere.
+- `add-narrativetrace-clarity` — Adds or verifies NarrativeTrace Clarity in a Python project. Use when you want a first naming report, per-element suggestions, or an explicit clarity quality gate. Installs narrativetrace-clarity with uv add --dev, runs the real scan over your packages, checks the report is fresh and scored at least one class, renames what it flags, and re-runs until the gate is clean, preserving any thresholds you already have. Tracing itself being broken goes to narrativetrace-doctor.
+- `narrativetrace-verify` — Verifies a change by reading what the code actually did before saying it is done: decides first whether the change is worth tracing (and says so when it is not), writes the intent down before the run, runs the smallest real path, reads the value-free structural trace (`.nt`) against the intent, opens values only on the span that looks wrong, fixes and re-reads, pins the flow as an `.approved.nt` baseline behind your yes, and reports what the trace showed citing span ids (`#2.1`). Say 'verify this change with the trace' or 'check what the code actually did'.
+- `narrativetrace-debug` — Finds the cause of a wrong result by reading what the code did with the values: reproduces the symptom with the smallest input and tracing on (the sequence diagram first across threads or tasks), names by span id the first span whose inputs are right and whose result is wrong before changing any code, narrows to that span's sub-tree, fixes it there and checks the structural trace shows nothing else moved, keeps the reproduction as a regression test pinned as an `.approved.nt` behind your yes, and reports the root cause by span id — handing a defect in NarrativeTrace itself to `narrativetrace-feedback`. Say 'debug this with the trace' or 'find where this value goes wrong'.
 
 ## The doctor
 
@@ -128,13 +134,27 @@ Two skills ship with the packages. `uv run narrativetrace init --dry-run` instal
 uv run narrativetrace doctor
 ```
 
-`uv add narrativetrace` — the install block above — already puts this console script on your path; nothing else to install. `--json` emits the same report as machine-readable JSON. Twelve checks, `config.skills-installed` among them: whether the agent skills above are installed under `.agents/skills/` and current with this project's release.
+`uv add narrativetrace` — the install block above — already puts this console script on your path; nothing else to install. `--json` emits the same report as machine-readable JSON. Nineteen checks, `config.skills-installed` and `config.approval-mode` among them: whether the agent skills above are installed under `.agents/skills/` and current with this project's release. Six of them are the framework table's: for each framework your project uses, whether its NarrativeTrace integration is added and wired, with the exact lines to add when it is not.
+
+<!-- covered-frameworks:begin -->
+Covered frameworks (each row of the doctor's framework table): pytest (`config.pytest-fixture`); FastAPI / Starlette (ASGI) (`config.asgi-middleware`); OpenTelemetry (`config.otel-listener`); structlog (`config.structlog-processor`); stdlib logging (runtime-only); Flask (no integration shipped); Django (no integration shipped).
+<!-- covered-frameworks:end -->
 
 ```bash
 uv run narrativetrace init --dry-run   # preview installing the agent skills; --json for the envelope
 uv run narrativetrace init             # apply it, once you've read the diff
 uv run narrativetrace uninstall        # remove exactly what init wrote
 ```
+
+## Report a problem
+
+If NarrativeTrace, this file, a skill or the doctor is wrong, ask your agent to use the `narrativetrace-feedback` skill: it drafts the report from your project, refuses to write one that carries a value from your traces, shows you the whole thing, and files nothing until you say so. Nothing is sent anywhere — the draft is yours until you submit it yourself.
+
+```bash
+uv run narrativetrace feedback draft --category <category> --step "<where it happened>" --did "<what you did>" --happened "<what happened>" --expected "<what you expected>"
+```
+
+That writes `build/narrativetrace/feedback/feedback-draft.md` and `feedback-body.md`, and exits 2 naming a `vf.*` rule if a field carries a value instead of a description. `feedback url` (the same flags) then prints the pre-filled issue form for `github.com/narrativetrace/narrativetrace-python`, which you open and submit under your own account. Filing is public: it shows that your project uses NarrativeTrace. `feedback gh` prints the `gh issue create` line instead, only when `gh` is signed in, and never runs it.
 
 ## Field notes from AI agents (self-reported, not a benchmark)
 We asked AI agents to build a claims service with NarrativeTrace and write up the experience for another engineer, naming what was awkward. Prompted, one run each, unedited, model named; we wrote the library. The reports so far are from the Java runtime; the same exercise runs for Python next, and the principle they describe — the trace as evidence, redaction by parameter name, output on by default — is the same here. All six reports, the exact prompt and the task: https://narrativetrace.ai/#agents-saying

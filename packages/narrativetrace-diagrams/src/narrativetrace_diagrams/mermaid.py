@@ -18,10 +18,9 @@ literals that traversal composes with -- see :mod:`sequence_grammar` for the hoo
 from __future__ import annotations
 
 from narrativetrace.tree import TraceTree
-from narrativetrace.tree_walk import TreeWalk
 from narrativetrace_diagrams.diagram_label import DiagramLabel
 from narrativetrace_diagrams.sequence_grammar import LimitReason
-from narrativetrace_diagrams.sequence_walk import collect_participants, render_sequence
+from narrativetrace_diagrams.sequence_walk import collect_participants, render_all
 
 
 class MermaidSequenceGrammar:
@@ -29,7 +28,7 @@ class MermaidSequenceGrammar:
     ``Note over`` for an in-flight outcome or a walk limit.
 
     Stateless -- Mermaid's alias mode is a difference in the label-mapping function
-    ``MermaidSequenceDiagramRenderer`` passes to :func:`sequence_walk.render_sequence`, not in
+    ``MermaidSequenceDiagramRenderer`` passes to :func:`sequence_walk.render_all`, not in
     this grammar, so one instance serves both ``render`` and ``render_with_aliases``. Mermaid has
     no lifeline notion, so ``activate``/``deactivate`` are no-ops.
     """
@@ -63,6 +62,9 @@ class MermaidSequenceGrammar:
 
     def incomplete(self, target: DiagramLabel) -> str:
         return f"    Note over {target.text}: in-flight\n"
+
+    def span_note(self, target: DiagramLabel, span_id: DiagramLabel) -> str:
+        return f"    Note over {target.text}: {span_id.text}\n"
 
     def limited_note(self, target: DiagramLabel, reason: LimitReason) -> str:
         return f"    Note over {target.text}: {reason}\n"
@@ -110,9 +112,7 @@ class MermaidSequenceDiagramRenderer:
         parts = [grammar.header()]
         for participant in collect_participants(tree.roots):
             parts.append(grammar.participant(DiagramLabel.plain_token(participant)))
-        walk = TreeWalk()
-        for root in tree.roots:
-            render_sequence(root, grammar, DiagramLabel.plain_token, parts, walk)
+        render_all(tree.roots, grammar, DiagramLabel.plain_token, parts)
         parts.append(grammar.footer())
         return "".join(parts).rstrip()
 
@@ -126,8 +126,6 @@ class MermaidSequenceDiagramRenderer:
             alias_label = aliases[participant]
             display_label = DiagramLabel.quoted_identifier(participant)
             parts.append(grammar.participant(alias_label.aliased_as(display_label)))
-        walk = TreeWalk()
-        for root in tree.roots:
-            render_sequence(root, grammar, aliases.__getitem__, parts, walk)
+        render_all(tree.roots, grammar, aliases.__getitem__, parts)
         parts.append(grammar.footer())
         return "".join(parts).rstrip()

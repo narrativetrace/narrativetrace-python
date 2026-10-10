@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-tooling"
-version = "0.2.0"
+version = "0.3.0"
 description = "The free-tier tooling library: the read-only doctor that diagnoses a project, and the installer that copies the agent skills into it. Standard library only, zero network"
 readme = "README.md"
 requires-python = ">=3.12"

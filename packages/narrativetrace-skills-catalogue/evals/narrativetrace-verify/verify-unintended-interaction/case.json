@@ -1,0 +1,5 @@
+{
+  "fixture": "packages/narrativetrace-skills-catalogue/evals/fixtures/existing-service-checkout",
+  "install": "checkout",
+  "turns": { "2": "yes, pin it" }
+}

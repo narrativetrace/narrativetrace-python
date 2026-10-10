@@ -129,6 +129,35 @@ class TestNotInstalled:
         assert finding.status == "fail"
         assert "narrativetrace-doctor, add-narrative-tracing is there, not ours" in finding.message
 
+    def test_a_page_that_is_there_without_our_line_names_the_registry_case_and_the_fix(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        """The obvious reading of "not ours" is "somebody else's work", which invites a ``--force``
+        nobody needs: a page identical to this release's is ADOPTED. The fix says so in as many
+        words, because this message is the one a person acts on."""
+        snapshot = make_snapshot(
+            catalogue_skill_names=_CATALOGUE,
+            installed_skills=(_theirs("narrativetrace-doctor"),),
+            narrativetrace_version=_VERSION,
+        )
+
+        finding = check_skills_installed(snapshot)
+
+        assert finding.fix == (
+            "Run `uv run narrativetrace init --dry-run`, read the diff, then run it without the"
+            " flag. Pages that are there without our line usually came from a registry (npx skills"
+            " add, a plugin or workspace install). A page identical to this release's is adopted,"
+            " and no --force is needed."
+        )
+
+    def test_the_registry_sentence_is_absent_when_no_page_is_there_at_all(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        """Nothing to explain: the project simply never ran the installer."""
+        snapshot = make_snapshot(catalogue_skill_names=_CATALOGUE, narrativetrace_version=_VERSION)
+
+        assert "registry" not in check_skills_installed(snapshot).fix
+
     def test_names_a_foreign_directory_at_a_skills_path(self, make_snapshot: MakeSnapshot) -> None:
         snapshot = make_snapshot(
             catalogue_skill_names=_CATALOGUE,
@@ -291,8 +320,9 @@ class TestPartial:
             == "the agent skills are installed, but add-narrative-tracing is missing"
         )
         assert finding.fix == (
-            "Run `uv run narrativetrace init --dry-run` to add the missing page(s); --force lets"
-            " it replace a directory somebody else owns."
+            "Run `uv run narrativetrace init --dry-run` to add the missing page(s). A page"
+            " identical to this release's is adopted as it stands; --force is only for a directory"
+            " somebody else really owns."
         )
 
     def test_two_missing_skills_are_both_named_comma_separated(

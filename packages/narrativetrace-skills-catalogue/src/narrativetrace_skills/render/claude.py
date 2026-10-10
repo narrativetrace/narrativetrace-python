@@ -15,6 +15,12 @@ name is legitimate only inside a Claude plugin whose own prefix already carries 
 (ruling, skills design, 2026-09-04, reaffirmed 2026-09-13); this repository ships a plain
 ``.claude/skills/`` directory, which is itself a flat namespace, not a plugin, so the canonical,
 globally self-identifying name is the only one safe to render here.
+
+``allowed-tools`` carries TOOL PATTERNS (``claude_tool_pattern``), never the catalogue's bare
+command names: Claude Code's own syntax lists tools, spelled ``Tool`` or ``Tool(specifier)``, so
+a bare ``git`` there names a tool that does not exist and pre-approves nothing at all. A skill
+declaring none gets NO ``allowed-tools`` line, never an empty one: the line grants its tools for the
+turn that loads the skill, and a skill that can publish must leave the harness asking.
 """
 
 from __future__ import annotations
@@ -26,7 +32,7 @@ from narrativetrace_skills.render._body import (
     common_frontmatter_lines,
     render_skill_page,
 )
-from narrativetrace_skills.skill import Skill
+from narrativetrace_skills.skill import Skill, claude_tool_pattern
 
 
 def render_claude_skill(skill: Skill, resolve_snippet: ResolveSnippet) -> str:
@@ -37,6 +43,8 @@ def _render_frontmatter(skill: Skill) -> str:
     lines = ["---", *common_frontmatter_lines(skill)]
     if skill.when_to_use:
         lines.append(f"when_to_use: {json.dumps(skill.when_to_use)}")
-    lines.append(f"allowed-tools: {', '.join(skill.allowed_tools)}")
+    if skill.allowed_tools:
+        tools = ", ".join(claude_tool_pattern(tool) for tool in skill.allowed_tools)
+        lines.append(f"allowed-tools: {tools}")
     lines.append("---")
     return "\n".join(lines)

@@ -16,6 +16,13 @@
 # one of the two pages -- is neither of D13's two accepted outcomes and fails the case: it is not
 # evidence the diff was ever shown, and not evidence it was safely applied either.
 #
+# $2, when given, names the REGISTRY that delivered this project's pages (claude-marketplace |
+# npx-skills) and relaxes exactly one thing: "previewed" no longer requires an empty
+# .agents/skills, because the registry put both pages there before the agent started. A registry
+# case's own evidence about adoption is not this gate at all -- it is grade_the_registry.sh's plan
+# with zero refusals, which holds in BOTH branches. What stays strict is the middle: exactly one
+# page stamped is a half-applied install in either mode.
+#
 # Writes the outcome ("applied" or "previewed") to $1 so the caller's own doctor check can grade
 # config.skills-installed only on the applied branch (D13) -- exit status alone cannot carry that,
 # and this script runs as a child process, so an environment variable set here would not survive
@@ -23,8 +30,9 @@
 set -e
 
 outfile="$1"
+registry="$2"
 if [ -z "$outfile" ]; then
-  echo "usage: run_the_install_gate.sh <outcome-file>" >&2
+  echo "usage: run_the_install_gate.sh <outcome-file> [registry]" >&2
   exit 1
 fi
 
@@ -32,23 +40,30 @@ provenance="<!-- installed by narrativetrace init from"
 doctor_page=".agents/skills/narrativetrace-doctor/SKILL.md"
 setup_page=".agents/skills/add-narrative-tracing/SKILL.md"
 
-both_pages_ours=0
-if [ -f "$doctor_page" ] && [ -f "$setup_page" ] \
-  && grep -qF "$provenance" "$doctor_page" && grep -qF "$provenance" "$setup_page"; then
-  both_pages_ours=1
-fi
+stamped=0
+for page in "$doctor_page" "$setup_page"; do
+  if [ -f "$page" ] && grep -qF "$provenance" "$page"; then
+    stamped=$((stamped + 1))
+  fi
+done
 
 nothing_installed=1
 if [ -d .agents/skills ] || grep -qF "narrativetrace:start" AGENTS.md 2>/dev/null; then
   nothing_installed=0
 fi
 
-if [ "$both_pages_ours" = "1" ]; then
+if [ "$stamped" = "2" ]; then
   echo "applied" >"$outfile"
   echo "run_the_install_gate.sh: step 3 was applied -- both skill pages carry our provenance"
+elif [ "$stamped" != "0" ]; then
+  echo "step 3's install stamped only one of the two skill pages -- a half-applied install is not one of the two outcomes the prompt permits" >&2
+  exit 1
 elif [ "$nothing_installed" = "1" ]; then
   echo "previewed" >"$outfile"
   echo "run_the_install_gate.sh: step 3 was left at preview -- nothing installed, which the prompt allows"
+elif [ -n "$registry" ]; then
+  echo "previewed" >"$outfile"
+  echo "run_the_install_gate.sh: step 3 was left at preview -- the $registry pages are there, none of them ours"
 else
   echo "step 3's install is neither fully applied (both pages, our provenance) nor left at preview (nothing written) -- a half-applied install is not one of the two outcomes the prompt permits" >&2
   exit 1

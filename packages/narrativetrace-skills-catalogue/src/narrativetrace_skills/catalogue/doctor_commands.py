@@ -25,17 +25,41 @@ _CHECK_FINDINGS_WELL_FORMED = """\
 import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 12 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
 """
 
 DOCTOR_REPORT_WELL_FORMED = (
     f"uv run narrativetrace doctor --json | uv run python -c '{_CHECK_FINDINGS_WELL_FORMED}'"
 )
 """Runs ``narrativetrace doctor`` and asserts the report is well-formed (parses, carries all
-twelve finding ids) — the mechanical floor a step can claim just from "doctor ran". It does NOT
-assert any finding's pass/fail VALUE: those are already unit-tested per-check at the CLI layer,
-and a project's report legitimately fails some checks while still being well-formed — that is
-doctor working correctly, not a defect in whatever step is running this."""
+nineteen finding ids, held to the doctor's registry by ``tests/test_doctor_count_drift.py``) — the
+mechanical floor a step can claim just from "doctor ran". It does NOT assert any finding's
+pass/fail VALUE: those are already unit-tested per-check at the CLI layer, and a project's report
+legitimately fails some checks while still being well-formed — that is doctor working correctly,
+not a defect in whatever step is running this."""
+
+RUN_DOCTOR = "uv run narrativetrace doctor || true"
+"""Runs the doctor and prints its human report. ``|| true`` because a report with findings exits 1,
+and reading those findings is the point of every step that runs it."""
+
+_CHECK_FRAMEWORK_FIXES_APPLIED = """\
+import json, sys
+from narrativetrace_tooling.frameworks.table import wiring_check_ids
+report = json.load(sys.stdin)
+ids = set(wiring_check_ids())
+bad = [f for f in report["findings"] if f["id"] in ids and f["status"] != "pass"]
+for f in bad:
+    print(f["id"] + ": " + f["fix"])
+sys.exit(1 if bad else 0)
+"""
+
+FRAMEWORK_FIXES_APPLIED = (
+    f"uv run narrativetrace doctor --json | uv run python -c '{_CHECK_FRAMEWORK_FIXES_APPLIED}'"
+)
+"""The framework step's definition of done: every ``config.<framework>-*`` finding passes. Names no
+framework on purpose — which frameworks exist and how each is wired is the INSTALLED doctor's
+answer, read from its own framework table (``wiring_check_ids``), so the step cannot go stale when
+a release adds a row. Prints each failing finding's fix, the lines the agent applies next."""
 
 _CHECK_TOOLCHAIN_HOLDS = """\
 import json, sys

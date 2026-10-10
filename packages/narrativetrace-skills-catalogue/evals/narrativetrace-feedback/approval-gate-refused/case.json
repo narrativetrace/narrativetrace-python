@@ -1,0 +1,8 @@
+{
+  "fixture": "packages/narrativetrace-skills-catalogue/evals/fixtures/feedback-false-positive",
+  "install": "checkout",
+  "turns": {
+    "2": "Before I decide, please show me the whole draft.",
+    "3": "no, do not file it"
+  }
+}

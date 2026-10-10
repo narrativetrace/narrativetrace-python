@@ -1,6 +1,6 @@
 ---
 name: add-narrative-tracing
-description: "Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Installs narrativetrace with uv add, wraps an object with trace_object, renders and runs the first trace, then wires the stdlib logging bridge so traces reach your logger. Runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- and previews the agent-skills install so the next session finds them. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in 60 seconds', 'wrap this object so I can see a trace', or 'send my traces to my logger' to invoke it."
+description: "Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Installs narrativetrace with uv add, wraps an object with trace_object, renders and runs the first trace, then wires the stdlib logging bridge so traces reach your logger. Applies the doctor's framework-wiring fixes for the frameworks the project already uses, and runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- and previews the agent-skills install so the next session finds them. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in 60 seconds', 'wrap this object so I can see a trace', or 'send my traces to my logger' to invoke it."
 ---
 
 # add-narrative-tracing
@@ -21,7 +21,27 @@ sys.exit(1 if bad else 0)
 
 **failure:** a sibling narrativetrace-* package disagrees on version — an installed distribution outside the lockstep version the other narrativetrace-* packages share. Fix: run the narrativetrace-doctor skill's toolchain.package-versions check, then pin every narrativetrace-* dependency to the same version and `uv sync`
 
-## 2. First trace: wrap, call, render, run
+## 2. Wire the frameworks this project already uses
+
+```bash
+uv run narrativetrace doctor || true
+```
+
+**verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
+from narrativetrace_tooling.frameworks.table import wiring_check_ids
+report = json.load(sys.stdin)
+ids = set(wiring_check_ids())
+bad = [f for f in report["findings"] if f["id"] in ids and f["status"] != "pass"]
+for f in bad:
+    print(f["id"] + ": " + f["fix"])
+sys.exit(1 if bad else 0)
+'`
+
+**failure:** a config.<framework>-* finding fails — the doctor detected a framework this project uses whose NarrativeTrace integration is not added, or is added but never wired. Fix: run the doctor; apply every config.<framework>-* fix it prints, in order; a framework it reports as having no integration shipped is left alone
+
+## 3. First trace: wrap, call, render, run
+
+**when:** if the project already has an application entry point — a script or module that starts it, a web or application framework the doctor reports — do not create a demo main.py: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the standalone script, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest script as follows
 
 <!-- snippet: examples/sixty_seconds/main.py -->
 ```python
@@ -56,7 +76,9 @@ print(IndentedTextRenderer().render(context.capture_trace()))
 
 **failure:** a *args method's parameters render as one args: [...] value — inspect.signature has nothing named to reconstruct per-argument that Python itself does not have. Fix: supply explicit names: @traced("first", "second", ...) above the method
 
-## 3. Send it to your logger
+## 4. Send it to your logger
+
+**when:** if the project already has an application entry point — a script or module that starts it, a web or application framework the doctor reports — do not create a second main.py or a second logging setup: add the filter and the export_to_logger call to the application's own logging configuration and the boundary you exercised; the verify below is for the standalone script, and in an existing application the step is done when that boundary's trace reaches the application's own logger; otherwise create the smallest script as follows
 
 <!-- snippet: examples/sixty_seconds/main_with_logger.py -->
 ```python
@@ -110,7 +132,7 @@ export_to_logger(trace)  # new: sends the same captured trace through the config
 
 **verify:** `uv run python main_with_logger.py`
 
-## 4. Run the doctor and resolve its findings
+## 5. Run the doctor and resolve its findings
 
 ```bash
 uv run narrativetrace doctor || true
@@ -119,14 +141,16 @@ uv run narrativetrace doctor || true
 **verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 12 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
 '`
 
-## 5. Install the skills for next time
+## 6. Install the skills for next time
 
 ```bash
 uv run narrativetrace init --dry-run
 ```
+
+**done when:** the preview wrote nothing; the next session verifies with narrativetrace-verify — once a change's tests are green, it reads the trace before it reports
 
 **verify:** `uv run python -c 'import pathlib, subprocess, sys
 result = subprocess.run(
@@ -150,5 +174,5 @@ sys.exit(0 if result.returncode == 0 and shown and untouched else 1)
 ## Never
 
 - Never assume a step worked without running its verify. (self-reported success overstates reality -- a build claimed green that does not reproduce from clean is not evidence)
-- Never skip the final narrativetrace doctor call. (it is the seam that catches anything these four steps did not -- narrativetrace-doctor owns diagnosis from here)
+- Never skip the final narrativetrace doctor call. (it is the seam that catches anything these five steps did not -- narrativetrace-doctor owns diagnosis from here)
 - Never apply the installer without showing its diff first. (it writes into AGENTS.md and the project's skill directories, and the approval for that is a person reading the diff -- run it with --dry-run, show the output, and let them run it again without the flag)

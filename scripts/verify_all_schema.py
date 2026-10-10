@@ -6,9 +6,10 @@
 
 The contract is written once, in the Java golden repo's `reports/verification/SCHEMA.md`
 (pro repo TODO §35E) — this module is this port's implementation of it, not a second
-definition: same field names, same four statuses, same 21 category ids. A category this
-runtime lacks still gets a row (`status: "not-implemented"`), never a missing one. A port MAY
-add metric keys a category genuinely has that Java's doesn't; it MUST NOT rename or drop a
+definition: same field names, same four statuses, same 22 category ids (the 22nd,
+`vendor-validation`, added Phase 4 milestone 1 — D6, phase-4-design-2026-09-27.md). A category
+this runtime lacks still gets a row (`status: "not-implemented"`), never a missing one. A port
+MAY add metric keys a category genuinely has that Java's doesn't; it MUST NOT rename or drop a
 field named in the schema, or invent a category id or status outside the fixed vocabularies.
 """
 
@@ -19,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-# Exactly these 21 ids, one row each, always — SCHEMA.md's "Category vocabulary".
+# Exactly these 22 ids, one row each, always — SCHEMA.md's "Category vocabulary".
 CATEGORIES: tuple[str, ...] = (
     "unit-tests",
     "coverage",
@@ -42,6 +43,7 @@ CATEGORIES: tuple[str, ...] = (
     "complexity",
     "translation",
     "clarity",
+    "vendor-validation",
 )
 
 # Exactly these four values — SCHEMA.md's "Status vocabulary".

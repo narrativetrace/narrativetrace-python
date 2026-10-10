@@ -49,9 +49,9 @@ page):
 
 <!-- snippet: examples/build/import_and_use.txt mask=traceName -->
 ```text
-The trace damp shard sways:
+The trace livid bear fits:
 
-The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+The auth service login — login attempt for alice with [REDACTED] (#1), returning "session-for-alice".
 ```
 <!-- /snippet -->
 

@@ -18,7 +18,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from narrativetrace.loss import TraceLoss
-from narrativetrace.output import line_diff
 from narrativetrace.output.artifact_identity import ArtifactIdentity
 from narrativetrace.output.paths import class_directory
 from narrativetrace.output.structural_delta import StructuralDelta
@@ -118,14 +117,15 @@ def _changed_message(delta: StructuralDelta, received_path: Path) -> str:
 
 def _verify_lossy(baseline: str, current: str, incomplete_path: Path, loss: TraceLoss) -> str:
     """Subsequence containment: the run may be short, but everything in it must be in the
-    baseline."""
-    if line_diff.is_subsequence(baseline, current):
+    baseline — span ids set aside, since an omission shifts the ids of later siblings."""
+    delta = StructuralDelta(baseline, current)
+    if delta.only_omits():
         incomplete_path.unlink(missing_ok=True)
         return f"consistent with baseline, but this run was incomplete ({_describe(loss)})"
     write_text_artifact(current, incomplete_path)
     raise AssertionError(
         "Structure changed against the approved trace in a way loss cannot explain:\n"
-        f"{line_diff.unified(baseline, current)}"
+        f"{delta.diff()}"
         f"This run was also incomplete ({_describe(loss)}), so its structure was written to "
         f"{incomplete_path} and is not promotable — fix or rerun, then approve a complete run."
     )

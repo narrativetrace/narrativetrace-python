@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+positive:
+  - "verify this change with the trace"
+  - "check what the code actually did before you report"
+  - "did the flow do what I meant"
+  - "pin this flow as a baseline"
+  - "the tests pass, now confirm the checkout flow calls things in the right order"
+  - "read the trace for this change before saying it is done"
+  - "make sure the notification does not fire before the payment confirms"
+  - "approve the new structural baseline for this flow"
+  - "show me what this refactor changed in the call flow"
+  - "a .received.nt showed up after my change, is that intended"
+
+negative:
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "add narrative tracing to my service"
+  - "report this to NarrativeTrace"
+  - "add a clarity report to this project"
+  - "rename this variable"
+  - "write a unit test for this pure function"
+  - "fix the failing build"
+  - "upgrade narrativetrace to the latest version"
+  - "explain what a span is in OpenTelemetry"

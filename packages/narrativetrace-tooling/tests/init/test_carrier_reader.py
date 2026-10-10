@@ -69,7 +69,7 @@ class TestTheRealCarrier:
         carrier = carriers.real()
 
         assert carrier.coordinate == "skills==unknown"
-        assert len(carrier.skills) == 2
+        assert len(carrier.skills) == 6
 
     def test_hands_out_each_flavour_body_exactly_as_the_carrier_carries_it(self) -> None:
         carrier = carriers.real()
@@ -118,7 +118,7 @@ class TestTheRealBuiltWheel:
         carrier = open_carrier(wheel)
 
         assert carrier.coordinate == f"{SKILLS_DISTRIBUTION}=={VERSION}"
-        assert len(carrier.skills) == 2
+        assert len(carrier.skills) == 6
 
     def test_reads_every_page_out_of_the_wheel_byte_for_byte(self, tmp_path: Path) -> None:
         wheel = _build_carrier_wheel(tmp_path)
@@ -140,7 +140,7 @@ class TestResolvingACarrierWithNoPathGiven:
         resolved = resolve_carrier()
 
         assert resolved.coordinate == f"{SKILLS_DISTRIBUTION}=={VERSION}"
-        assert len(resolved.skills) == 2
+        assert len(resolved.skills) == 6
 
     def test_a_given_path_overrides_both(self, tmp_path: Path) -> None:
         carriers.fake(tmp_path, "only-this-one")

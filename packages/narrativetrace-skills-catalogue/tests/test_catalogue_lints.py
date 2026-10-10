@@ -14,10 +14,13 @@ from pathlib import Path
 from narrativetrace_skills.catalogue_index import PRO_LISTINGS, SKILLS
 from narrativetrace_skills.lints import (
     CATALOGUE_CHAR_BUDGET,
+    allowed_tools_violations,
     catalogue_description_chars,
     catalogue_vocabulary_violations,
     citation_violations,
     listings_disagreeing_with_feature_guide,
+    promotion_not_pre_approved,
+    publishing_not_pre_approved,
     unparseable_commands,
 )
 from narrativetrace_skills.skill import description_fits_budget, steps_without_verify
@@ -27,6 +30,9 @@ _JUDGMENTAL_STEP_TITLES = frozenset(
     {
         "Read the rendered trace before asserting",
         "Approval flow: diff the structural trace, not just values",
+        "Show the whole draft, not a summary of it",
+        "Ask once whether to file it, then stop the turn",
+        "Read the report and rename what it flags",
     }
 )
 
@@ -83,6 +89,15 @@ class TestCatalogueIndex:
     def test_every_commands_strings_first_token_is_in_the_closed_vocabulary(self) -> None:
         assert catalogue_vocabulary_violations(SKILLS) == ()
 
+    def test_every_allowed_tool_is_a_bare_vocabulary_command(self) -> None:
+        assert allowed_tools_violations(SKILLS) == ()
+
+    def test_no_skill_pre_approves_the_command_that_publishes(self) -> None:
+        assert publishing_not_pre_approved(SKILLS) == ()
+
+    def test_no_skill_pre_approves_its_own_promotion(self) -> None:
+        assert promotion_not_pre_approved(SKILLS) == ()
+
     def test_every_non_judgmental_step_carries_a_verify(self) -> None:
         for skill in SKILLS:
             missing = [
@@ -95,7 +110,11 @@ class TestCatalogueIndex:
     def test_an_unstudied_step_is_flagged_not_silently_unverified(self) -> None:
         for skill in SKILLS:
             for step in skill.steps:
-                if step.verify is None and step.title not in _JUDGMENTAL_STEP_TITLES:
+                if (
+                    step.verify is None
+                    and step.done is None
+                    and step.title not in _JUDGMENTAL_STEP_TITLES
+                ):
                     assert step.flag, (
                         f"{skill.canonical_name}: {step.title} has neither verify nor flag"
                     )

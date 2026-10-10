@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 from hostile_corpus import (
     _CORPUS_DIR,
+    feedbacks,
     graphs,
     injections,
     names,
@@ -40,6 +41,7 @@ _FIXTURE_FILES = [
     "names.json",
     "redaction.json",
     "trace-shapes.json",
+    "feedback.json",
 ]
 _ALLOWED_NON_ASCII = "—"  # em-dash, allowed in prose (matches the Java corpus's own rule)
 
@@ -76,6 +78,15 @@ class TestMinimumCaseCounts:
     def test_trace_shapes_has_at_least_four_cases(self) -> None:
         assert len(trace_shapes()) >= 4
 
+    def test_feedbacks_has_more_than_sixty_cases(self) -> None:
+        assert len(feedbacks()) > 60
+
+    def test_the_accepted_half_of_the_feedback_corpus_is_more_than_twenty_cases(self) -> None:
+        """The half that keeps the value-free gate usable, and the half a port gets wrong first:
+        a gate that refuses an install coordinate, a doctor finding id or a hyphenated sentence is
+        a gate an agent learns to route around."""
+        assert sum(1 for case in feedbacks() if not case.must_be_rejected) > 20
+
 
 class TestIdsAreUniqueAndDescribed:
     @pytest.mark.parametrize(
@@ -90,6 +101,7 @@ class TestIdsAreUniqueAndDescribed:
             names(),
             redactions(),
             trace_shapes(),
+            feedbacks(),
         ],
     )
     def test_ids_are_unique(self, cases: tuple[object, ...]) -> None:
@@ -108,6 +120,7 @@ class TestIdsAreUniqueAndDescribed:
             names(),
             redactions(),
             trace_shapes(),
+            feedbacks(),
         ],
     )
     def test_descriptions_are_non_blank(self, cases: tuple[object, ...]) -> None:
@@ -228,6 +241,26 @@ class TestRedactionPositionIsWellFormed:
         for case in redactions():
             if case.is_map_key:
                 assert case.payload == {case.value: "visible-value"}, case.id
+
+
+class TestFeedbackCasesDeclareARuleExactlyWhenRejected:
+    """A ``rejected`` row names the rule whose presence it asserts; an ``accepted`` row names
+    none. Either half written the other way is a row that is replayed as nothing: a rejected row
+    with no rule has no assertion to make, and an accepted row with one reads as a rejection
+    nobody checks."""
+
+    def test_every_case_declares_which_way_it_goes(self) -> None:
+        assert all(c.expect in ("rejected", "accepted") for c in feedbacks())
+
+    def test_a_rejected_case_names_a_rule_and_an_accepted_one_does_not(self) -> None:
+        for case in feedbacks():
+            if case.must_be_rejected:
+                assert case.rule, f"{case.id} is rejected and must name its rule"
+            else:
+                assert case.rule is None, f"{case.id} is accepted and must name no rule"
+
+    def test_every_case_carries_text_to_decide_about(self) -> None:
+        assert all(c.value for c in feedbacks())
 
 
 class TestNoRedactionCanaryIsItselfASecretShape:

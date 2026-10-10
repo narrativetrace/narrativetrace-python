@@ -16,11 +16,14 @@ the seam: the list in the workflow IS the derived set, or the build is red.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
+from scripts.translation_check import REPO_ROOT
 from scripts.verify_publication_packages import derive_workspace_packages
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# REPO_ROOT comes from a scripts/ module on purpose, never from this file's own parents: mutmut
+# re-runs this suite from a `packages/narrativetrace/mutants/` copy one level deeper, where a
+# fixed `parents[3]` resolves to `packages/` and the workflow is "missing" (test_version_literals
+# does the same, and the first mutation run after this test landed is how that was learned).
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "publish.yml"
 
 

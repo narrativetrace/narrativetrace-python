@@ -209,3 +209,89 @@ class TestGuards:
             plan_refresh(MISSING, carrier)
         with pytest.raises(TypeError, match=r"project state and a carrier"):
             plan_refresh(ProjectState(), MISSING)
+
+
+class TestARefreshNeverAdopts:
+    """A BUILD may keep an install current; it may never START one, and adoption is starting one.
+
+    The tree is deliberately part registry and part one-release-stale install: a tree with nothing
+    to refresh would also pass against a refresh that did nothing at all.
+    """
+
+    def test_rewrites_the_stale_page_of_ours_and_leaves_the_registrys_pages_alone(
+        self, carrier: Carrier
+    ) -> None:
+        state = ProjectState(
+            claude_directory=True,
+            installed_skills=(
+                ours("doctor", OLD),
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.FOREIGN,
+                    body=carriers.body("doctor", SkillFlavour.CLAUDE),
+                ),
+            ),
+        )
+
+        plan = plan_refresh(state, carrier)
+
+        assert paths(plan) == [DOCTOR_PAGE]
+        assert all(isinstance(action, ReplaceBlock) for action in plan.actions)
+
+    def test_drops_the_link_replacement_an_install_would_have_planned(
+        self, carrier: Carrier
+    ) -> None:
+        state = ProjectState(
+            claude_directory=True,
+            installed_skills=(
+                ours("doctor", OLD),
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_DIRECTORY,
+                    body=carriers.body("doctor", SkillFlavour.AGENTS),
+                    link="../../.agents/skills/doctor",
+                ),
+            ),
+        )
+
+        plan = plan_refresh(state, carrier)
+
+        assert paths(plan) == [DOCTOR_PAGE]
+
+    def test_a_project_whose_pages_are_all_a_registrys_carries_no_install_of_ours(
+        self, carrier: Carrier
+    ) -> None:
+        """So no carrier is ever resolved for it, and a refresh has nothing to be stale against."""
+        state = ProjectState(
+            installed_skills=(
+                InstalledSkill(
+                    SkillFlavour.AGENTS,
+                    "doctor",
+                    Presence.FOREIGN,
+                    body=carriers.body("doctor", SkillFlavour.AGENTS),
+                ),
+            )
+        )
+
+        assert is_installed(state) is False
+        assert plan_refresh(state, carrier).is_empty is True
+
+    def test_a_project_whose_only_skill_is_behind_a_link_carries_no_install_of_ours_either(
+        self, carrier: Carrier
+    ) -> None:
+        state = ProjectState(
+            installed_skills=(
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_DIRECTORY,
+                    body=carriers.body("doctor", SkillFlavour.AGENTS),
+                    link="../../.agents/skills/doctor",
+                ),
+            )
+        )
+
+        assert is_installed(state) is False
+        assert plan_refresh(state, carrier).is_empty is True

@@ -32,8 +32,16 @@ CARRIER_RELATIVE_ENTRIES = [
     "catalogue.json",
     "agents/narrativetrace-doctor/SKILL.md",
     "agents/add-narrative-tracing/SKILL.md",
+    "agents/narrativetrace-feedback/SKILL.md",
+    "agents/add-narrativetrace-clarity/SKILL.md",
+    "agents/narrativetrace-verify/SKILL.md",
+    "agents/narrativetrace-debug/SKILL.md",
     "claude/narrativetrace-doctor/SKILL.md",
     "claude/add-narrative-tracing/SKILL.md",
+    "claude/narrativetrace-feedback/SKILL.md",
+    "claude/add-narrativetrace-clarity/SKILL.md",
+    "claude/narrativetrace-verify/SKILL.md",
+    "claude/narrativetrace-debug/SKILL.md",
 ]
 
 
@@ -50,7 +58,7 @@ def _entry_text(wheel: Path, name: str) -> str:
 
 @pytest.mark.distribution
 class TestTheCarrierWheel:
-    def test_carries_the_five_carrier_entries(self, built_wheels: Path) -> None:
+    def test_carries_the_nine_carrier_entries(self, built_wheels: Path) -> None:
         wheel = built_wheels / _wheel_name("narrativetrace-skills")
         names = _entry_names(wheel)
         assert all(f"{CARRIER_ROOT}{relative}" in names for relative in CARRIER_RELATIVE_ENTRIES)
@@ -59,7 +67,7 @@ class TestTheCarrierWheel:
         wheel = built_wheels / _wheel_name("narrativetrace-skills")
         assert [name for name in _entry_names(wheel) if name.endswith(".py")] == []
 
-    def test_carries_nothing_under_the_carrier_root_beyond_the_five_entries(
+    def test_carries_nothing_under_the_carrier_root_beyond_the_nine_entries(
         self, built_wheels: Path
     ) -> None:
         wheel = built_wheels / _wheel_name("narrativetrace-skills")
@@ -69,7 +77,7 @@ class TestTheCarrierWheel:
 
 @pytest.mark.distribution
 class TestTheCoreWheelBundlesTheSameCarrier:
-    def test_carries_the_same_five_entries_byte_for_byte(self, built_wheels: Path) -> None:
+    def test_carries_the_same_nine_entries_byte_for_byte(self, built_wheels: Path) -> None:
         skills_wheel = built_wheels / _wheel_name("narrativetrace-skills")
         core_wheel = built_wheels / _wheel_name("narrativetrace")
         for relative in CARRIER_RELATIVE_ENTRIES:
@@ -92,7 +100,16 @@ class TestTheCatalogueManifestItself:
         wheel = built_wheels / _wheel_name("narrativetrace-skills")
         catalogue = _entry_text(wheel, f"{CARRIER_ROOT}catalogue.json")
         names = re.findall(r'"name": "([^"]+)"', catalogue)
-        assert sorted(names) == sorted(["narrativetrace-doctor", "add-narrative-tracing"])
+        assert sorted(names) == sorted(
+            [
+                "narrativetrace-doctor",
+                "add-narrative-tracing",
+                "narrativetrace-feedback",
+                "add-narrativetrace-clarity",
+                "narrativetrace-verify",
+                "narrativetrace-debug",
+            ]
+        )
 
         entry_names = _entry_names(wheel)
         for relative in re.findall(r'"(?:agents|claude)": "([^"]+)"', catalogue):

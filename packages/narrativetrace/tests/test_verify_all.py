@@ -4,7 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """`poe verify-all`'s own orchestration (`scripts/verify_all.py`) — the safety net that keeps
 one crashing category from taking down the whole run, and the structural guarantee that every
-one of SCHEMA.md's 21 fixed category ids is actually produced by some step, exactly once.
+one of SCHEMA.md's 22 fixed category ids is actually produced by some step, exactly once.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class TestSafe:
 
 
 class TestStepsCoverEveryFixedCategoryExactlyOnce:
-    def test_the_sweep_plus_declared_steps_account_for_all_21_categories(self) -> None:
+    def test_the_sweep_plus_declared_steps_account_for_all_22_categories(self) -> None:
         sweep_categories = ("unit-tests", "property", "fuzz-tier-a", "conformance", "coverage")
         declared = [category for category_ids, _producer in _STEPS for category in category_ids]
 

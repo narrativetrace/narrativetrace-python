@@ -25,12 +25,14 @@ import sys
 from pathlib import Path
 
 from narrativetrace_skills import (
+    MARKETPLACE,
     PRO_LISTINGS,
     SKILLS,
     render_agents_md_snippet,
     render_carrier_files,
     render_claude_skill,
     render_codex_skill,
+    render_marketplace_json,
     splice_agents_md_section,
 )
 
@@ -108,19 +110,32 @@ def _stray_carrier_files(root: Path = REPO_ROOT) -> list[Path]:
     ]
 
 
+def _marketplace_json_path(root: Path = REPO_ROOT) -> Path:
+    return root / ".claude-plugin" / "marketplace.json"
+
+
+def _rendered_marketplace_json() -> str:
+    return render_marketplace_json(MARKETPLACE)
+
+
 def _rendered_agents_md(root: Path = REPO_ROOT) -> str:
     path = _agents_md_path(root)
     current = path.read_text(encoding="utf-8") if path.is_file() else ""
     return splice_agents_md_section(current, render_agents_md_snippet(SKILLS, PRO_LISTINGS))
 
 
+def _rendered_files(root: Path) -> dict[Path, str]:
+    return {
+        **_rendered_skill_files(root),
+        **_rendered_carrier_files(root),
+        _marketplace_json_path(root): _rendered_marketplace_json(),
+    }
+
+
 def _check_all(root: Path = REPO_ROOT) -> list[Path]:
     drifted = [
         path
-        for path, expected in {
-            **_rendered_skill_files(root),
-            **_rendered_carrier_files(root),
-        }.items()
+        for path, expected in _rendered_files(root).items()
         if not path.is_file() or path.read_text(encoding="utf-8") != expected
     ]
     drifted.extend(_stray_carrier_files(root))
@@ -133,7 +148,7 @@ def _check_all(root: Path = REPO_ROOT) -> list[Path]:
 
 def _fix_all(root: Path = REPO_ROOT) -> list[Path]:
     written: list[Path] = []
-    for path, content in {**_rendered_skill_files(root), **_rendered_carrier_files(root)}.items():
+    for path, content in _rendered_files(root).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         written.append(path)

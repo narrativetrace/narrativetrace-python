@@ -1,0 +1,1 @@
+Support ticket 4471: customer C-2041 checked out order ORD-88, an invoice of 45.99 EUR, and paid with a Swiss franc card. Today's rate is 0.93 CHF per euro, so the card should have been charged CHF 42.77 — the bank statement says CHF 43.00. Find the cause and fix it, using the narrativetrace-debug skill.

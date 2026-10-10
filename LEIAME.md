@@ -1,4 +1,4 @@
-<!-- source: README.md blob d77dcabe946e | translated: 2026-09-19 | reviewed: - -->
+<!-- source: README.md blob 040c9d88c734 | translated: 2026-10-09 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -134,10 +134,10 @@ def run_failing() -> str:
 à página de 60 segundos):
 
 ```text
-trace: glad map sinks (61fdd7c)
+trace: jumpy seal walks (f50d909)
 
-OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
-├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms
+OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2)) #1
+├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms #1.1
 └── !! RuntimeError: payment declined — 0ms
 ```
 
@@ -521,9 +521,9 @@ Quatro camadas independentes, não uma única promessa geral — o contrato linh
 1. **`@not_traced("password", "cvv")` em parâmetros nomeados**, e **`not_traced_field(...)`/`__nt_not_traced__` nos campos de uma classe** — ocultação explícita que você controla.
 2. **Uma lista de negação por nome, sempre ativa e multilíngue** — compara nomes de campos e parâmetros com padrões em inglês, espanhol, português, francês, alemão e chinês para senhas, tokens, identificações nacionais e afins, sem locale para escolher e nada para ativar.
 3. **Correspondência pela forma do valor, independente do nome do campo** — uma string com forma de JWT, um número de cartão válido por Luhn, um valor com forma de `Set-Cookie`, ou um checksum ou regra estrutural de identificação nacional (RUT chileno, CPF/CNPJ brasileiro, DNI/NIE espanhol, NIR francês, carteira de identidade chinesa, SSN americano) é ocultado mesmo que chegue sob um nome inocente como `data` ou `value` — combinado em `is_secret_shaped`.
-4. **Ainda não há um modo estrutural sem valores nesta implementação.** Um formato `.nt`/`.approved.nt` — a garantia categórica para um contexto onde nenhum valor pode sair do processo — está planejado aqui, não lançado (veja o [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md)). Não confunda com `TraceTranslationView`: essa é uma funcionalidade real e lançada, mas ela reglosa os *nomes* dos identificadores para outro idioma via um glossário — os valores continuam passando byte a byte idênticos, intocados, então não é um modo sem valores.
+4. **Existe um modo estrutural sem valores — mas é um artefato à parte, não uma chave sobre os demais.** Cada invocação também pode emitir um trace estrutural `.nt` que não carrega nenhum valor de execução, apenas a forma da árvore de chamadas, e o modo de aprovação (`NARRATIVETRACE_APPROVAL=true`) o compara com as linhas de base `.approved.nt` commitadas, fazendo um teste falhar com um diff legível diante de qualquer divergência estrutural; `uv run poe approve` / `narrativetrace-approve` promove um trace `.received.nt` revisado. Essa é a garantia categórica para um contexto onde nenhum valor pode sair do processo (veja o [Formato de trace estrutural](documentation/pt-BR/formato-de-trace-estrutural.md) e o [Guia de funcionalidades](documentation/pt-BR/guia-de-funcionalidades.md)). Não confunda com `TraceTranslationView`: essa é uma funcionalidade real e lançada, mas ela reglosa os *nomes* dos identificadores para outro idioma via um glossário — os valores continuam passando byte a byte idênticos, intocados, então não é um modo sem valores.
 
-Também não há um conjunto de regras de ocultação configurável por caminho — nada de uma política estilo JSONPath "sempre oculte `user.creditCard`". A ocultação é por nome e por forma, e é aplicada em cada segmento quando um template de narração `{param.property}` resolve um caminho, não é uma análise de fluxo de dados. Seja preciso sobre o limite: as camadas 1–3 são heurísticas e extensíveis — sempre podem deixar passar uma forma ou um nome que ninguém pensou em adicionar ainda. Nenhuma delas é *categórica* como seria o modo estrutural (ainda não lançado). Se o seu modelo de ameaça exigir "nenhum valor pode jamais sair do processo", essa garantia não existe hoje nesta implementação.
+Também não há um conjunto de regras de ocultação configurável por caminho — nada de uma política estilo JSONPath "sempre oculte `user.creditCard`". A ocultação é por nome e por forma, e é aplicada em cada segmento quando um template de narração `{param.property}` resolve um caminho, não é uma análise de fluxo de dados. Seja preciso sobre o limite: as camadas 1–3 são heurísticas e extensíveis — sempre podem deixar passar uma forma ou um nome que ninguém pensou em adicionar ainda. Nenhuma delas é *categórica* como é o artefato estrutural `.nt`. Se o seu modelo de ameaça exigir "nenhum valor pode jamais sair do processo", entregue apenas o artefato estrutural; as representações que carregam valores (Markdown, JSON, Mermaid) não dão essa garantia.
 
 ### Os IDs de trace podem se correlacionar com um ID de correlação padrão entre serviços, ou o tracing é só local?
 

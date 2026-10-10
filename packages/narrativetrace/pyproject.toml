@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace"
-version = "0.2.0"
+version = "0.3.0"
 description = "Narrative execution tracing for Python — human- and LLM-readable traces"
 readme = "README.md"
 requires-python = ">=3.12"

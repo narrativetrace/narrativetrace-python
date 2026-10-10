@@ -6,14 +6,19 @@
 
 ``IndentedTextRenderer`` — the console/pytest-failure renderer. Errors render as
 ``!! Type: message | error_context``; redacted params as ``[REDACTED]``; narration as ``// ...``.
+Every span line ends with its span id (``#1.3``, :mod:`~narrativetrace.render.span_id`) — the same
+id every other flavour prints for that call.
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from narrativetrace.escape import control_sanitize
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.render.concurrency import analyze, partition
+from narrativetrace.render.span_id import SpanCursor, concurrent_order, ids_of
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_walk import TreeWalk
@@ -50,8 +55,14 @@ def _exception_type(exception: BaseException) -> str:
     return control_sanitize(type(exception).__name__)
 
 
-def _sig_key(node: TraceNode) -> str:
-    return f"{node.signature.class_name}.{node.signature.method_name}"
+@dataclass(frozen=True, slots=True)
+class _Line:
+    """Where one span is printed: the prefix of its own line, the prefix its children and
+    narration continue under, and its span id."""
+
+    prefix: str
+    cont: str
+    span_id: str
 
 
 def _append_trace_header(tree: TraceTree, parts: list[str]) -> None:
@@ -77,46 +88,41 @@ class IndentedTextRenderer:
         parts: list[str] = []
         _append_trace_header(tree, parts)
         walk = TreeWalk()
-        for root in tree.roots:
-            self._render_node(root, "", "", parts, walk)
+        for root, root_id in zip(tree.roots, ids_of(tree.roots, None), strict=True):
+            self._render_node(root, _Line("", "", root_id), parts, walk)
         return "".join(parts).rstrip()
 
-    def _render_node(
-        self, node: TraceNode, line_prefix: str, cont_prefix: str, parts: list[str], walk: TreeWalk
-    ) -> None:
+    def _render_node(self, node: TraceNode, line: _Line, parts: list[str], walk: TreeWalk) -> None:
         stop_reason = walk.stop_reason(node)
         if not node.children or stop_reason is not None:
-            self._render_leaf_node(node, line_prefix, stop_reason, parts)
+            self._render_leaf_node(node, line, stop_reason, parts)
         else:
-            self._render_branch_node(node, line_prefix, cont_prefix, parts, walk)
+            self._render_branch_node(node, line, parts, walk)
 
     def _render_leaf_node(
-        self, node: TraceNode, line_prefix: str, stop_reason: str | None, parts: list[str]
+        self, node: TraceNode, line: _Line, stop_reason: str | None, parts: list[str]
     ) -> None:
         """A node with no children, or one whose children the walk stopped short of visiting --
-        the node still contributes its own header/outcome, only its subtree is cut off."""
+        the node still contributes its own header/outcome, only its subtree is cut off. The span
+        id ends the line."""
         sig = node.signature
-        parts.append(f"{line_prefix}{_header(sig)}")
+        parts.append(f"{line.prefix}{_header(sig)}")
         self._render_outcome_inline(node.outcome, sig, parts)
         self._render_duration(node, parts)
         if stop_reason is not None and node.children:
             parts.append(f" {stop_reason}")
-        parts.append("\n")
+        parts.append(f" {line.span_id}\n")
 
     def _render_branch_node(
-        self,
-        node: TraceNode,
-        line_prefix: str,
-        cont_prefix: str,
-        parts: list[str],
-        walk: TreeWalk,
+        self, node: TraceNode, line: _Line, parts: list[str], walk: TreeWalk
     ) -> None:
         walk.enter(node)
         try:
             sig = node.signature
-            parts.append(f"{line_prefix}{_header(sig)}\n")
+            cont_prefix = line.cont
+            parts.append(f"{line.prefix}{_header(sig)} {line.span_id}\n")
             self._render_narration(sig, cont_prefix, parts)
-            self._render_children(node.children, cont_prefix, parts, walk)
+            self._render_children(node.children, cont_prefix, line.span_id, parts, walk)
             parts.append(f"{cont_prefix}└── ")
             self._render_outcome_closing(node.outcome, sig, parts)
             self._render_duration(node, parts)
@@ -125,42 +131,59 @@ class IndentedTextRenderer:
             walk.exit(node)
 
     def _render_children(
-        self, children: list[TraceNode], cont_prefix: str, parts: list[str], walk: TreeWalk
+        self,
+        children: list[TraceNode],
+        cont_prefix: str,
+        parent_id: str,
+        parts: list[str],
+        walk: TreeWalk,
     ) -> None:
+        """One sibling list, each span taking its id in the order it is laid out."""
+        ids = SpanCursor(parent_id)
         for segment in partition(children):
             if segment.group_id is None:
-                self._render_node(
-                    segment.nodes[0], f"{cont_prefix}├── ", f"{cont_prefix}│   ", parts, walk
-                )
+                line = _Line(f"{cont_prefix}├── ", f"{cont_prefix}│   ", ids.next())
+                self._render_node(segment.nodes[0], line, parts, walk)
             elif segment.is_fire_and_forget():
-                self._render_fire_and_forget(segment.nodes[0], cont_prefix, parts, walk)
+                launch = _Line(cont_prefix, cont_prefix, ids.next())
+                self._render_fire_and_forget(segment.nodes[0], launch, parts, walk)
             else:
-                self._render_concurrent_group(segment.nodes, cont_prefix, parts, walk)
+                self._render_concurrent_group(segment.nodes, cont_prefix, ids, parts)
 
     def _render_fire_and_forget(
-        self, launcher: TraceNode, cont_prefix: str, parts: list[str], walk: TreeWalk
+        self, launcher: TraceNode, launch: _Line, parts: list[str], walk: TreeWalk
     ) -> None:
+        """The launch takes one position; its id ends the marker line, and the launched work is
+        laid out under it like any other sibling list (a fork in it keeps its marker). The
+        launcher goes through the walk like any node: a cycle or the depth limit ends it."""
+        cont_prefix = launch.cont
         parts.append(f"{cont_prefix}├── ⤳ fire-and-forget")
         if launcher.concurrency is not None:
             parts.append(f" [thread: {_thread_label(launcher)}]")
-        parts.append("\n")
+        stop_reason = walk.stop_reason(launcher)
+        if stop_reason is not None:
+            parts.append(f" {stop_reason} {launch.span_id}\n")
+            return
+        parts.append(f" {launch.span_id}\n")
         if not launcher.children:
             parts.append(f"{cont_prefix}│       [launched, result not captured]\n")
-        else:
-            for child in launcher.children:
-                self._render_node(
-                    child, f"{cont_prefix}│   ├── ", f"{cont_prefix}│   │   ", parts, walk
-                )
+            return
+        walk.enter(launcher)
+        try:
+            self._render_children(
+                launcher.children, f"{cont_prefix}│   ", launch.span_id, parts, walk
+            )
+        finally:
+            walk.exit(launcher)
 
     def _render_concurrent_group(
-        self, members: list[TraceNode], cont_prefix: str, parts: list[str], walk: TreeWalk
+        self, members: list[TraceNode], cont_prefix: str, ids: SpanCursor, parts: list[str]
     ) -> None:
         analysis = analyze(members)
         parts.append(f"{cont_prefix}├── ⑂ fork [{len(members)} tasks]\n")
-        for member in sorted(members, key=_sig_key):
-            self._render_concurrent_member(
-                member, f"{cont_prefix}│   ", analysis.is_sequential_async, parts, walk
-            )
+        for member in sorted(members, key=concurrent_order):
+            member_line = _Line(f"{cont_prefix}│   ", f"{cont_prefix}│   ", ids.next())
+            self._render_concurrent_member(member, member_line, analysis.is_sequential_async, parts)
         wall_ms = max((m.duration_nanos for m in members), default=0) // _NANOS_PER_MILLI
         parts.append(f"{cont_prefix}├── ⑃ join — {wall_ms}ms\n")
         if analysis.is_sequential_async:
@@ -170,18 +193,14 @@ class IndentedTextRenderer:
             )
 
     def _render_concurrent_member(
-        self,
-        node: TraceNode,
-        cont_prefix: str,
-        sequential_async: bool,
-        parts: list[str],
-        walk: TreeWalk,
+        self, node: TraceNode, line: _Line, sequential_async: bool, parts: list[str]
     ) -> None:
         sig = node.signature
+        cont_prefix = line.cont
         parts.append(f"{cont_prefix}├── ↦ {_header(sig)}")
         self._render_outcome_inline(node.outcome, sig, parts)
         self._render_duration(node, parts)
-        parts.append("\n")
+        parts.append(f" {line.span_id}\n")
         if node.concurrency is not None:
             suffix = "] [async, awaited sequentially]\n" if sequential_async else "]\n"
             parts.append(f"{cont_prefix}│       [thread: {_thread_label(node)}{suffix}")

@@ -1,0 +1,20 @@
+[project]
+# Not a uv workspace member -- a standalone fixture the eval runner scaffolds into a scratch
+# directory, resolving NarrativeTrace from this checkout's own build.
+name = "billing-checkout"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["narrativetrace", "shopkit"]
+
+[dependency-groups]
+dev = ["pytest>=8", "narrativetrace-pytest"]
+
+[tool.uv.sources]
+shopkit = { path = ".vendor/shopkit" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/billing"]

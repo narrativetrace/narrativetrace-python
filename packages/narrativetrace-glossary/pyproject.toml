@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-glossary"
-version = "0.2.0"
+version = "0.3.0"
 description = "Domain glossary: ubiquitous-language harvesting and trace translation for narrativetrace"
 readme = "README.md"
 requires-python = ">=3.12"

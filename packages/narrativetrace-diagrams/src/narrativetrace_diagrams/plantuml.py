@@ -17,10 +17,9 @@ literals that traversal composes with -- see :mod:`sequence_grammar` for the hoo
 from __future__ import annotations
 
 from narrativetrace.tree import TraceTree
-from narrativetrace.tree_walk import TreeWalk
 from narrativetrace_diagrams.diagram_label import DiagramLabel
 from narrativetrace_diagrams.sequence_grammar import LimitReason
-from narrativetrace_diagrams.sequence_walk import collect_participants, render_sequence
+from narrativetrace_diagrams.sequence_walk import collect_participants, render_all
 
 
 class PlantUmlSequenceGrammar:
@@ -66,6 +65,9 @@ class PlantUmlSequenceGrammar:
     def incomplete(self, target: DiagramLabel) -> str:
         return f"hnote over {target.text} : in-flight\n"
 
+    def span_note(self, target: DiagramLabel, span_id: DiagramLabel) -> str:
+        return f"hnote over {target.text} : {span_id.text}\n"
+
     def limited_note(self, target: DiagramLabel, reason: LimitReason) -> str:
         return f"hnote over {target.text} : {reason}\n"
 
@@ -84,8 +86,6 @@ class PlantUmlSequenceDiagramRenderer:
         parts = [grammar.header()]
         for participant in collect_participants(tree.roots):
             parts.append(grammar.participant(DiagramLabel.plain_token(participant)))
-        walk = TreeWalk()
-        for root in tree.roots:
-            render_sequence(root, grammar, DiagramLabel.plain_token, parts, walk)
+        render_all(tree.roots, grammar, DiagramLabel.plain_token, parts)
         parts.append(grammar.footer())
         return "".join(parts).rstrip()

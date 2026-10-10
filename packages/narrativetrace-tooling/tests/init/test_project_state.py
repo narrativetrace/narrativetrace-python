@@ -128,3 +128,79 @@ class TestAnInstalledSkill:
 
         assert foreign.coordinate == ""
         assert not_a_directory.body == ""
+
+
+class TestASkillBehindALink:
+    """Rule 18's half of the snapshot. ``npx skills add`` writes the open-standard pages for real
+    and makes ``.claude/skills/<name>`` a LINK to them, so the two linked presences are what stop
+    the planner from ever writing the vendor flavour through one.
+    """
+
+    def test_a_linked_directory_says_where_the_link_points_and_the_link_sits_on_it(self) -> None:
+        linked = InstalledSkill(
+            SkillFlavour.CLAUDE,
+            "doctor",
+            Presence.LINKED_DIRECTORY,
+            body="page\n",
+            link="../../.agents/skills/doctor",
+        )
+
+        assert linked.link == "../../.agents/skills/doctor"
+        assert linked.linked_at == Path(".claude/skills/doctor")
+
+    def test_a_linked_page_puts_the_link_on_the_page_not_the_directory(self) -> None:
+        linked = InstalledSkill(
+            SkillFlavour.CLAUDE, "doctor", Presence.LINKED_PAGE, body="page\n", link="../SKILL.md"
+        )
+
+        assert linked.linked_at == Path(".claude/skills/doctor/SKILL.md")
+
+    def test_a_linked_presence_must_name_what_the_link_points_at(self) -> None:
+        with pytest.raises(ValueError, match=r"names what the link points at"):
+            InstalledSkill(SkillFlavour.CLAUDE, "doctor", Presence.LINKED_DIRECTORY)
+
+    def test_only_a_linked_presence_may_name_one(self) -> None:
+        with pytest.raises(ValueError, match=r"names what the link points at"):
+            InstalledSkill(SkillFlavour.AGENTS, "doctor", Presence.FOREIGN, link="somewhere")
+
+    def test_asking_an_unlinked_skill_where_its_link_sits_is_a_programming_error(self) -> None:
+        with pytest.raises(ValueError, match=r"nothing links to \.agents/skills/doctor"):
+            _ = ours("doctor").linked_at
+
+    def test_a_link_that_reaches_no_page_of_ours_carries_an_empty_body(self) -> None:
+        """Dangling, out of the project, or a chain the filesystem will not follow — the installer
+        treats all three as reaching no page at all."""
+        dangling = InstalledSkill(
+            SkillFlavour.CLAUDE, "doctor", Presence.LINKED_DIRECTORY, link="/nowhere"
+        )
+
+        assert dangling.body == ""
+
+
+class TestAFlavourWhoseWholeInstallRootIsALink:
+    """Rule 20. One link is one decision, so the snapshot reports it once per flavour rather than
+    once per skill — nothing may be written into that flavour at all, present or not."""
+
+    def test_names_what_the_root_points_at(self) -> None:
+        state = ProjectState(linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere"})
+
+        assert state.linked_install_root(SkillFlavour.CLAUDE) == "../elsewhere"
+        assert state.linked_install_root(SkillFlavour.AGENTS) is None
+
+    def test_an_untouched_project_has_no_linked_root(self) -> None:
+        assert ProjectState().linked_install_root(SkillFlavour.AGENTS) is None
+
+    def test_keeps_the_mapping_immutable(self) -> None:
+        state = ProjectState(linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere"})
+
+        with pytest.raises(TypeError):
+            state.linked_install_roots[SkillFlavour.AGENTS] = "x"  # type: ignore[index]
+
+    def test_refuses_a_skill_listed_under_a_flavour_whose_root_is_a_link(self) -> None:
+        """Whatever was found there was found THROUGH the link, so listing it would invite exactly
+        the write the refusal exists to prevent."""
+        with pytest.raises(AssertionError):
+            ProjectState(
+                installed_skills=(ours("doctor", SkillFlavour.CLAUDE),),
+                linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere"},
+            )

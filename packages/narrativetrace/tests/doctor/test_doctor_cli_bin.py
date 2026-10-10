@@ -130,7 +130,7 @@ class TestRunCliDoctor:
         deps, logs, _ = _deps(_snapshot(source_files=source))
         run_cli(["doctor", "--json"], deps)
         payload = json.loads(logs[0])
-        assert len(payload["findings"]) == 12
+        assert len(payload["findings"]) == 19
 
     def test_exit_code_matches_the_report(self) -> None:
         deps, _, _ = _deps(_snapshot(python_version="3.9.0"))

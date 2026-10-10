@@ -75,3 +75,22 @@ class TestBodyParityWithClaude:
         claude_body = render_claude_skill(skill, _resolve).split("\n\n", 1)[1]
         codex_body = render_codex_skill(skill, _resolve).split("\n\n", 1)[1]
         assert codex_body == claude_body
+
+    def test_a_decision_only_step_renders_no_empty_fence_in_either_flavour(self) -> None:
+        skill = _skill(steps=(SkillStep(title="Ask", body=CommandStep(commands=())),))
+        assert render_codex_skill(skill, _resolve).endswith("## 1. Ask")
+        assert render_claude_skill(skill, _resolve).endswith("## 1. Ask")
+
+    def test_a_step_condition_renders_the_same_when_line_in_both_flavours(self) -> None:
+        skill = _skill(
+            steps=(
+                SkillStep(
+                    title="s",
+                    body=CommandStep(commands=("uv sync",)),
+                    condition="only when the project has no entry point",
+                ),
+            )
+        )
+        line = "**when:** only when the project has no entry point"
+        assert line in render_claude_skill(skill, _resolve)
+        assert line in render_codex_skill(skill, _resolve)

@@ -29,4 +29,5 @@ DOC = {
     ),
     "sixty_seconds_new_project": f"{_BASE}sixty-seconds.md#1-new-project-install-the-package",
     "agent_skills_installing": f"{_BASE}agent-skills.md#installing-them",
+    "framework_table": f"{_BASE}llms-full.md#framework-table--what-the-doctor-checks",
 }

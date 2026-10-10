@@ -22,8 +22,10 @@ section, not the configuration the runtime resolves, and the default is the runt
 
 from __future__ import annotations
 
+import os
+import stat
 import tomllib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -64,29 +66,45 @@ def read_project_state(
         raise TypeError("a project directory must be given")
     if not project_directory.is_dir():
         raise ValueError(f"{project_directory} is not a directory")
+    linked_roots = _linked_install_roots(project_directory)
     return ProjectState(
         agents_md=_text_of(project_directory / "AGENTS.md"),
         claude_md=_text_of(project_directory / "CLAUDE.md"),
         claude_directory=(project_directory / ".claude").is_dir(),
-        installed_skills=_installed_skills(project_directory, max_skill_directories),
+        installed_skills=_installed_skills(project_directory, linked_roots, max_skill_directories),
+        linked_install_roots=linked_roots,
         marked_rule_files=_marked_rule_files(project_directory),
         output_directory=_output_directory(project_directory),
         uv_project=_is_uv_project(project_directory),
     )
 
 
+def _linked_install_roots(project_directory: Path) -> dict[SkillFlavour, str]:
+    """A flavour whose whole install root is a link, reported once — rule 20. Nothing may be written
+    into that flavour at all, because every page of it would land wherever the link goes."""
+    linked: dict[SkillFlavour, str] = {}
+    for flavour in SkillFlavour:
+        target = _link_target(project_directory / flavour.install_root)
+        if target is not None:
+            linked[flavour] = target
+    return linked
+
+
 def _installed_skills(
-    project_directory: Path, max_skill_directories: int
+    project_directory: Path,
+    linked_roots: Mapping[SkillFlavour, str],
+    max_skill_directories: int,
 ) -> tuple[InstalledSkill, ...]:
     return tuple(
-        _installed_skill(flavour, child)
+        _installed_skill(project_directory, flavour, child)
         for flavour in SkillFlavour
+        if flavour not in linked_roots
         for child in _children(project_directory / flavour.install_root, max_skill_directories)
     )
 
 
 def _children(root: Path, limit: int) -> list[Path]:
-    if not root.is_dir():
+    if not _is_directory_not_a_link(root):
         return []
     try:
         entries = sorted(root.iterdir(), key=lambda path: path.name)
@@ -95,14 +113,86 @@ def _children(root: Path, limit: int) -> list[Path]:
     return entries[:limit]
 
 
-def _installed_skill(flavour: SkillFlavour, directory: Path) -> InstalledSkill:
-    if not directory.is_dir():
-        return InstalledSkill(flavour, directory.name, Presence.NOT_A_DIRECTORY)
-    page = _text_of(directory / PAGE) or ""
+def _installed_skill(
+    project_directory: Path, flavour: SkillFlavour, directory: Path
+) -> InstalledSkill:
+    """What sits at one skill's path, WITHOUT following a link on the way.
+
+    A link is reported as one, never resolved into "a directory of ours": writing through it would
+    land in whatever it points at, and after ``npx skills add`` that is the other flavour's page.
+    """
+    name = directory.name
+    to_directory = _link_target(directory)
+    if to_directory is not None:
+        return _linked(project_directory, flavour, name, Presence.LINKED_DIRECTORY, to_directory)
+    if not _is_directory_not_a_link(directory):
+        return InstalledSkill(flavour, name, Presence.NOT_A_DIRECTORY)
+    to_page = _link_target(directory / PAGE)
+    if to_page is not None:
+        return _linked(project_directory, flavour, name, Presence.LINKED_PAGE, to_page)
+    return _page_of(flavour, name, directory / PAGE)
+
+
+def _page_of(flavour: SkillFlavour, name: str, page_file: Path) -> InstalledSkill:
+    """A real directory: ours when its page carries the provenance line, somebody else's
+    otherwise."""
+    page = _text_of(page_file) or ""
     coordinate = provenance.coordinate_in(page)
     if coordinate is None:
-        return InstalledSkill(flavour, directory.name, Presence.FOREIGN, body=page)
-    return InstalledSkill(flavour, directory.name, Presence.OURS, coordinate, page)
+        return InstalledSkill(flavour, name, Presence.FOREIGN, body=page)
+    return InstalledSkill(flavour, name, Presence.OURS, coordinate, page)
+
+
+def _linked(
+    project_directory: Path,
+    flavour: SkillFlavour,
+    name: str,
+    presence: Presence,
+    target: str,
+) -> InstalledSkill:
+    """A skill behind a link: what the link says, and the page it reaches — read only when the link
+    really resolves INSIDE this project, because nothing out of it is ours to stamp or to remove."""
+    page = project_directory / flavour.install_root / name / PAGE
+    body = (_text_of(page) or "") if _inside_project(project_directory, page) else ""
+    return InstalledSkill(flavour, name, presence, body=body, link=target)
+
+
+def _inside_project(project_directory: Path, path: Path) -> bool:
+    """Whether a path REALLY resolves inside the project.
+
+    Resolved STRICTLY: a link that resolves to nothing — dangling, or a chain the filesystem will
+    not follow — answers no, which is the same answer a link out of the project gets. The installer
+    treats both as reaching no page at all. A non-strict resolve would answer yes for a dangling
+    link whose text happens to point inside, and the page read would then be none anyway.
+    """
+    try:
+        return path.resolve(strict=True).is_relative_to(project_directory.resolve(strict=True))
+    except OSError:
+        return False
+
+
+def _link_target(path: Path) -> str | None:
+    """What a symbolic link points at, or ``None`` when the path is not one."""
+    if not path.is_symlink():
+        return None
+    try:
+        return os.readlink(path)
+    except OSError as error:
+        raise ValueError(f"cannot read the symbolic link {path}: {error}") from error
+
+
+def _is_directory_not_a_link(path: Path) -> bool:
+    """Whether a path is a real directory, never one reached THROUGH a symbolic link.
+
+    **@llmNote** ``Path.is_dir()`` follows links, and ``follow_symlinks=False`` only arrived in 3.13
+    while this library supports 3.12 — so the test is spelled with ``lstat``. This is the one thing
+    the cross-port note calls not optional: the Java port's own first version used the
+    follow-by-default test here, and a linked skill directory then read back as a real one.
+    """
+    try:
+        return stat.S_ISDIR(path.lstat().st_mode)
+    except OSError:
+        return False
 
 
 def _marked_rule_files(project_directory: Path) -> dict[str, str]:

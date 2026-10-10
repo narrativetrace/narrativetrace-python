@@ -1,0 +1,121 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+name: NarrativeTrace problem report
+description: Something in NarrativeTrace is wrong — the library, the doctor, an agent skill, or the published install prompt.
+title: "category: step"
+labels:
+  - from-agent
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This issue is public.** It is filed under your own account and shows that your project
+        uses NarrativeTrace. Nothing here is collected automatically.
+
+        The `narrativetrace feedback draft` verb fills most of this in and checks the whole report
+        against its value-free rules first — it refuses to write a report that carries a value from
+        your traces, and names the rule that refused it. If you are filling this in by hand, read
+        the last box before you submit.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: What is this about?
+      description: Which part of NarrativeTrace the problem is in.
+      options:
+        - prompt
+        - skill
+        - doctor
+        - library
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Which NarrativeTrace runtime this project uses.
+      placeholder: python
+    validations:
+      required: true
+
+  - type: input
+    id: install
+    attributes:
+      label: Install coordinate
+      description: The NarrativeTrace distributions this project's build declares, with their versions.
+      placeholder: narrativetrace==0.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: step
+    attributes:
+      label: Where it happened
+      description: The doctor check id, the skill and step, or the prompt step number.
+      placeholder: trap.redaction-proof
+    validations:
+      required: true
+
+  - type: textarea
+    id: did
+    attributes:
+      label: What you did
+    validations:
+      required: true
+
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: The language this report is written in. Any language is welcome; this form is English.
+      placeholder: en
+    validations:
+      required: false
+
+  - type: input
+    id: agent
+    attributes:
+      label: Agent product and model
+      description: If an agent drafted this, whatever it reports itself as. Free text, never verified.
+      placeholder: product / model
+    validations:
+      required: false
+
+  - type: textarea
+    id: report
+    attributes:
+      label: The drafted report
+      description: |
+        Paste the contents of `build/narrativetrace/feedback/feedback-body.md` here. It carries the
+        doctor's JSON report and, where one was safe to attach, one structural trace.
+
+        Never paste a rendered narrative, a log file or a source file: those carry the values from
+        your own run, and the structural trace carries the same shape without them.
+      render: markdown
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: reviewed
+    attributes:
+      label: Before you submit
+      options:
+        - label: I reviewed the report and it contains no values from my traces.
+          required: true

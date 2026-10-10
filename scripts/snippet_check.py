@@ -60,6 +60,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts.framework_table_docs import check as check_framework_table
 from scripts.translation_check import REPO_ROOT, translated_files
 from scripts.version_literals import check as check_version_literals
 from scripts.version_literals import read_version
@@ -84,6 +85,11 @@ _TRACE_TITLE_MASK = re.compile(r"## Trace: [a-z]+ [a-z]+ [a-z]+ — ")
 _TRACE_BRACKET_MASK = re.compile(r"\[[a-z]+ [a-z]+ [a-z]+\]")
 _REGION_BEGIN_TEMPLATE = r"^\s*(?:#|//)\s*snippet:begin\s+{name}\s*$"
 _REGION_END_TEMPLATE = r"^\s*(?:#|//)\s*snippet:end\s+{name}\s*$"
+#: The framework table's wiring lines, shipped inside the tooling wheel for the doctor's fix line
+#: (`narrativetrace_tooling.frameworks.wiring_snippets`) -- held to its fixtures like any page.
+WIRING_SNIPPETS = (
+    "packages/narrativetrace-tooling/src/narrativetrace_tooling/frameworks/wiring-snippets.md"
+)
 _LICENSE_HEADER_MARKERS = (
     "SPDX-License-Identifier",
     "Licensed under",
@@ -274,7 +280,8 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
     then, so a marker there had nothing to check -- `translated` already excludes its mirrors
     (`LEAME.md`/`LEIAME.md`/`自述文件.md`, headered `source: README.md`), and a root page with no
     marker in it is simply never scanned, so adding it here cannot flag any of README.md's other,
-    still-untyped blocks."""
+    still-untyped blocks. And the doctor's own `wiring-snippets.md` (Phase 6): the framework
+    table's wiring lines, which the tooling wheel carries to wherever the doctor runs."""
     translated = {path.resolve() for path in translated_files(repo_root)}
     documentation = repo_root / "documentation"
     pages = (
@@ -290,6 +297,9 @@ def _english_markdown_files(repo_root: Path) -> list[Path]:
         pages.append(readme)
     pages.extend(sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md")))
     pages.extend(sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md")))
+    wiring_snippets = repo_root / WIRING_SNIPPETS
+    if wiring_snippets.is_file():
+        pages.append(wiring_snippets)
     return pages
 
 
@@ -404,7 +414,9 @@ def sync_repository(repo_root: Path) -> list[str]:
 
 
 def main() -> int:
-    failures = check_all(REPO_ROOT)
+    # The framework table renders into the same two pages (`scripts/framework_table_docs.py`); its
+    # drift is this gate's too, since `poe snippet-sync` is the one writer of both.
+    failures = check_framework_table(REPO_ROOT) + check_all(REPO_ROOT)
     if failures:
         print("ERROR: snippet-check found pages out of step with the code they ship with:")
         for failure in failures:

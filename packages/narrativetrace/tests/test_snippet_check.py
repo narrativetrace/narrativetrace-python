@@ -456,6 +456,21 @@ class TestCheckAndSyncRepository:
         assert len(failures) == 1
         assert ".agents/skills/add-narrative-tracing/SKILL.md:3" in failures[0]
 
+    def test_the_doctors_wiring_snippets_resource_is_checked_the_same_as_a_doc_page(
+        self, tmp_path: Path
+    ) -> None:
+        """The framework table's wiring lines ship inside the tooling wheel, where the doctor's
+        fix line reads them; the resource must be held to the fixtures like any page."""
+        _write(tmp_path, "src/thing.py", "new content\n")
+        resource = (
+            "packages/narrativetrace-tooling/src/narrativetrace_tooling/frameworks/"
+            "wiring-snippets.md"
+        )
+        _write(tmp_path, resource, _SIMPLE_PAGE)
+        failures = check_repository(tmp_path)
+        assert len(failures) == 1
+        assert f"{resource}:3" in failures[0]
+
     def test_sync_repository_fixes_a_drifted_codex_skill_page(self, tmp_path: Path) -> None:
         _write(tmp_path, "src/thing.py", "new content\n")
         page_path = _write(tmp_path, ".agents/skills/narrativetrace-doctor/SKILL.md", _SIMPLE_PAGE)

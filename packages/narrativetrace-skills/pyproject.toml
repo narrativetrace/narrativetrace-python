@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-skills"
-version = "0.2.0"
+version = "0.3.0"
 description = "The published skills carrier: rendered agent-skill pages (SKILL.md) + catalogue.json for narrativetrace's free skills -- resources only, no Python API"
 readme = "README.md"
 requires-python = ">=3.12"

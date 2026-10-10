@@ -192,7 +192,7 @@ entries:
   - id: config-shape-narrativetrace-doctor
     kind: config-shape
     page: "documentation/agent-skills.md#the-narrativetrace-cli"
-    claim: "narrativetrace doctor --json emits a well-formed report: it parses and carries all eleven finding ids"
+    claim: "narrativetrace doctor --json emits a well-formed report: it parses and carries exactly the eighteen documented finding ids"
     expected_effect: "well-formed"
     probe: "contract-probe/src/contract_probe/probes/narrativetrace_doctor_probe.py"
 

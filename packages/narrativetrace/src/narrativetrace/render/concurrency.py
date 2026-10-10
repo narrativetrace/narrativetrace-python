@@ -33,11 +33,26 @@ class ChildSegment:
         )
 
 
+def _segmented_by(node: TraceNode) -> str | None:
+    """The concurrency group ``node`` is laid out under, or ``None`` for a plain sibling.
+
+    A fire-and-forget WORKER root — a ``FireAndForgetGroup.child_roots()`` entry, tagged with its
+    group's id and carrying an outcome of its own — is a plain node. Only the synthetic launcher,
+    which has no outcome, opens a fire-and-forget segment; grouping the workers under the
+    launcher's rule rendered the first one as a bare marker and dropped the rest.
+    """
+    info = node.concurrency
+    if info is None:
+        return None
+    worker = info.kind is ConcurrencyKind.FIRE_AND_FORGET and node.outcome is not None
+    return None if worker else info.group_id
+
+
 def partition(children: list[TraceNode]) -> list[ChildSegment]:
     """Groups consecutive children by concurrency ``group_id`` for rendering."""
     segments: list[ChildSegment] = []
     for child in children:
-        group_id = child.concurrency.group_id if child.concurrency is not None else None
+        group_id = _segmented_by(child)
         last = segments[-1] if segments else None
         if group_id is not None and last is not None and group_id == last.group_id:
             last.nodes.append(child)

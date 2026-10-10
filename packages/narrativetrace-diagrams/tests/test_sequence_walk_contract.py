@@ -48,6 +48,7 @@ class _CountingGrammar:
     throws: int = field(default=0, init=False)
     incompletes: int = field(default=0, init=False)
     limited_notes: int = field(default=0, init=False)
+    span_ids: list[str] = field(default_factory=list, init=False)
 
     def outcomes(self) -> int:
         return self.returns + self.throws + self.incompletes
@@ -85,6 +86,10 @@ class _CountingGrammar:
     def incomplete(self, target: DiagramLabel) -> str:
         self.incompletes += 1
         return self.delegate.incomplete(target)
+
+    def span_note(self, target: DiagramLabel, span_id: DiagramLabel) -> str:
+        self.span_ids.append(span_id.text)
+        return self.delegate.span_note(target, span_id)
 
     def limited_note(self, target: DiagramLabel, reason: LimitReason) -> str:
         self.limited_notes += 1
@@ -191,6 +196,8 @@ def _assert_one_arrow_and_one_outcome_per_node(
     assert counting.call_arrows == expected_nodes, "call arrows"
     assert counting.outcomes() == expected_nodes, "outcomes (return + throw + incomplete)"
     assert counting.limited_notes == _limit_count(root), "limited notes"
+    assert len(counting.span_ids) == expected_nodes, "one span note per call arrow"
+    assert len(set(counting.span_ids)) == expected_nodes, "every cited span id is distinct"
 
 
 class TestSequenceWalkContract:

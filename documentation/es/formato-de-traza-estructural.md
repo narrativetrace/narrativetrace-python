@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob 1fd743b54770 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob ec2e4dce7fb4 | translated: 2026-10-09 | reviewed: - -->
 
 # Formato de traza estructural (`.nt`)
 
@@ -70,22 +70,36 @@ archivo.
 ```
 scenario: Weekend trip settles with three transfers
 
-- TripSettlementService.record_expense(trip_name, expense)
-  - ExpenseValidator.ensure_valid(expense)
-  - TripLedger.record_expense(trip_name, expense)
-- TripSettlementService.settle_trip(trip_name) → value
-  - TripLedger.expenses_of(trip_name) → value
+#1 - TripSettlementService.record_expense(trip_name, expense)
+  #1.1 - ExpenseValidator.ensure_valid(expense)
+  #1.2 - TripLedger.record_expense(trip_name, expense)
+#2 - TripSettlementService.settle_trip(trip_name) → value
+  #2.1 - TripLedger.expenses_of(trip_name) → value
   ~ fork [2]
-    - BalanceCalculator.compute_balances(expenses) → value
-    - StockService.check() → value
+    #2.2 - BalanceCalculator.compute_balances(expenses) → value
+    #2.3 - StockService.check() → value
 ```
 
 - **Encabezado:** `scenario: <nombre de prueba humanizado>` + línea en blanco. Nada más — sin
   resultado, sin ids/nombres de traza, sin fechas. Una invocación de una prueba que se ejecuta más
   de una vez es `scenario: <nombre de método humanizado> #<index>` — los argumentos de un id de
   parametrize nunca llegan a él.
-- **Línea de llamada:** `NombreDeClase.nombre_de_metodo(nombre_param, nombre_param)` — solo
-  nombres, en orden de captura, con dos espacios de sangría por nivel de profundidad.
+- **Línea de llamada:** `#id - NombreDeClase.nombre_de_metodo(nombre_param, nombre_param)` —
+  solo nombres, en orden de captura, con dos espacios de sangría por nivel de profundidad; el id
+  de span es el primer token después de la sangría.
+- **Id de span:** la posición de la llamada en el árbol — `#1` es la primera llamada raíz, `#1.3`
+  su tercer hijo, `#1.3.2` el segundo hijo de ese hijo. Cada lista de hermanos (las raíces, los
+  hijos de una llamada, el trabajo que lanzó un fire-and-forget) se numera en el orden en que este
+  formato la imprime: las llamadas simples en orden de captura, los miembros de un grupo fork o
+  async por `Clase.metodo` (dos miembros con el mismo `Clase.metodo` conservan el orden de
+  captura), y un lanzamiento fire-and-forget ocupa una posición — su id abre la línea
+  `~ fire-and-forget` y las llamadas lanzadas se anidan debajo. El renderizador deriva los ids del
+  árbol; nunca se capturan ni se almacenan, así que el mismo flujo recibe siempre los mismos ids;
+  una llamada insertada desplaza a sus hermanos posteriores, y el diff de aprobación lo indica
+  (`(was #1.2)`). Todas las demás variantes de NarrativeTrace imprimen el mismo id para la misma
+  llamada (un `#1.3` al final en las narrativas de texto indentado y Markdown, `(#1.3)` en la
+  prosa, una nota en los diagramas de secuencia), de modo que un informe, una revisión y un diff
+  de aprobación pueden señalar el mismo span. Un id no lleva ningún valor.
 - **Tipos de desenlace:** un retorno que no es `None` se renderiza como ` → value`; un retorno de
   tipo `None`/void: nada; una excepción lanzada ` !! NombreSimpleDeExcepcion` (el tipo es
   estructura; el mensaje es un valor y nunca aparece); una entrada sin igualar ` ?? incomplete`.
@@ -96,10 +110,12 @@ scenario: Weekend trip settles with three transfers
   comportamiento, así que el artefacto expresa el conjunto y anidamiento del trabajo concurrente y
   nunca su orden. Los grupos async se agrupan por el span que los lanzó, así que cada hijo async de
   una llamada es un solo grupo, y también aparecen al nivel raíz cuando el trabajo sobrevivió a
-  quien lo llamó. El trabajo fire-and-forget se renderiza como `~ fire-and-forget` + sus hijos. Los
-  nombres/ids de hilo nunca aparecen.
+  quien lo llamó. El trabajo fire-and-forget se renderiza como `#id ~ fire-and-forget` + las
+  llamadas lanzadas, dispuestas como cualquier otra lista de hermanos. Los nombres/ids de hilo
+  nunca aparecen.
 - **Excluido por diseño:** todos los valores de argumento/retorno, mensajes de excepción,
-  duraciones, marcas de tiempo, identidad de hilo, ids de traza/span, nombres de traza, ids de
+  duraciones, marcas de tiempo, identidad de hilo, ids de traza/span capturados (los de W3C — los ids de
+  posición de arriba se derivan, no se capturan), nombres de traza, ids de
   ejecución, nombres de ejecución (la ejecución también tiene un
   nombre, consulta [Guía de configuración § La ejecución tiene un
   nombre](guia-de-configuracion.md#la-ejecución-tiene-un-nombre); nunca entra en este
@@ -113,7 +129,9 @@ scenario: Weekend trip settles with three transfers
 
 1. **Determinista:** comportamiento idéntico ⇒ archivo idéntico byte a byte. Esto es lo que hace
    del artefacto la línea base para la traza aprobada y el formato golden para las fixtures de
-   conformidad.
+   conformidad. La comparación deja de lado los ids de span, los finales de línea (LF o CRLF) y
+   un salto de línea final: una línea base escrita antes de que existieran los ids sigue
+   coincidiendo con una ejecución actual del mismo flujo, y nunca se reescribe para añadirlos.
 2. **Libre de valores:** cero superficie de inyección de prompts, cero PII, tokens mínimos —
    seguro de entregar a un agente de IA por defecto.
 3. **División del trabajo:** el artefacto afirma la *forma* de comportamiento; la corrección de

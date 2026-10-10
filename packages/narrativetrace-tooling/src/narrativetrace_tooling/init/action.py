@@ -95,6 +95,33 @@ class ReplaceBlock:
 
 
 @dataclass(frozen=True, slots=True)
+class AdoptPage:
+    """Stamps a page a registry installed, because it already IS this carrier's page in every byte
+    but the provenance line.
+
+    **@llmNote** A separate kind from :class:`ReplaceBlock` so that the plan, the diff and the
+    report all say "adopted" rather than "replaced": a person reading it needs to know that nothing
+    of theirs was overwritten, which is also why adoption needs no ``--force``.
+    :mod:`narrativetrace_tooling.init.adoption` owns the rule about which page qualifies.
+    """
+
+    path: Path
+    before: str
+    after: str
+
+    kind: ClassVar[str] = "adopt"
+
+    def __post_init__(self) -> None:
+        require_action_text(self.before)
+        require_action_text(self.after)
+        if not self.before:
+            raise ValueError("there is nothing to adopt where there is no page")
+        if not self.after:
+            raise ValueError("a page is adopted by stamping it, never by emptying it")
+        object.__setattr__(self, "path", require_project_relative(self.path))
+
+
+@dataclass(frozen=True, slots=True)
 class AppendBlock:
     """Adds the managed block to the end of an existing file, after one blank line."""
 
@@ -132,6 +159,54 @@ class AppendLine:
     @property
     def after(self) -> str:
         return marked_block.append(self.before, self.line + marked_block.eol_of(self.before))
+
+
+@dataclass(frozen=True, slots=True)
+class ReplaceLink:
+    """Replaces a symbolic link with a real path of the project's own, holding this flavour's page.
+
+    **@llmNote** :attr:`before` is empty on purpose. The link is deleted first, so nothing this
+    PATH used to reach survives here — and what it pointed at is left exactly as it was, which is
+    the whole point: after ``npx skills add`` the vendor path links to the open-standard page, and
+    a diff showing that page's text here would read as an edit to somebody else's file.
+
+    :param link: where the symbolic link itself sits — the skill's directory, or its page
+    :param page: the page this writes, and the path the plan is keyed on
+    :param target: what the link pointed at, for the line a person reads
+    :param content: the flavour's rendered page, already stamped
+    """
+
+    link: Path
+    page: Path
+    target: str
+    content: str
+
+    kind: ClassVar[str] = "replace-link"
+
+    def __post_init__(self) -> None:
+        require_action_text(self.content)
+        object.__setattr__(self, "link", require_project_relative(self.link))
+        object.__setattr__(self, "page", require_project_relative(self.page))
+        if not isinstance(self.target, str) or not self.target.strip():
+            raise ValueError("replacing a link names what it pointed at")
+        if not self.content:
+            raise ValueError("a link is replaced by a page, never by an empty file")
+        if not self.page.is_relative_to(self.link):
+            raise ValueError(f"{self.page} is not behind the link {self.link}")
+
+    @property
+    def path(self) -> Path:
+        """The page — what the plan is keyed on, and the only path this action writes."""
+        return self.page
+
+    @property
+    def before(self) -> str:
+        """``""`` — the link is deleted, so nothing this path used to reach survives."""
+        return ""
+
+    @property
+    def after(self) -> str:
+        return self.content
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,7 +263,9 @@ class Refuse:
         object.__setattr__(self, "path", require_project_relative(self.path))
 
 
-FileEdit = CreateFile | ReplaceBlock | AppendBlock | AppendLine | DeleteFile
+FileEdit = (
+    CreateFile | ReplaceBlock | AdoptPage | ReplaceLink | AppendBlock | AppendLine | DeleteFile
+)
 """An action that leaves one file with a known text.
 
 ``before`` is ``""`` for a file that does not exist yet, ``after`` is ``""`` for one being deleted.

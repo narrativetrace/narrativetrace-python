@@ -1,8 +1,8 @@
 ---
 name: narrativetrace-doctor
-description: "Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being traced, no trace output files appear, DuplicateConfigurationError shows up on startup, a *args method's parameters render as one args: [...] value, or you are not sure NarrativeTrace is wired up correctly. Checks the interpreter and pytest versions, that all eight narrativetrace-* packages agree on one version, NARRATIVETRACE_OUTPUT, that the pytest plugin is registered and not disabled, whether the NarrativeTrace agent skills are installed and current, unrecognized narrativetrace.toml keys, an imported-but-unused not_traced_field/__nt_not_traced__ marker, whether redaction is proven in a test, and stale approval-trace diffs. Read-only -- makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it."
+description: "Diagnoses a NarrativeTrace Python install and configuration. Use when nothing is being traced, no trace output files appear, DuplicateConfigurationError shows up on startup, a *args method's parameters render as one args: [...] value, or you are not sure NarrativeTrace is wired up correctly. Checks the interpreter and pytest versions, that all eight narrativetrace-* packages agree on one version, NARRATIVETRACE_OUTPUT, that the pytest plugin is registered and not disabled, whether the NarrativeTrace agent skills are installed and current, unrecognized narrativetrace.toml keys, an imported-but-unused not_traced_field/__nt_not_traced__ marker, whether redaction is proven in a test, stale approval-trace diffs, and approved baselines nothing compares because approval mode is off. Read-only -- makes no changes. Say 'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything being traced' to invoke it."
 when_to_use: "A project already has NarrativeTrace installed and something about it is not working, or an agent wants a pre-flight check before wiring it into new code."
-allowed-tools: uv, git
+allowed-tools: Bash(uv *), Bash(git *)
 ---
 
 # narrativetrace-doctor
@@ -16,7 +16,7 @@ uv run narrativetrace doctor || true
 **verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 12 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
 '`
 
 **failure:** the CLI's JSON output does not parse, or is missing findings — the CLI crashed instead of reporting a finding. Fix: re-run `uv run narrativetrace doctor --json` directly and read the raw output -- a crash here is a doctor bug, never a project finding
@@ -83,6 +83,7 @@ else:
 ## Always
 
 - Run the doctor CLI and read its report before making any change. (the tested tooling already computed the finding -- re-deriving it by hand risks disagreeing with what ships)
+- If a check is wrong, or its fix does not work, report it with the narrativetrace-feedback skill. (a wrong finding costs every project that hits it until somebody says so, and that skill shows you the whole report and files nothing without your answer)
 
 ## Never
 

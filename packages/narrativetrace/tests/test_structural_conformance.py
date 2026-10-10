@@ -14,8 +14,12 @@ golden from Python").
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
+from scripts.translation_check import REPO_ROOT
+
+from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Returned, Threw
 from narrativetrace.render.structural import StructuralTraceRenderer
@@ -88,3 +92,53 @@ class TestStructuralConformance:
         )
 
         assert rendered == golden
+
+
+_SPEC = REPO_ROOT / "documentation" / "structural-trace-format.md"
+
+
+def _published_example() -> str:
+    """The first fenced block under the spec's ``## Content`` heading."""
+    content = _SPEC.read_text(encoding="utf-8").split("## Content", 1)[1]
+    return content.split("```\n", 2)[1]
+
+
+def _weekend_trip() -> TraceTree:
+    fork = ConcurrencyInfo("g", ConcurrencyKind.FORK_JOIN)
+    value = Returned("v")
+    return TraceTree(
+        [
+            _call(
+                "TripSettlementService",
+                "record_expense",
+                ["trip_name", "expense"],
+                Returned(None),
+                [
+                    _call("ExpenseValidator", "ensure_valid", ["expense"], Returned(None)),
+                    _call("TripLedger", "record_expense", ["trip_name", "expense"], Returned(None)),
+                ],
+            ),
+            _call(
+                "TripSettlementService",
+                "settle_trip",
+                ["trip_name"],
+                value,
+                [
+                    _call("TripLedger", "expenses_of", ["trip_name"], value),
+                    replace(_call("StockService", "check", [], value), concurrency=fork),
+                    replace(
+                        _call("BalanceCalculator", "compute_balances", ["expenses"], value),
+                        concurrency=fork,
+                    ),
+                ],
+            ),
+        ]
+    )
+
+
+class TestThePublishedExample:
+    def test_the_spec_example_is_what_the_renderer_prints(self) -> None:
+        rendered = StructuralTraceRenderer().render_document(
+            _weekend_trip(), "Weekend trip settles with three transfers"
+        )
+        assert _published_example() == rendered

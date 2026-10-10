@@ -1,4 +1,4 @@
-<!-- source: documentation/what-to-commit.md blob 0f30680e9360 | translated: 2026-09-14 | reviewed: - -->
+<!-- source: documentation/what-to-commit.md blob 515eb4c3f35d | translated: 2026-10-07 | reviewed: - -->
 
 # O que commitar
 
@@ -28,6 +28,11 @@ de trabalho do modo de aprovação.
 | `glossary.json` / `glossary.md` | raiz do repositório (ou onde você apontar `NARRATIVETRACE_GLOSSARY_DIR`) | **Sim**, se você o usa | Vocabulário de propriedade humana — o arquivo commitado é o que a pontuação de clareza lê de volta, e nunca é regenerado por uma execução de testes. "Um arquivo, um fluxo de revisão" |
 | `.claude/skills/**/SKILL.md`, a seção `<!-- narrativetrace:skills:* -->` de `AGENTS.md` | `.claude/skills/{add-narrative-tracing,narrativetrace-doctor}/SKILL.md`, `AGENTS.md` | **Sim** | Saída gerada a partir do catálogo tipado do `narrativetrace-skills-catalogue` (`python scripts/skills_render.py --fix`), não saída de uma execução de testes — é commitada da mesma forma que `glossary.json`: regenerada, revisada nos diffs e verificada contra desvio (`python scripts/skills_render.py --check`, integrado ao `uv run poe check`) em vez de editada manualmente |
 | `.agents/skills/**/SKILL.md` (e também `.claude/skills/**`, quando detectado), a seção `<!-- narrativetrace:start … --> … <!-- narrativetrace:end -->` de `AGENTS.md`, uma linha `@AGENTS.md` em `CLAUDE.md` | onde quer que `uv run narrativetrace init` grave no *seu* projeto (não nas cópias de desenvolvimento deste repositório acima) | **Sim** | A mesma forma de "revisar, depois commitar" do `glossary.json`: `init --dry-run` mostra o diff, um humano o revisa, `init` (sem a opção) o grava. Toda página instalada carrega uma linha de procedência `<!-- installed by narrativetrace init from <coordinate> — edit the catalogue, not this file -->` nomeando de onde veio; a verificação `config.skills-installed` do `narrativetrace doctor` lê esse carimbo para avisar quando um release posterior o torna desatualizado, e `narrativetrace uninstall` remove exatamente o que `init` gravou (a seção marcada, as páginas com a linha de procedência, a única linha em `CLAUDE.md`) e nada do que você tenha adicionado ao redor |
+| `skills-lock.json` | raiz do projeto, onde `npx skills add` rodou | **Sim**, se o seu time usa essa ferramenta | O próprio lock file do registro (origem, hash de conteúdo) — commite-o da mesma forma que qualquer outro lock file do qual o seu tooling dependa |
+| `.claude-plugin/marketplace.json` | raiz deste próprio repositório | **Sim** | A própria listagem de plugin do Claude Code deste repositório, renderizada a partir do catálogo tipado (`python scripts/skills_render.py --fix`) — saída de build commitada, nunca editada à mão, verificada contra desvio da mesma forma que as páginas de habilidades acima |
+
+Uma instalação pessoal de plugin (`/plugin marketplace add …`, `/plugin install …`) cai no seu
+próprio cache de plugins, fora de qualquer projeto — não deixa nada aqui para commitar.
 
 O `<OUTPUT_DIR>` padrão é `narrative-traces` e o `<APPROVED_DIR>` padrão é `test-narratives`
 (ambos relativos a onde a suíte rodou, ambos configuráveis — veja o

@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 248d7821369f | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 57580c72e321 | translated: 2026-09-13 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -46,9 +46,9 @@ def run() -> str:
 que en la página de 60 segundos):
 
 ```text
-The trace damp shard sways:
+The trace livid bear fits:
 
-The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+The auth service login — login attempt for alice with [REDACTED] (#1), returning "session-for-alice".
 ```
 
 La aserción que lo demuestra: `assert "[REDACTED]" in rendered` — `password` nunca llega al texto

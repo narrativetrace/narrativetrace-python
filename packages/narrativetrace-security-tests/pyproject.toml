@@ -20,6 +20,10 @@ dependencies = [
     "narrativetrace",
     "narrativetrace-diagrams",
     "narrativetrace-asgi",
+    # The one package that may see BOTH the runtime's redaction policy and the zero-dependency
+    # tooling library's value-free gate -- which is what lets it assert the superset the tooling
+    # layer cannot express as a dependency of its own (Phase 5 milestone 2, cross-port item 3).
+    "narrativetrace-tooling",
 ]
 
 [project.urls]

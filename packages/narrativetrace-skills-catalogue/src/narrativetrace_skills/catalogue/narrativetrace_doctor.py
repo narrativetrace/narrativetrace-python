@@ -31,7 +31,8 @@ NARRATIVETRACE_DOCTOR = Skill(
         "the pytest plugin is registered and not disabled, whether the NarrativeTrace agent "
         "skills are installed and current, unrecognized narrativetrace.toml keys, an "
         "imported-but-unused not_traced_field/__nt_not_traced__ marker, whether redaction is "
-        "proven in a test, and stale approval-trace diffs. Read-only -- makes no changes. Say "
+        "proven in a test, stale approval-trace diffs, and approved baselines nothing compares "
+        "because approval mode is off. Read-only -- makes no changes. Say "
         "'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything "
         "being traced' to invoke it."
     ),
@@ -94,6 +95,16 @@ NARRATIVETRACE_DOCTOR = Skill(
             reason=(
                 "the tested tooling already computed the finding -- re-deriving it by hand "
                 "risks disagreeing with what ships"
+            ),
+        ),
+        ReasonedRule(
+            rule=(
+                "If a check is wrong, or its fix does not work, report it with the "
+                "narrativetrace-feedback skill."
+            ),
+            reason=(
+                "a wrong finding costs every project that hits it until somebody says so, and "
+                "that skill shows you the whole report and files nothing without your answer"
             ),
         ),
     ),

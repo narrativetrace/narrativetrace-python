@@ -82,6 +82,12 @@ class SequenceGrammar(Protocol):
         """The note for a node whose outcome never arrived (an in-flight call)."""
         ...
 
+    def span_note(self, target: DiagramLabel, span_id: DiagramLabel) -> str:
+        """The note that follows a call arrow (and its activation), citing its span id
+        (``#1.3``) -- a position path checked by :meth:`DiagramLabel.span_id`, so it carries no
+        trace text at all."""
+        ...
+
     def limited_note(self, target: DiagramLabel, reason: LimitReason) -> str:
         """The note appended after a node the walk stopped at instead of descending into."""
         ...

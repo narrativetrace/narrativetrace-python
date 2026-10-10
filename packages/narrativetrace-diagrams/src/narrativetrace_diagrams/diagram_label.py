@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from narrativetrace.render import span_id as _span_id
 from narrativetrace_diagrams import text as _text
 
 _CONSTRUCT = object()
@@ -86,6 +87,18 @@ class DiagramLabel:
         :meth:`identifier`, which can still carry a space, colon or arrow fragment. See
         :func:`text.alias_token`."""
         return DiagramLabel(_text.alias_token(raw), _CONSTRUCT)
+
+    @staticmethod
+    def span_id(raw: str) -> DiagramLabel:
+        """A span id (``#1.3``) for a span note. Not trace text at all -- a position path the
+        renderer derived -- so it is checked against the id grammar instead of sanitized.
+
+        Raises:
+            ValueError: when ``raw`` is not exactly one well-formed span id.
+        """
+        if not _span_id.is_well_formed(raw):
+            raise ValueError(f"not a span id: {raw!r}")
+        return DiagramLabel(raw, _CONSTRUCT)
 
     def with_parameters(self, parameters: list[DiagramLabel]) -> DiagramLabel:
         """This label (a sanitized method name) followed by its already-sanitized parameter

@@ -42,9 +42,9 @@ def run() -> str:
 
 <!-- snippet: examples/build/import_and_use.txt mask=traceName -->
 ```text
-The trace damp shard sways:
+The trace livid bear fits:
 
-The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+The auth service login — login attempt for alice with [REDACTED] (#1), returning "session-for-alice".
 ```
 <!-- /snippet -->
 
@@ -173,10 +173,10 @@ def run() -> str:
 
 <!-- snippet: examples/build/not_traced_fields.txt mask=duration,traceName -->
 ```text
-trace: hazy goat ranks (9b254d5)
+trace: worn aspen veers (da69ebb)
 
-AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms
-AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms
+AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms #1
+AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms #2
 ```
 <!-- /snippet -->
 

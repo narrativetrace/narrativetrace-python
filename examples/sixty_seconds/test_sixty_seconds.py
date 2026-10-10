@@ -59,7 +59,7 @@ _HERE = Path(__file__).parent
 
 _TRACE_LINE = re.compile(
     r'^OrderService\.place_order\(customer_id: "cust-1", product_id: "prod-42", quantity: 3\) '
-    r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms$'
+    r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms #1$'
 )
 
 
@@ -73,7 +73,7 @@ def _order_service_source() -> str:
 
 _REDACTED_TRACE_LINE = re.compile(
     r'^OrderService\.place_order\(customer_id: \[REDACTED\], product_id: "prod-42", quantity: 3\) '
-    r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms$'
+    r'→ "ORD-cust-1-prod-42-3" — \d+(\.\d+)?ms #1$'
 )
 
 # main.py/main_with_logger.py adopt a fixed trace id (DEMO_TRACE_ID) so the page's embedded

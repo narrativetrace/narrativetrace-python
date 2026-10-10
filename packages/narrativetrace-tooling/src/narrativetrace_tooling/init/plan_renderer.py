@@ -23,10 +23,18 @@ import json
 from pathlib import Path
 from typing import Any
 
-from narrativetrace_tooling.init.action import Action, FileEdit, Refuse
+from narrativetrace_tooling.init.action import Action, AdoptPage, FileEdit, Refuse, ReplaceLink
 from narrativetrace_tooling.init.plan import InitPlan
 from narrativetrace_tooling.init.report import ExecutionReport, Status
 from narrativetrace_tooling.init.unified_diff import render_unified_diff
+
+# Quoted verbatim by documentation/agent-skills.md's "From a registry" section (rule 8, docs as
+# tests) — the marker pair around this field is that embed's source, never typed into the page.
+# snippet:begin adoptedNote
+ADOPTED = "adopted: identical to this carrier's page, so only the provenance line is added"
+"""What the plan and the report say about a page that was already ours in everything but a line."""
+
+# snippet:end adoptedNote
 
 _PLANNED = "planned"
 
@@ -62,10 +70,7 @@ def render_plan_text(plan: InitPlan) -> str:
         f"narrativetrace — {plan.carrier}",
         f"{len(plan.actions)} action(s), {len(plan.refusals)} refusal(s)",
         "",
-        *(
-            f"{_pad(action.kind)}{_display(action.path)}{_reason(action)}"
-            for action in plan.actions
-        ),
+        *(f"{_pad(action.kind)}{_display(action.path)}{_note(action)}" for action in plan.actions),
     ]
     return "".join(f"{line}\n" for line in lines)
 
@@ -80,7 +85,8 @@ def render_report_text(report: ExecutionReport) -> str:
         "",
         *(
             f"{_pad(_status_of(result.status))}{_pad(result.action.kind)}"
-            f"{_display(result.action.path)}{'' if not result.detail else ' — ' + result.detail}"
+            f"{_display(result.action.path)}"
+            f"{' — ' + result.detail if result.detail else _note(result.action)}"
             for result in report.results
         ),
     ]
@@ -133,8 +139,18 @@ def _describe(action: Action) -> str:
     return f"refused: {action.reason}" if isinstance(action, Refuse) else action.kind
 
 
-def _reason(action: Action) -> str:
-    return f" — {action.reason}" if isinstance(action, Refuse) else ""
+def _note(action: Action) -> str:
+    """What a line says after the path: why a refusal refused, which link a replacement replaces,
+    or — for an adoption — that nothing of anybody's was overwritten.
+
+    Asked by BOTH the plan's text and the report's, because an adoption a person only sees in a
+    preview is an adoption they were never told about.
+    """
+    if isinstance(action, Refuse):
+        return f" — {action.reason}"
+    if isinstance(action, ReplaceLink):
+        return f" — replaces the symbolic link {_display(action.link)} → {action.target}"
+    return f" — {ADOPTED}" if isinstance(action, AdoptPage) else ""
 
 
 def _display(path: Path) -> str:

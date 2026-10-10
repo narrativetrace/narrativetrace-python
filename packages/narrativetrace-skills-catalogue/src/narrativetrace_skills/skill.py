@@ -66,6 +66,23 @@ class SkillStep:
     failure: tuple[FailureNote, ...] = ()
     flag: str | None = None
     """e.g. ``"unstudied — eval cell pending"``."""
+    condition: str | None = None
+    """When present, rendered as a ``**when:**`` line under the heading: the step applies only
+    then, and the line says what to do instead — prose a reader or agent branches on, never a
+    list of frameworks (the page names none). Never blank."""
+    done: str | None = None
+    """When present, rendered as a ``**done when:**`` line after the body: what the reply or the
+    project must show once the step is done, in prose. Kept apart from :attr:`verify`, which in
+    this catalogue is always a runnable command — a judgmental step (write the intent, read the
+    trace, report) has a done-condition and no command that could prove it. Never blank."""
+
+    def __post_init__(self) -> None:
+        if self.condition is not None and not self.condition.strip():
+            raise ValueError("a SkillStep's condition must not be blank when present")
+        if self.verify is not None and not self.verify.strip():
+            raise ValueError("a SkillStep's verify must not be blank when present")
+        if self.done is not None and not self.done.strip():
+            raise ValueError("a SkillStep's done condition must not be blank when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +92,36 @@ class ReasonedRule:
 
     rule: str
     reason: str
+
+
+_LINE_BREAKS = frozenset("\n\r\u2028\u2029")
+"""What ends a line for some reader of a rendered page — a heading carries none."""
+
+
+@dataclass(frozen=True, slots=True)
+class SkillSection:
+    """A named block of reference text a skill renders after its steps — a table or a short list
+    the steps point at, which is neither a step nor an always/never rule.
+
+    INTENT: two skills that read traces share one "how to read a trace" text; a section is how
+    that text is written once in the catalogue and rendered into both pages identically, instead
+    of being copied into a step's prose where the copies drift.
+    """
+
+    heading: str
+    """Rendered as a level-two heading: one line of text, never itself a heading marker."""
+    markdown: str
+    """Rendered as written."""
+
+    def __post_init__(self) -> None:
+        if not self.heading.strip():
+            raise ValueError("a SkillSection's heading must not be blank")
+        if any(c in self.heading for c in _LINE_BREAKS) or self.heading.startswith("#"):
+            raise ValueError(
+                f"a SkillSection's heading is one line of text, not markdown: {self.heading!r}"
+            )
+        if not self.markdown.strip():
+            raise ValueError("a SkillSection's markdown must not be blank")
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +144,8 @@ class Skill:
     when_to_use: str | None = None
     always: tuple[ReasonedRule, ...] = ()
     never: tuple[ReasonedRule, ...] = ()
+    sections: tuple[SkillSection, ...] = ()
+    """Reference sections, rendered after the steps and before the always/never rules."""
 
 
 _DESCRIPTION_BUDGET = 1024
@@ -111,6 +160,21 @@ def command_strings(skill: Skill) -> tuple[str, ...]:
         if isinstance(step.body, CommandStep)
         for command in step.body.commands
     )
+
+
+def claude_tool_pattern(command: str) -> str:
+    """The Claude Code ``allowed-tools`` spelling of one vocabulary command: a ``Bash(<command>
+    *)`` permission rule. A bare command name (``"git"``) names no tool Claude Code recognises
+    and pre-approves nothing -- ``allowed-tools`` lists TOOLS, and a permission rule is spelled
+    ``Tool`` or ``Tool(specifier)``. The trailing ``" *"`` is load-bearing twice: a rule's
+    wildcard sits after the subcommand, and it also matches the bare command on its own, which is
+    what lets ``Bash(uv *)`` cover a plain ``uv``.
+
+    The ONLY place this platform spelling is written -- the catalogue declares bare commands
+    (:data:`Skill.allowed_tools`), :mod:`narrativetrace_skills.render.claude` is the one caller,
+    and :func:`narrativetrace_skills.lints.allowed_tools_violations` is what keeps a hand-written
+    pattern out of the catalogue itself."""
+    return f"Bash({command} *)"
 
 
 def first_token(command: str) -> str:
@@ -138,6 +202,8 @@ def description_fits_budget(skill: Skill) -> bool:
 
 def steps_without_verify(skill: Skill) -> tuple[str, ...]:
     """The replayability rule: every step must carry a ``verify`` UNLESS it is explicitly
-    judgmental (no ``verify``, and the reason is documented in ``flag`` or the step's own body —
-    the schema cannot enforce prose, only that the step is not silently missing one)."""
-    return tuple(step.title for step in skill.steps if step.verify is None)
+    judgmental — a ``done`` condition says in prose what the reply must show, which no command
+    could prove. A step with neither is returned (its reason may still be documented in ``flag``
+    or its body — the schema cannot enforce prose, only that the step is not silently missing
+    one)."""
+    return tuple(step.title for step in skill.steps if step.verify is None and step.done is None)

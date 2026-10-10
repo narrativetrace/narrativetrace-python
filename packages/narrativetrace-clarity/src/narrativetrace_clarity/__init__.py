@@ -16,7 +16,7 @@ from narrativetrace_clarity.models import ClarityIssue, ClarityResult, Severity
 from narrativetrace_clarity.report import render, render_suite_report
 from narrativetrace_clarity.vocabulary import EMPTY, DomainVocabulary
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "EMPTY",

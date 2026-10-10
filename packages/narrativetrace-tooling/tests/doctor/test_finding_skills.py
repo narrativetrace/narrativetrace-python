@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from narrativetrace_tooling.doctor.finding_skills import for_check, knows
+from narrativetrace_tooling.frameworks.table import wiring_check_ids
 
 _ADD = "add-narrative-tracing"
 _DOCTOR = "narrativetrace-doctor"
@@ -34,6 +35,14 @@ class TestForCheck:
     )
     def test_names_the_skill_that_fixes_each_finding_class(self, check_id: str, skill: str) -> None:
         assert for_check(check_id) == skill
+
+    @pytest.mark.parametrize("check_id", wiring_check_ids())
+    def test_every_framework_wiring_check_names_the_skill_whose_step_applies_its_fix(
+        self, check_id: str
+    ) -> None:
+        """Derived from the framework table, so a row added there is never a finding nobody
+        decided a skill for: ``add-narrative-tracing``'s framework step applies every one."""
+        assert for_check(check_id) == _ADD
 
     @pytest.mark.parametrize("check_id", ["toolchain.python-version", "config.skills-installed"])
     def test_names_no_skill_where_none_fixes_it(self, check_id: str) -> None:

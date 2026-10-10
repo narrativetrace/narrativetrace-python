@@ -1,0 +1,12 @@
+[project]
+name = "shopkit"
+version = "1.4.0"
+description = "Checkout flow and hooks."
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shopkit"]

@@ -72,7 +72,7 @@ class TestReadCatalogue:
 
         names = [skill.name for skill in read.skills]
         assert read.runtime == "python"
-        assert len(names) == len(set(names)) == 2
+        assert len(names) == len(set(names)) == 6
         for skill in read.skills:
             assert skill.agents_path == f"agents/{skill.name}/SKILL.md"
             assert skill.claude_path == f"claude/{skill.name}/SKILL.md"

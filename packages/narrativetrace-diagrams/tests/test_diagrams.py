@@ -11,10 +11,12 @@ import re
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from narrativetrace_diagrams.diagram_label import DiagramLabel
 from narrativetrace_diagrams.mermaid import MermaidSequenceDiagramRenderer
 from narrativetrace_diagrams.plantuml import PlantUmlSequenceDiagramRenderer
-from narrativetrace_diagrams.text import alias_token, diagram_message
+from narrativetrace_diagrams.text import alias_token, diagram_message, identifier
 
+from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.signature import MethodSignature, ParameterCapture
@@ -254,10 +256,58 @@ class TestQuotingAndSanitising:
         assert "\nclick X" not in out
         assert "S-->>S: a click X" in out
 
+    def test_unicode_line_separators_are_folded_in_messages_and_names(self) -> None:
+        # Mermaid parses in JavaScript, where U+2028/U+2029 end a line as \n does.
+        node = _node("S\u2028x", "m\u2029y", Returned("a\u2028click X"))
+        for out in (
+            MermaidSequenceDiagramRenderer().render(_tree(node)),
+            PlantUmlSequenceDiagramRenderer().render(_tree(node)),
+        ):
+            assert "\u2028" not in out
+            assert "\u2029" not in out
+        assert diagram_message("a\u2028b\u2029c") == "a b c"
+
     @given(st.text())
     def test_diagram_message_folds_all_controls(self, text: str) -> None:
         out = diagram_message(text)
         assert not any(ord(c) <= 0x1F or 0x7F <= ord(c) <= 0x9F for c in out)
+
+
+class TestLineSeparatorFold:
+    """Adversarial probes of the U+2028/U+2029/U+0085 fold (mirror of the Java nightly finding of
+    2026-10-10): every name field of a call signature and the message, in both grammars."""
+
+    _SEPARATORS = "\u2028\u2029\u0085"
+
+    def test_identifier_folds_each_line_terminator_mid_string_to_one_space(self) -> None:
+        assert identifier("a\u2028b\u2029c\u0085d") == "a b c d"
+
+    def test_identifier_keeps_neighbours_of_the_separators(self) -> None:
+        # U+2027, U+202A and U+00A0 sit beside the separators but terminate no line.
+        assert identifier("caf\u00e9\u2027\u202a\u00a0x") == "caf\u00e9\u2027\u202a\u00a0x"
+
+    def test_a_name_that_is_only_separators_becomes_unnamed(self) -> None:
+        assert identifier("\u2028\u2029") == "<unnamed>"
+
+    @pytest.mark.parametrize("field", ["class", "method", "parameter", "message"])
+    @pytest.mark.parametrize("sep", _SEPARATORS)
+    @pytest.mark.parametrize(
+        "renderer", [MermaidSequenceDiagramRenderer, PlantUmlSequenceDiagramRenderer]
+    )
+    def test_no_name_field_lets_a_separator_through(
+        self, field: str, sep: str, renderer: type
+    ) -> None:
+        text = f"Pay/{sep}ment"
+        node = _node(
+            text if field == "class" else "C",
+            text if field == "method" else "m",
+            Returned(text if field == "message" else "ok"),
+            params=[ParameterCapture(text if field == "parameter" else "p", '"v"')],
+        )
+        out = renderer().render(_tree(node))
+        assert not set(self._SEPARATORS) & set(out)
+        if field != "message":
+            assert "Pay/ ment" in out
 
 
 class TestPlainModeReservedWords:
@@ -472,3 +522,62 @@ def _renamed_exception(name: str) -> Exception:
     instance = exc_type()
     assert isinstance(instance, Exception)
     return instance
+
+
+class TestSpanNotes:
+    """D8: every call arrow is followed by a note citing its span id — the id every other flavour
+    prints for the same call."""
+
+    def _flow(self) -> TraceTree:
+        launcher = TraceNode(
+            MethodSignature("OrderService", "fire-and-forget", []),
+            [_node("Audit", "log", Returned(None))],
+            None,
+            concurrency=ConcurrencyInfo("f", ConcurrencyKind.FIRE_AND_FORGET),
+        )
+        root = _node(
+            "OrderService",
+            "place",
+            Returned("ok"),
+            [_node("Inventory", "check", Returned("true")), launcher],
+        )
+        return _tree(root, _node("OrderService", "report", Returned(None)))
+
+    def test_mermaid_notes_each_call_over_its_target(self) -> None:
+        out = MermaidSequenceDiagramRenderer().render(self._flow())
+        assert out.splitlines()[4:8] == [
+            "    OrderService->>OrderService: place()",
+            "    Note over OrderService: #1",
+            "    OrderService->>Inventory: check()",
+            "    Note over Inventory: #1.1",
+        ]
+        assert "    Note over Audit: #1.2.1" in out
+        assert "    Note over OrderService: #2" in out
+
+    def test_mermaid_alias_mode_notes_over_the_alias(self) -> None:
+        out = MermaidSequenceDiagramRenderer().render_with_aliases(self._flow())
+        assert "    Note over I: #1.1" in out
+
+    def test_plantuml_notes_each_call_with_an_hnote(self) -> None:
+        out = PlantUmlSequenceDiagramRenderer().render(self._flow())
+        assert "OrderService -> Inventory: check()\nhnote over Inventory : #1.1\n" in out
+        assert "hnote over OrderService : #2\n" in out
+
+    def test_plantuml_lifelines_activate_before_the_note(self) -> None:
+        out = PlantUmlSequenceDiagramRenderer(lifelines=True).render(self._flow())
+        assert (
+            "OrderService -> Inventory: check()\nactivate Inventory\nhnote over Inventory : #1.1\n"
+            in out
+        )
+
+    def test_a_limited_node_is_still_cited(self) -> None:
+        cyclic = TraceNode(MethodSignature("Svc", "loop", []), [], Returned(None))
+        cyclic.children.append(cyclic)
+        out = MermaidSequenceDiagramRenderer().render(_tree(cyclic))
+        assert "    Note over Svc: #1.1\n" in out
+
+    def test_a_note_cites_only_a_well_formed_span_id(self) -> None:
+        assert DiagramLabel.span_id("#1.20.3").text == "#1.20.3"
+        for hostile in ["#1\n- x", "1.2", "#1.", "", "#1 ;"]:
+            with pytest.raises(ValueError, match=r"\Anot a span id: "):
+                DiagramLabel.span_id(hostile)

@@ -10,10 +10,13 @@ outcome-kind markers, concurrency grouping, walk limits, and identifier sanitiza
 from __future__ import annotations
 
 from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
+from narrativetrace.context import ContextVarNarrativeContext
+from narrativetrace.groups import FireAndForgetGroup
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.render.structural import StructuralTraceRenderer
 from narrativetrace.signature import MethodSignature, ParameterCapture
+from narrativetrace.trace_object import trace_object
 from narrativetrace.tree import TraceTree
 
 _RENDERER = StructuralTraceRenderer()
@@ -39,25 +42,25 @@ def _node(
 class TestOutcomeKinds:
     def test_void_return_renders_no_arrow(self) -> None:
         tree = TraceTree([_node(outcome=Returned(None))])
-        assert _RENDERER.render(tree) == "- Service.call()\n"
+        assert _RENDERER.render(tree) == "#1 - Service.call()\n"
 
     def test_non_void_return_renders_literal_value(self) -> None:
         tree = TraceTree([_node(outcome=Returned("42"))])
-        assert _RENDERER.render(tree) == "- Service.call() → value\n"
+        assert _RENDERER.render(tree) == "#1 - Service.call() → value\n"
 
     def test_thrown_exception_renders_simple_type_name_never_the_message(self) -> None:
         tree = TraceTree([_node(outcome=Threw(ValueError("super secret message")))])
         rendered = _RENDERER.render(tree)
-        assert rendered == "- Service.call() !! ValueError\n"
+        assert rendered == "#1 - Service.call() !! ValueError\n"
         assert "secret" not in rendered
 
     def test_incomplete_renders_marker(self) -> None:
         tree = TraceTree([_node(outcome=Incomplete())])
-        assert _RENDERER.render(tree) == "- Service.call() ?? incomplete\n"
+        assert _RENDERER.render(tree) == "#1 - Service.call() ?? incomplete\n"
 
     def test_no_outcome_renders_nothing_extra(self) -> None:
         tree = TraceTree([_node(outcome=None)])
-        assert _RENDERER.render(tree) == "- Service.call()\n"
+        assert _RENDERER.render(tree) == "#1 - Service.call()\n"
 
 
 class TestNamesOnly:
@@ -74,7 +77,7 @@ class TestNamesOnly:
             outcome=Returned("100"),
         )
         rendered = _RENDERER.render(TraceTree([node]))
-        assert rendered == "- Service.call(customerId, amount) → value\n"
+        assert rendered == "#1 - Service.call(customerId, amount) → value\n"
         assert "cust-1" not in rendered
         assert "99.5" not in rendered
 
@@ -89,7 +92,7 @@ class TestNesting:
         child = _node(method_name="child")
         parent = _node(method_name="parent", children=[child])
         rendered = _RENDERER.render(TraceTree([parent]))
-        assert rendered == "- Service.parent()\n  - Service.child()\n"
+        assert rendered == "#1 - Service.parent()\n  #1.1 - Service.child()\n"
 
     def test_render_document_prepends_the_scenario_header(self) -> None:
         tree = TraceTree([_node()])
@@ -120,8 +123,8 @@ class TestConcurrencyGrouping:
         members = [self._member("Bravo", "run"), self._member("Alpha", "run")]
         rendered = _RENDERER.render(TraceTree(members))
         lines = rendered.splitlines()
-        assert lines[1] == "  - Alpha.run() → value"
-        assert lines[2] == "  - Bravo.run() → value"
+        assert lines[1] == "  #1 - Alpha.run() → value"
+        assert lines[2] == "  #2 - Bravo.run() → value"
 
     def test_async_group_renders_its_own_marker(self) -> None:
         members = [
@@ -148,14 +151,14 @@ class TestConcurrencyGrouping:
             concurrency=ConcurrencyInfo("g1", ConcurrencyKind.FIRE_AND_FORGET),
         )
         rendered = _RENDERER.render(TraceTree([launcher]))
-        assert rendered == "~ fire-and-forget\n  - Service.work() → value\n"
+        assert rendered == "#1 ~ fire-and-forget\n  #1.1 - Service.work() → value\n"
 
     def test_fire_and_forget_with_no_children_renders_only_the_marker(self) -> None:
         launcher = _node(
             method_name="launch", concurrency=ConcurrencyInfo("g1", ConcurrencyKind.FIRE_AND_FORGET)
         )
         rendered = _RENDERER.render(TraceTree([launcher]))
-        assert rendered == "~ fire-and-forget\n"
+        assert rendered == "#1 ~ fire-and-forget\n"
 
     def test_sequential_sibling_between_two_groups_is_unaffected(self) -> None:
         group_a = [self._member("A", "run", "g1"), self._member("B", "run", "g1")]
@@ -164,7 +167,7 @@ class TestConcurrencyGrouping:
         rendered = _RENDERER.render(TraceTree([*group_a, plain, *group_b]))
         lines = rendered.splitlines()
         assert lines[0] == "~ fork [2]"
-        assert "- Service.middle() → value" in lines
+        assert "#3 - Service.middle() → value" in lines
         assert lines.count("~ fork [2]") == 2
 
 
@@ -175,7 +178,7 @@ class TestWalkLimits:
         rendered = _RENDERER.render(TraceTree([cyclic]))
         # The first occurrence renders normally; the walk only recognizes the second occurrence
         # (found while descending into its own children) as already being on the current path.
-        assert rendered == "- Service.loop()\n  - Service.loop() … (cycle)\n"
+        assert rendered == "#1 - Service.loop()\n  #1.1 - Service.loop() … (cycle)\n"
 
     def test_a_pathologically_deep_chain_stops_at_the_depth_limit(self) -> None:
         node = _node(method_name="leaf")
@@ -183,3 +186,112 @@ class TestWalkLimits:
             node = _node(method_name=f"level{i}", children=[node])
         rendered = _RENDERER.render(TraceTree([node]))
         assert "… (depth limit)" in rendered
+
+
+class TestSpanIds:
+    """D8: every span line opens with its position path; markers and the header carry none."""
+
+    def test_siblings_are_numbered_in_order_and_children_extend_the_path(self) -> None:
+        tree = TraceTree(
+            [
+                _node(
+                    method_name="first", children=[_node(method_name="a"), _node(method_name="b")]
+                ),
+                _node(method_name="second", children=[_node(method_name="c")]),
+            ]
+        )
+        assert _RENDERER.render(tree) == (
+            "#1 - Service.first()\n"
+            "  #1.1 - Service.a()\n"
+            "  #1.2 - Service.b()\n"
+            "#2 - Service.second()\n"
+            "  #2.1 - Service.c()\n"
+        )
+
+    def test_a_fork_takes_one_position_per_member_in_signature_order(self) -> None:
+        fork = ConcurrencyInfo("g", ConcurrencyKind.FORK_JOIN)
+        parent = _node(
+            method_name="parent",
+            children=[
+                _node(method_name="before"),
+                _node(class_name="Bravo", method_name="run", concurrency=fork),
+                _node(class_name="Alpha", method_name="run", concurrency=fork),
+                _node(method_name="after"),
+            ],
+        )
+        assert _RENDERER.render(TraceTree([parent])) == (
+            "#1 - Service.parent()\n"
+            "  #1.1 - Service.before()\n"
+            "  ~ fork [2]\n"
+            "    #1.2 - Alpha.run()\n"
+            "    #1.3 - Bravo.run()\n"
+            "  #1.4 - Service.after()\n"
+        )
+
+    def test_a_fire_and_forget_launch_is_one_position_its_work_nests_under(self) -> None:
+        launcher = _node(
+            method_name="launch",
+            children=[_node(method_name="work"), _node(method_name="more")],
+            concurrency=ConcurrencyInfo("f", ConcurrencyKind.FIRE_AND_FORGET),
+        )
+        parent = _node(method_name="parent", children=[launcher, _node(method_name="after")])
+        assert _RENDERER.render(TraceTree([parent])) == (
+            "#1 - Service.parent()\n"
+            "  #1.1 ~ fire-and-forget\n"
+            "    #1.1.1 - Service.work()\n"
+            "    #1.1.2 - Service.more()\n"
+            "  #1.2 - Service.after()\n"
+        )
+
+    def test_a_fork_inside_launched_work_keeps_its_marker_and_numbering(self) -> None:
+        fork = ConcurrencyInfo("g", ConcurrencyKind.FORK_JOIN)
+        launcher = _node(
+            method_name="launch",
+            children=[
+                _node(class_name="Bravo", method_name="run", concurrency=fork),
+                _node(class_name="Alpha", method_name="run", concurrency=fork),
+            ],
+            concurrency=ConcurrencyInfo("f", ConcurrencyKind.FIRE_AND_FORGET),
+        )
+        assert _RENDERER.render(TraceTree([launcher])) == (
+            "#1 ~ fire-and-forget\n  ~ fork [2]\n    #1.1 - Alpha.run()\n    #1.2 - Bravo.run()\n"
+        )
+
+    def test_the_scenario_header_carries_no_id(self) -> None:
+        document = _RENDERER.render_document(TraceTree([_node()]), "scenario #1")
+        assert document == "scenario: scenario #1\n\n#1 - Service.call()\n"
+
+
+class TestFireAndForgetWorkerRoots:
+    """A worker root — a ``FireAndForgetGroup.child_roots()`` entry, tagged with the group's id
+    and carrying an outcome of its own — is a plain node; only the outcome-less launcher opens a
+    fire-and-forget segment (cross-port item 4)."""
+
+    def test_every_worker_root_renders_as_itself(self) -> None:
+        tag = ConcurrencyInfo("f", ConcurrencyKind.FIRE_AND_FORGET)
+        workers = [
+            _node(method_name="first", outcome=Returned("x"), concurrency=tag),
+            _node(method_name="second", outcome=Returned(None), concurrency=tag),
+        ]
+        assert _RENDERER.render(TraceTree(workers)) == (
+            "#1 - Service.first() → value\n#2 - Service.second()\n"
+        )
+
+    def test_worker_roots_from_a_real_group_are_not_dropped(self) -> None:
+        class Worker:
+            def alpha(self) -> None:
+                return None
+
+            def beta(self) -> None:
+                return None
+
+        ctx = ContextVarNarrativeContext()
+        worker = trace_object(Worker(), ctx)
+        ctx.enter_method(MethodSignature("Launcher", "launch", []))
+        group = FireAndForgetGroup.create(ctx, "Launcher")
+        group.wrap(worker.alpha)()
+        group.wrap(worker.beta)()
+
+        rendered = _RENDERER.render(TraceTree(group.child_roots()))
+
+        assert rendered == "#1 - Worker.alpha() → value\n#2 - Worker.beta() → value\n"

@@ -13,6 +13,27 @@ deletion so removed lines always precede their replacements.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
+
+_LINE_END = re.compile(r"\r\n|\r|\n")
+
+
+def lines(document: str) -> list[str]:
+    """The document's lines, split at LF, CR or CRLF only and without a final empty line — the
+    lines the reference runtime reads. :meth:`str.splitlines` also splits at form feeds, NEL and
+    U+2028/U+2029, which would make two different documents look the same."""
+    split = _LINE_END.split(document)
+    return split[:-1] if split[-1] == "" else split
+
+
+def _identity(line: str) -> str:
+    return line
+
+
+def _current_side(_was: str, now: str) -> str:
+    return now
+
 
 def is_subsequence(baseline: str, current: str) -> bool:
     """True when every line of ``current`` appears in ``baseline``, in order — i.e. ``current``
@@ -22,8 +43,8 @@ def is_subsequence(baseline: str, current: str) -> bool:
     best-effort path caused; containment tolerates exactly those and nothing else, so an added,
     renamed or reordered line still comes back ``False``.
     """
-    baseline_lines = baseline.splitlines()
-    current_lines = current.splitlines()
+    baseline_lines = lines(baseline)
+    current_lines = lines(current)
     matched = 0
     for line in baseline_lines:
         if matched < len(current_lines) and current_lines[matched] == line:
@@ -31,13 +52,32 @@ def is_subsequence(baseline: str, current: str) -> bool:
     return matched == len(current_lines)
 
 
-def unified(baseline: str, current: str) -> str:
+def unified(
+    baseline: str,
+    current: str,
+    key: Callable[[str], str] = _identity,
+    context: Callable[[str, str], str] = _current_side,
+) -> str:
     """The full-document line diff: no hunk elision, since a structural artifact is one test
-    scenario and stays small enough to read in full."""
-    baseline_lines = baseline.splitlines()
-    current_lines = current.splitlines()
-    table = _lcs_table(baseline_lines, current_lines)
-    return _render(table, baseline_lines, current_lines)
+    scenario and stays small enough to read in full.
+
+    Lines are matched on ``key``, so two lines whose keys agree are context even when their bytes
+    differ; ``context`` renders such a pair from (baseline line, current line). Removed lines print
+    as the baseline wrote them, added lines as the current document does.
+    """
+    sides = _Sides(lines(baseline), lines(current), key)
+    table = _lcs_table(sides.baseline_keys, sides.current_keys)
+    return _render(table, sides, context)
+
+
+class _Sides:
+    """Both documents, each as its printed lines and the keys those lines are matched on."""
+
+    def __init__(self, baseline: list[str], current: list[str], key: Callable[[str], str]) -> None:
+        self.baseline = baseline
+        self.current = current
+        self.baseline_keys = [key(line) for line in baseline]
+        self.current_keys = [key(line) for line in current]
 
 
 def _lcs_table(baseline: list[str], current: list[str]) -> list[list[int]]:
@@ -51,12 +91,13 @@ def _lcs_table(baseline: list[str], current: list[str]) -> list[list[int]]:
     return table
 
 
-def _render(table: list[list[int]], baseline: list[str], current: list[str]) -> str:
+def _render(table: list[list[int]], sides: _Sides, context: Callable[[str, str], str]) -> str:
+    baseline, current = sides.baseline, sides.current
     parts: list[str] = []
     i = j = 0
     while i < len(baseline) and j < len(current):
-        if baseline[i] == current[j]:
-            parts.append(f" {baseline[i]}\n")
+        if sides.baseline_keys[i] == sides.current_keys[j]:
+            parts.append(f" {context(baseline[i], current[j])}\n")
             i += 1
             j += 1
         elif table[i + 1][j] >= table[i][j + 1]:
@@ -65,10 +106,6 @@ def _render(table: list[list[int]], baseline: list[str], current: list[str]) -> 
         else:
             parts.append(f"+{current[j]}\n")
             j += 1
-    while i < len(baseline):
-        parts.append(f"-{baseline[i]}\n")
-        i += 1
-    while j < len(current):
-        parts.append(f"+{current[j]}\n")
-        j += 1
+    parts.extend(f"-{line}\n" for line in baseline[i:])
+    parts.extend(f"+{line}\n" for line in current[j:])
     return "".join(parts)

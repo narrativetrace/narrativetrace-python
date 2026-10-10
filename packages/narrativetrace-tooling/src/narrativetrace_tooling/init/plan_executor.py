@@ -34,6 +34,7 @@ from narrativetrace_tooling.init.action import (
     DeleteFile,
     FileEdit,
     Refuse,
+    ReplaceLink,
 )
 from narrativetrace_tooling.init.plan import InitPlan
 from narrativetrace_tooling.init.report import Applied, ExecutionReport, applied, refused
@@ -55,19 +56,65 @@ def execute_plan(plan: InitPlan, project_directory: Path) -> ExecutionReport:
         raise ValueError("a dry run is shown, never applied")
     if not project_directory.is_dir():
         raise ValueError(f"{project_directory} is not a directory")
-    results = [_apply(action, project_directory / action.path) for action in plan.actions]
+    results = [_apply(action, project_directory) for action in plan.actions]
     return ExecutionReport(plan.carrier, tuple(results))
 
 
-def _apply(action: Action, target: Path) -> Applied:
+def _apply(action: Action, project_directory: Path) -> Applied:
     if isinstance(action, Refuse):
         return refused(action, action.reason)
     try:
+        if isinstance(action, ReplaceLink):
+            return _replace_link(action, project_directory)
+        _require_no_link_on_the_way(project_directory, action.path)
         if isinstance(action, DeleteDirectory):
-            return _delete_directory(action, target)
-        return _apply_edit(action, target)
+            return _delete_directory(action, project_directory / action.path)
+        return _apply_edit(action, project_directory / action.path)
     except OSError as error:
         return refused(action, f"{type(error).__name__}: {error}")
+
+
+def _replace_link(action: ReplaceLink, project_directory: Path) -> Applied:
+    """The one action that begins by deleting: the link goes first — the link itself, never what it
+    points at — so the write that follows creates a real directory or file of the project's own.
+
+    **@llmNote** The link's own ANCESTORS are guarded before the delete, and the page's whole path
+    again after it. Guarding only the page (which is what the planner's own refusals would make
+    sufficient) would leave a link further up the path able to turn this delete into a delete inside
+    somebody else's tree.
+    """
+    link = project_directory / action.link
+    _require_no_link_on_the_way(project_directory, action.link.parent)
+    _remove_link(link)
+    _require_no_link_on_the_way(project_directory, action.path)
+    _write(project_directory / action.path, action.after)
+    return applied(action)
+
+
+def _remove_link(link: Path) -> None:
+    """Deletes the link itself. A link to a DIRECTORY needs ``rmdir`` on Windows and ``unlink``
+    everywhere else, so both are tried — and a path that is not a link at all is left alone, because
+    the plan said link and the project says otherwise."""
+    if not link.is_symlink() and link.exists():
+        raise OSError(f"{link} is no longer a symbolic link — nothing was replaced")
+    try:
+        link.unlink(missing_ok=True)
+    except OSError:
+        link.rmdir()
+
+
+def _require_no_link_on_the_way(project_directory: Path, relative: Path) -> None:
+    """No write and no delete ever passes THROUGH a symbolic link, nor lands ON one.
+
+    The planners refuse every link they can see; this is the guarantee for one they cannot — a link
+    made between the read and the write, or one further up the path than a planner looks. The action
+    is refused like any other filesystem refusal, and the rest of the plan still runs.
+    """
+    walked = project_directory
+    for element in relative.parts:
+        walked = walked / element
+        if walked.is_symlink():
+            raise OSError(f"{walked} is a symbolic link, and nothing is written through one")
 
 
 def _apply_edit(action: FileEdit, target: Path) -> Applied:

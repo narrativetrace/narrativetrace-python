@@ -90,6 +90,18 @@ BINARY_TRACE_HITS_SNIPPET = _extract(
 BINARY_SECRET_HITS_SNIPPET = _extract(
     r'binary_secret_hits="\$\(scan_binary_assets_for.*?\|\| true\)"'
 )
+# The .publishignore strip loop: from its opening `while IFS=` through the `done < ...` that
+# closes it -- run standalone against a synthetic $STAGE to prove what a pattern does and does
+# not remove, independent of the rest of the pipeline.
+PUBLISHIGNORE_STRIP_SNIPPET = _extract(
+    r'while IFS= read -r pattern; do\n    case "\$pattern".*?'
+    r'\ndone < "\$REPO_ROOT/\.publishignore"\n'
+)
+# The plugin-root guard (Phase 4 milestone 1): from its `plugin_root=` assignment through the
+# "holds only skills/" success line -- the two checks (missing root, stray content) in one block.
+PLUGIN_ROOT_GUARD_SNIPPET = _extract(
+    r'plugin_root="\$STAGE/\.claude".*?the plugin root holds only skills/\."\n'
+)
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
@@ -148,6 +160,99 @@ def _run_name_hits(tmp_path: Path, allow_contents: str) -> str:
         cwd=tmp_path,
     )
     return result.stdout
+
+
+def _run_plugin_root_guard(stage: Path) -> subprocess.CompletedProcess[str]:
+    """Run the real script's plugin-root guard against a synthetic `$STAGE` -- `check=False`
+    since the guard's own job is to `exit 1` on a bad tree, which must not raise here."""
+    script = "\n".join(["set -uo pipefail", f'STAGE="{stage}"', PLUGIN_ROOT_GUARD_SNIPPET])
+    return subprocess.run(  # nosec B603, B607 # fixed argv (bash -c + this test's own script
+        # string built above from a repo-local literal and the real script's extracted snippet),
+        # no shell metacharacter expansion beyond bash -c itself, no untrusted input
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+class TestPluginRootGuard:
+    def test_a_clean_plugin_root_passes(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (stage / ".claude" / "skills" / "a").mkdir(parents=True)
+        (stage / ".claude" / "skills" / "a" / "SKILL.md").write_text("x", encoding="utf-8")
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 0, result.stdout
+        assert "the plugin root holds only skills/." in result.stdout
+
+    def test_a_stray_directory_under_claude_fails(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (stage / ".claude" / "skills").mkdir(parents=True)
+        (stage / ".claude" / "commands").mkdir(parents=True)
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 1
+        assert ".claude/commands" in result.stdout
+        assert "ships as" in result.stdout
+
+    def test_a_stray_file_directly_under_claude_fails(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (stage / ".claude" / "skills").mkdir(parents=True)
+        (stage / ".claude" / "settings.local.json").write_text("{}", encoding="utf-8")
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 1
+        assert ".claude/settings.local.json" in result.stdout
+
+    def test_a_missing_plugin_root_fails(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        stage.mkdir(parents=True)
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 1
+        assert "missing from the snapshot" in result.stdout
+
+
+def _run_publishignore_strip(stage: Path) -> None:
+    """Run the REAL `.publishignore` file (this repo's own, via `$REPO_ROOT`) against a
+    synthetic `$STAGE` -- proves what the actual, current ignore list does and does not strip,
+    not a hand-copied stand-in that could drift from it."""
+    script = "\n".join(
+        [
+            "set -euo pipefail",
+            f'REPO_ROOT="{REPO_ROOT}"',
+            f'STAGE="{stage}"',
+            PUBLISHIGNORE_STRIP_SNIPPET,
+        ]
+    )
+    subprocess.run(  # nosec B603, B607 # fixed argv, no shell metacharacter expansion beyond
+        # bash -c itself, no untrusted input
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+class TestPublishignoreLeavesThePluginRootAlone:
+    def test_claude_plugin_directory_survives_the_strip(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (stage / ".claude-plugin").mkdir(parents=True)
+        (stage / ".claude-plugin" / "marketplace.json").write_text("{}", encoding="utf-8")
+        (stage / ".claude" / "skills").mkdir(parents=True)
+        (stage / ".claude" / "skills" / "a.md").write_text("x", encoding="utf-8")
+        (stage / ".claude" / "settings.local.json").write_text("{}", encoding="utf-8")
+
+        _run_publishignore_strip(stage)
+
+        assert (stage / ".claude-plugin" / "marketplace.json").is_file()
+        assert (stage / ".claude" / "skills" / "a.md").is_file()
+        assert not (stage / ".claude" / "settings.local.json").exists()
 
 
 class TestNameHitsAllowlistFiltering:

@@ -36,6 +36,16 @@ Which licence applies to what
       it is published. Every published source file carries
       "SPDX-License-Identifier: BUSL-1.1".
 
+  the rendered agent-skill pages in this repository, and the marketplace file
+  that lists them: .claude/skills/**, .agents/skills/** and
+  .claude-plugin/marketplace.json
+      Apache License, Version 2.0.
+      Build output of the same catalogue narrativetrace-skills carries,
+      published at the paths agent tools discover them at. Whoever installs
+      them — by copying a directory, through `narrativetrace init`, or from
+      a Claude Code plugin marketplace — receives Apache-licensed pages, and
+      the marketplace listing says so.
+
   documentation/ (prose)
       Creative Commons Attribution 4.0 International (CC BY 4.0).
       https://creativecommons.org/licenses/by/4.0/

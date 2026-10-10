@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from narrativetrace.doctor.environment import build_snapshot
+from narrativetrace.doctor.feedback_cli import run_feedback
+from narrativetrace.doctor.gh_auth_probe import gh_authenticated
 from narrativetrace_tooling.doctor.doctor import run_doctor
 from narrativetrace_tooling.doctor.render import render_human, render_json
 from narrativetrace_tooling.init import (
@@ -71,15 +73,46 @@ Usage:
   narrativetrace init [--dry-run] [--write-existing] [--force] [--only <half>] [--vendor <vendor>]
                       [--from <dir|wheel>] [--json]
   narrativetrace uninstall [--dry-run] [--only <half>] [--json]
+  narrativetrace feedback <draft|url|gh> --category <c> --step <s>
+                          --did <t> --happened <t> --expected <t> [--language <tag>]
+                          [--agent-product <p>] [--agent-model <m>] [--trace <path>] [--json]
 
 Commands:
   doctor     Read-only project diagnosis: toolchain, configuration, and known traps. Zero network.
   init       Installs the NarrativeTrace agent skills and the AGENTS.md section into this project.
   uninstall  Removes exactly what init wrote, and nothing beside it.
+  feedback   Drafts a problem report, checks it carries no values, and shows you how to file it.
 
 Options:
   --json    Machine-readable output instead of human text.
   --help    Show this message."""
+
+_FEEDBACK_USAGE = """narrativetrace feedback <draft|url|gh> [options]
+
+Drafts a problem report about NarrativeTrace from this project: the distributions it resolved, the
+doctor's own JSON report, and at most one structural trace. Every field is checked against the
+value-free rules FIRST — the verb refuses to write a body file or build a URL while any rule
+stands, and names the rule.
+
+Channels:
+  draft  Write and print the whole draft. Nothing is filed.
+  url    Print the pre-filled issue-form URL. You open it and submit it yourself.
+  gh     Print the exact `gh issue create` line. It is never run from here.
+
+Options:
+  --category <c>       prompt | skill | doctor | library. Required.
+  --step <s>           Which check id, skill step or prompt step it happened at. Required.
+  --did <t>            What you did. Required.
+  --happened <t>       What happened instead. Required.
+  --expected <t>       What you expected. Required.
+  --language <tag>     The language the report is written in. en by default.
+  --agent-product <p>  The agent product drafting this, as it reports itself.
+  --agent-model <m>    The agent model, as it reports itself.
+  --trace <path>       A path suffix naming the structural trace to attach.
+  --json               Machine-readable output instead of human text.
+
+Nothing is sent anywhere. Exit 0 = drafted, 1 = that channel is not available, 2 = could not run
+(a missing flag, or a value-free rule refused the report)."""
 
 _DOCTOR_USAGE = """narrativetrace doctor [--json]
 
@@ -148,6 +181,9 @@ class CliDeps:
     :param build_snapshot: the doctor's project walk
     :param open_carrier: the carrier a named path, or the ruled preference order, resolves to
     :param project_version: the NarrativeTrace release this project resolves, for the version guard
+    :param gh_authenticated: whether an already-installed ``gh`` is signed in — the ONE
+        outward-facing question this launcher asks, only on ``feedback gh``, and the one seam that
+        lets all four of its outcomes be tested without starting a process
     :param log: where a report goes — stdout in the real process
     :param error: where a refusal, a usage message and the version warning go — stderr
     """
@@ -159,6 +195,7 @@ class CliDeps:
     project_version: Callable[[], str | None]
     log: Callable[[str], None]
     error: Callable[[str], None]
+    gh_authenticated: Callable[[], bool] = gh_authenticated
 
 
 _JSON: Final = "--json"
@@ -397,6 +434,8 @@ def run_cli(argv: Sequence[str], deps: CliDeps) -> int:
         return _run_doctor_command(rest, deps)
     if verb in ("init", "uninstall"):
         return _run_installer_command(install=verb == "init", rest=rest, deps=deps)
+    if verb == "feedback":
+        return run_feedback(rest, deps, _FEEDBACK_USAGE)
     deps.error(f"Unknown command: {verb}\n\n{_USAGE}")
     return 2
 
@@ -434,6 +473,7 @@ def main(argv: Sequence[str] | None = None, *, cwd: str | None = None) -> int:
         project_version=project_family_version,
         log=_log_stdout,
         error=_log_stderr,
+        gh_authenticated=gh_authenticated,
     )
     return run_cli(args, deps)
 

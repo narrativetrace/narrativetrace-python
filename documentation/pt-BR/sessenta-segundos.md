@@ -1,4 +1,4 @@
-<!-- source: documentation/sixty-seconds.md blob 021047e905d7 | translated: 2026-09-16 | reviewed: - -->
+<!-- source: documentation/sixty-seconds.md blob bdb7ba434746 | translated: 2026-09-16 | reviewed: - -->
 
 # Veja um trace em 60 segundos
 
@@ -53,7 +53,7 @@ uv run main.py
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms #1
 ```
 
 `0ms` também é real — essa chamada rodou em menos de um milissegundo. Uma máquina mais lenta ou um
@@ -135,7 +135,7 @@ uv run main.py
 ```text
 trace: loose hook parks (a1b2c3d)
 
-OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms
+OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3) → "ORD-cust-1-prod-42-3" — 0ms #1
 [loose hook parks] [] → OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
 [loose hook parks] [] ← returned: "ORD-cust-1-prod-42-3"
 ```

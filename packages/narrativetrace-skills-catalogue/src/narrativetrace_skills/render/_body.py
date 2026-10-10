@@ -46,6 +46,8 @@ def render_skill_body(skill: Skill, resolve_snippet: ResolveSnippet) -> str:
             _render_step(step, index + 1, resolve_snippet) for index, step in enumerate(skill.steps)
         ),
     ]
+    for section in skill.sections:
+        sections.extend(["", f"## {section.heading}", "", section.markdown.rstrip("\n")])
     if skill.always:
         sections.extend(["", _render_rules("Always", skill.always)])
     if skill.never:
@@ -69,15 +71,26 @@ def _render_step_body(body: StepBody, resolve_snippet: ResolveSnippet) -> str:
 
 
 def _render_step(step: SkillStep, index: int, resolve_snippet: ResolveSnippet) -> str:
-    lines = [f"## {index}. {step.title}", ""]
+    lines = [f"## {index}. {step.title}"]
     if step.flag:
-        lines.extend([f"**Flagged:** {step.flag}", ""])
-    lines.append(_render_step_body(step.body, resolve_snippet))
+        lines.extend(["", f"**Flagged:** {step.flag}"])
+    if step.condition:
+        lines.extend(["", f"**when:** {step.condition}"])
+    if not _is_decision_only(step.body):
+        lines.extend(["", _render_step_body(step.body, resolve_snippet)])
+    if step.done:
+        lines.extend(["", f"**done when:** {step.done}"])
     if step.verify:
         lines.extend(["", f"**verify:** `{step.verify}`"])
     for note in step.failure:
         lines.extend(["", f"**failure:** {note.symptom} — {note.cause}. Fix: {note.fix}"])
     return "\n".join(lines)
+
+
+def _is_decision_only(body: StepBody) -> bool:
+    """A command step with no commands is a decision for the agent, not something to run: it
+    renders its heading and nothing under it, never an empty fence."""
+    return isinstance(body, CommandStep) and not body.commands
 
 
 def _render_rules(heading: str, rules: tuple[ReasonedRule, ...]) -> str:

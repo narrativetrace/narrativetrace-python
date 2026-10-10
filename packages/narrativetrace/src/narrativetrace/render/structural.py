@@ -33,12 +33,9 @@ from narrativetrace.escape import control_sanitize
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.render.concurrency import ChildSegment, partition
+from narrativetrace.render.span_id import SpanCursor, concurrent_order
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_walk import TreeWalk
-
-
-def _sig_key(node: TraceNode) -> str:
-    return f"{node.signature.class_name}.{node.signature.method_name}"
 
 
 def _outcome_kind(outcome: TraceOutcome | None) -> str:
@@ -57,46 +54,56 @@ class StructuralTraceRenderer:
     def render_document(self, tree: TraceTree, scenario: str) -> str:
         """The full artifact: a ``scenario:`` header (stable across runs) plus the call flow.
 
-        Nothing else — no result, no ids, no dates — so the file changes only when behavior does.
+        Nothing else — no result, no trace ids, no dates — so the file changes only when behavior
+        does. The span ids each line opens with are positions, derived from the shape itself.
         """
         return f"scenario: {control_sanitize(scenario)}\n\n{self.render(tree)}"
 
     def render(self, tree: TraceTree) -> str:
         """The call-flow body alone (no header) — roots go through the same partitioning as
         children: async work that outlived its caller is a root, and its order is the scheduler's,
-        not the code's."""
+        not the code's. Every span line opens with its :mod:`~narrativetrace.render.span_id`."""
         parts: list[str] = []
         walk = TreeWalk()
-        self._render_siblings(tree.roots, 0, walk, parts)
+        self._render_siblings(tree.roots, 0, SpanCursor(None), walk, parts)
         return "".join(parts)
 
     def _render_siblings(
-        self, children: list[TraceNode], depth: int, walk: TreeWalk, parts: list[str]
+        self,
+        children: list[TraceNode],
+        depth: int,
+        ids: SpanCursor,
+        walk: TreeWalk,
+        parts: list[str],
     ) -> None:
+        """Renders one sibling list, taking each span's id from ``ids`` in the order it lays the
+        spans out — that order IS the numbering."""
         for segment in partition(children):
             if segment.group_id is None:
-                self._render_node(segment.nodes[0], depth, walk, parts)
+                self._render_node(segment.nodes[0], depth, ids.next(), walk, parts)
             elif segment.is_fire_and_forget():
-                self._render_fire_and_forget(segment.nodes[0], depth, walk, parts)
+                self._render_fire_and_forget(segment.nodes[0], depth, ids.next(), walk, parts)
             else:
-                self._render_group(segment, depth, walk, parts)
+                self._render_group(segment, depth, ids, walk, parts)
 
-    def _render_node(self, node: TraceNode, depth: int, walk: TreeWalk, parts: list[str]) -> None:
+    def _render_node(
+        self, node: TraceNode, depth: int, node_id: str, walk: TreeWalk, parts: list[str]
+    ) -> None:
         stop_reason = walk.stop_reason(node)
         marker = stop_reason if stop_reason is not None and node.children else None
-        parts.append(self._line(node, depth, marker))
+        parts.append(self._line(node, depth, node_id, marker))
         if node.children and stop_reason is None:
             walk.enter(node)
             try:
-                self._render_siblings(node.children, depth + 1, walk, parts)
+                self._render_siblings(node.children, depth + 1, SpanCursor(node_id), walk, parts)
             finally:
                 walk.exit(node)
 
-    def _line(self, node: TraceNode, depth: int, marker: str | None) -> str:
+    def _line(self, node: TraceNode, depth: int, node_id: str, marker: str | None) -> str:
         sig = node.signature
         params = ", ".join(control_sanitize(p.name) for p in sig.parameters)
         line = (
-            f"{'  ' * depth}- {control_sanitize(sig.class_name)}."
+            f"{'  ' * depth}{node_id} - {control_sanitize(sig.class_name)}."
             f"{control_sanitize(sig.method_name)}({params})"
         )
         line += _outcome_kind(node.outcome)
@@ -105,18 +112,38 @@ class StructuralTraceRenderer:
         return line + "\n"
 
     def _render_fire_and_forget(
-        self, launcher: TraceNode, depth: int, walk: TreeWalk, parts: list[str]
+        self, launcher: TraceNode, depth: int, launcher_id: str, walk: TreeWalk, parts: list[str]
     ) -> None:
-        parts.append(f"{'  ' * depth}~ fire-and-forget\n")
-        self._render_siblings(launcher.children, depth + 1, walk, parts)
+        """The launch takes one position: its id opens the marker line, and the launched work is
+        laid out under it like any other sibling list. The launcher is a node of the walk like any
+        other — one already on the path, or past the depth limit, gets the walk's marker and is
+        not descended into."""
+        stop_reason = walk.stop_reason(launcher)
+        if stop_reason is not None:
+            parts.append(f"{'  ' * depth}{launcher_id} ~ fire-and-forget {stop_reason}\n")
+            return
+        parts.append(f"{'  ' * depth}{launcher_id} ~ fire-and-forget\n")
+        walk.enter(launcher)
+        try:
+            self._render_siblings(
+                launcher.children, depth + 1, SpanCursor(launcher_id), walk, parts
+            )
+        finally:
+            walk.exit(launcher)
 
     def _render_group(
-        self, segment: ChildSegment, depth: int, walk: TreeWalk, parts: list[str]
+        self,
+        segment: ChildSegment,
+        depth: int,
+        ids: SpanCursor,
+        walk: TreeWalk,
+        parts: list[str],
     ) -> None:
         """Concurrent groups render under a marker (``~ fork [n]``, ``~ async [n]``) with members
         sorted by signature — capture order across threads is the scheduler's choice, not
         behaviour, and this artifact must be byte-identical for identical behavior. Thread
-        identity is runtime data and never appears."""
+        identity is runtime data and never appears. The marker carries no id; each member takes
+        the next one, in the order printed."""
         members = segment.nodes
         first_concurrency = members[0].concurrency
         marker = (
@@ -125,5 +152,5 @@ class StructuralTraceRenderer:
             else "~ fork"
         )
         parts.append(f"{'  ' * depth}{marker} [{len(members)}]\n")
-        for member in sorted(members, key=_sig_key):
-            self._render_node(member, depth + 1, walk, parts)
+        for member in sorted(members, key=concurrent_order):
+            self._render_node(member, depth + 1, ids.next(), walk, parts)

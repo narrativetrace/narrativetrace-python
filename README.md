@@ -137,10 +137,10 @@ def run_failing() -> str:
 
 <!-- snippet: examples/build/place_order_failing.txt mask=duration,traceName -->
 ```text
-trace: glad map sinks (61fdd7c)
+trace: jumpy seal walks (f50d909)
 
-OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2))
-├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms
+OrderServiceAfter.place_order(req: OrderRequest(id="C-1234", sku="SKU-KB", qty=2)) #1
+├── DecliningPaymentService.charge(amount: 42.0) !! RuntimeError: payment declined — 0ms #1.1
 └── !! RuntimeError: payment declined — 0ms
 ```
 <!-- /snippet -->
@@ -505,9 +505,9 @@ Four independent layers, not one blanket promise — the row-by-row contract, ve
 1. **`@not_traced("password", "cvv")` on named parameters**, and **`not_traced_field(...)`/`__nt_not_traced__` on a class's fields** — explicit redaction you control.
 2. **An always-on, multilingual name deny-list** — matches field and parameter names against English, Spanish, Portuguese, French, German and Chinese patterns for passwords, tokens, national IDs and the like, with no locale to select and nothing to opt into.
 3. **Value-shape matching, independent of the field name** — a JWT-shaped string, a Luhn-valid card number, a `Set-Cookie`-shaped value, or a national-ID checksum or structural rule (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident ID, US SSN) is redacted even under an innocuous name like `data` or `value` — combined in `is_secret_shaped`.
-4. **No value-free structural mode yet in this runtime.** A `.nt`/`.approved.nt` format — the categorical guarantee for a context where no value may ever leave the process — is planned here, not shipped (see the [Feature Guide](documentation/feature-guide.md)). Don't confuse this with `TraceTranslationView`: that's a real, shipped feature, but it re-glosses identifier *names* into another language via a glossary — values still pass through byte-identical and untouched, so it is not a value-free mode.
+4. **A value-free structural mode ships — but it is a separate artifact, not a switch on the others.** Every invocation can also emit a `.nt` structural trace that carries no runtime values at all — only the shape of the call tree — and approval mode (`NARRATIVETRACE_APPROVAL=true`) compares it against committed `.approved.nt` baselines, failing a test with a readable diff on any structural mismatch; `uv run poe approve` / `narrativetrace-approve` promotes a reviewed `.received.nt` trace. That is the categorical guarantee for a context where no value may ever leave the process (see [Structural Trace Format](documentation/structural-trace-format.md) and the [Feature Guide](documentation/feature-guide.md)). Don't confuse this with `TraceTranslationView`: that's a real, shipped feature, but it re-glosses identifier *names* into another language via a glossary — values still pass through byte-identical and untouched, so it is not a value-free mode.
 
-There is also no configurable path-based redaction rule set — no "always redact `user.creditCard`" JSONPath-style policy. Redaction is name- and shape-based, and it is applied at every segment when a `{param.property}` narration template resolves a path, not a data-flow analysis. Be precise about the boundary: layers 1–3 are heuristic and extensible — they can always miss a shape or name nobody has thought to add yet. None of them is *categorical* the way the (not-yet-shipped) structural mode would be. If your threat model requires "no value can possibly leave the process," that guarantee does not exist in this runtime today.
+There is also no configurable path-based redaction rule set — no "always redact `user.creditCard`" JSONPath-style policy. Redaction is name- and shape-based, and it is applied at every segment when a `{param.property}` narration template resolves a path, not a data-flow analysis. Be precise about the boundary: layers 1–3 are heuristic and extensible — they can always miss a shape or name nobody has thought to add yet. None of them is *categorical* the way the structural `.nt` artifact is. If your threat model requires "no value can possibly leave the process," hand out only the structural artifact; the value-carrying renderings (Markdown, JSON, Mermaid) do not give that guarantee.
 
 ### Can trace IDs correlate with a standard correlation ID across services, or is tracing local only?
 

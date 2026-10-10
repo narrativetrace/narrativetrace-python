@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/decorators.md blob ef9043e6620e | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/guides/decorators.md blob bb806671f265 | translated: 2026-09-17 | reviewed: - -->
 
 # Guía de decoradores
 
@@ -39,9 +39,9 @@ def run() -> str:
 ```
 
 ```text
-The trace damp shard sways:
+The trace livid bear fits:
 
-The auth service login — login attempt for alice with [REDACTED], returning "session-for-alice".
+The auth service login — login attempt for alice with [REDACTED] (#1), returning "session-for-alice".
 ```
 
 La aserción que lo demuestra: `assert "[REDACTED]" in rendered` — `password` nunca llega al texto
@@ -172,8 +172,8 @@ def run() -> str:
 página de 60 segundos):
 
 ```text
-AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms
-AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms
+AuthService.login(account: Credentials(username="alice", secret=[REDACTED])) → "session-for-alice" — 0ms #1
+AuthService.login(account: LegacyCredentials(username="bob", secret=[REDACTED])) → "session-for-bob" — 0ms #2
 ```
 
 Los valores ocultos se sustituyen por un marcador antes del renderizado — nunca llegan a un

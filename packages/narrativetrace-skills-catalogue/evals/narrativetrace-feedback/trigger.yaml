@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+positive:
+  - "report this to the NarrativeTrace maintainers"
+  - "the doctor's fix for the redaction finding did not work, tell them"
+  - "file a bug about this NarrativeTrace skill"
+  - "this skill step cannot be followed, report it"
+  - "the install prompt told me to do something that does not exist"
+  - "NarrativeTrace is rendering this wrong, let them know"
+  - "open an issue about the clarity scan"
+  - "I want to tell the NarrativeTrace authors about this"
+  - "draft a problem report for narrativetrace"
+  - "the doctor says redaction is not proven but my test asserts the marker"
+
+negative:
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "add narrative tracing to my service"
+  - "add a clarity report to this project"
+  - "fix the doctor's redaction finding"
+  - "open an issue in our own tracker about the payments bug"
+  - "upgrade narrativetrace to the latest version"
+  - "what does NarrativeTraceProxy.trace do"
+  - "send these traces to our logging platform"
+  - "write a changelog entry for this release"

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 
-from hostile_corpus import GraphCase, RedactionCase, graphs, redactions
+from hostile_corpus import FeedbackCase, GraphCase, RedactionCase, feedbacks, graphs, redactions
 
 # An abbreviated or full commit SHA: what a public reader cannot resolve.
 _COMMIT_SHA = re.compile(r"\b[0-9a-f]{7,40}\b")
@@ -61,6 +61,12 @@ def _redaction_fields(case: RedactionCase) -> list[str | None]:
     return [case.id, case.kind, case.description]
 
 
+def _feedback_fields(case: FeedbackCase) -> list[str | None]:
+    """``value`` is deliberately absent: a feedback row's value IS the hostile payload, and the
+    rows that pin the home-path and private-key rules legitimately spell both literals."""
+    return [case.id, case.rule, case.description]
+
+
 class TestCorpusProseIsPublishable:
     def test_no_graph_rows_prose_carries_a_commit_sha_or_the_vocabulary_of_the_private_process(
         self,
@@ -73,3 +79,9 @@ class TestCorpusProseIsPublishable:
     ) -> None:
         for redaction_case in redactions():
             _assert_prose_is_publishable(redaction_case.id, _redaction_fields(redaction_case))
+
+    def test_no_feedback_rows_prose_carries_a_commit_sha_or_the_vocabulary_of_the_private_process(
+        self,
+    ) -> None:
+        for feedback_case in feedbacks():
+            _assert_prose_is_publishable(feedback_case.id, _feedback_fields(feedback_case))

@@ -11,6 +11,7 @@ skills (``narrativetrace-doctor``, ``add-narrative-tracing``) do and how they're
 from __future__ import annotations
 
 from narrativetrace_skills.catalogue_index import (
+    MARKETPLACE,
     PRO_LISTINGS,
     SKILLS,
     find_pro_listing,
@@ -18,12 +19,16 @@ from narrativetrace_skills.catalogue_index import (
 )
 from narrativetrace_skills.lints import (
     CATALOGUE_CHAR_BUDGET,
+    allowed_tools_violations,
     catalogue_description_chars,
     catalogue_vocabulary_violations,
     citation_violations,
     listings_disagreeing_with_feature_guide,
+    promotion_not_pre_approved,
+    publishing_not_pre_approved,
     unparseable_commands,
 )
+from narrativetrace_skills.marketplace import MarketplaceListing, MarketplaceOwner
 from narrativetrace_skills.pro_listing import ProListing, ProListingStatus
 from narrativetrace_skills.render.agents_md import (
     AGENTS_MD_BEGIN,
@@ -36,6 +41,7 @@ from narrativetrace_skills.render.carrier import render_carrier_files
 from narrativetrace_skills.render.catalogue_manifest import render_catalogue_manifest
 from narrativetrace_skills.render.claude import render_claude_skill
 from narrativetrace_skills.render.codex import render_codex_skill
+from narrativetrace_skills.render.marketplace import render_marketplace_json
 from narrativetrace_skills.replay import StepReplayResult, replay_skill, run_replay_command
 from narrativetrace_skills.skill import (
     COMMAND_VOCABULARY,
@@ -44,9 +50,11 @@ from narrativetrace_skills.skill import (
     ReasonedRule,
     Skill,
     SkillClass,
+    SkillSection,
     SkillStep,
     SnippetStep,
     StepBody,
+    claude_tool_pattern,
     command_strings,
     description_fits_budget,
     first_token,
@@ -54,30 +62,36 @@ from narrativetrace_skills.skill import (
     vocabulary_violations,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "AGENTS_MD_BEGIN",
     "AGENTS_MD_END",
     "CATALOGUE_CHAR_BUDGET",
     "COMMAND_VOCABULARY",
+    "MARKETPLACE",
     "PRO_LISTINGS",
     "SKILLS",
     "CommandStep",
     "FailureNote",
+    "MarketplaceListing",
+    "MarketplaceOwner",
     "ProListing",
     "ProListingStatus",
     "ReasonedRule",
     "Skill",
     "SkillClass",
+    "SkillSection",
     "SkillStep",
     "SnippetStep",
     "StepBody",
     "StepReplayResult",
     "__version__",
+    "allowed_tools_violations",
     "catalogue_description_chars",
     "catalogue_vocabulary_violations",
     "citation_violations",
+    "claude_tool_pattern",
     "command_strings",
     "description_fits_budget",
     "extract_agents_md_section",
@@ -85,11 +99,14 @@ __all__ = [
     "find_skill",
     "first_token",
     "listings_disagreeing_with_feature_guide",
+    "promotion_not_pre_approved",
+    "publishing_not_pre_approved",
     "render_agents_md_snippet",
     "render_carrier_files",
     "render_catalogue_manifest",
     "render_claude_skill",
     "render_codex_skill",
+    "render_marketplace_json",
     "replay_skill",
     "run_replay_command",
     "splice_agents_md_section",

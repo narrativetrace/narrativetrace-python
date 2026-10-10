@@ -25,6 +25,7 @@ from pathlib import Path
 
 from narrativetrace.config import ConfigResolver
 from narrativetrace_tooling.doctor.types import DoctorSnapshot, Env, PackageInfo
+from narrativetrace_tooling.frameworks.manifests import is_manifest
 from narrativetrace_tooling.init import (
     InstalledSkill,
     project_family_version,
@@ -153,7 +154,9 @@ def _classify(relative: str, output_dir_name: str, approved_dir_name: str) -> st
         return "output"
     if top == approved_dir_name:
         return "approved"
-    return "source" if relative.endswith(_SOURCE_EXTENSIONS) else "skip"
+    if relative.endswith(_SOURCE_EXTENSIONS) or is_manifest(relative):
+        return "source"
+    return "skip"
 
 
 class _Walker:

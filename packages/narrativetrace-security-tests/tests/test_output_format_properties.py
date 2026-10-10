@@ -49,7 +49,10 @@ _CONTROL_OR_SURROGATE_MAX = 0x9F
 def _is_hostile_codepoint(codepoint: int) -> bool:
     is_control = codepoint <= 0x1F or 0x7F <= codepoint <= _CONTROL_OR_SURROGATE_MAX
     is_surrogate = 0xD800 <= codepoint <= 0xDFFF
-    return (is_control and codepoint != ord("\n")) or is_surrogate
+    # U+2028/U+2029 end a line in JavaScript, regex engines and many viewers (strings.json's
+    # unicode-line-separator / unicode-paragraph-separator rows).
+    is_line_separator = codepoint in (0x2028, 0x2029)
+    return (is_control and codepoint != ord("\n")) or is_surrogate or is_line_separator
 
 
 def _assert_diagram_well_formed(text: str) -> None:
@@ -90,6 +93,18 @@ def _assert_well_formed(name: str, text: str) -> None:
         _assert_diagram_well_formed(text)
     elif name == "markdown-document":
         _assert_frontmatter_parses_as_yaml(text)
+    if not name.startswith(("json-", "canonical-")):
+        _assert_no_raw_line_separator(name, text)
+
+
+_LINE_SEPARATORS = frozenset("\u2028\u2029")
+
+
+def _assert_no_raw_line_separator(name: str, text: str) -> None:
+    """A line-oriented sink (every text format, not JSON — a JSON string may hold one) never
+    carries a raw U+2028/U+2029: it would end a line wherever a viewer, a regex or a JavaScript
+    parser reads one."""
+    assert not _LINE_SEPARATORS & set(text), f"{name} carries a raw U+2028/U+2029"
 
 
 def _check_every_format(tree: TraceTree, metadata: TraceMetadata) -> dict[str, str]:

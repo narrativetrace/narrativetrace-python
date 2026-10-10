@@ -5,7 +5,9 @@
 """Renderer that turns traces into short prose paragraphs.
 
 ``ProseRenderer``: ``failed to <action>`` error phrasing, parent ``:`` structure with a
-closing ``Returned X.`` sentence, and ``In the background:`` / ``Concurrently:`` labels.
+closing ``Returned X.`` sentence, and ``In the background (#id):`` / ``Concurrently:`` labels.
+Every span is named by its span id in parentheses (``(#1.3)``,
+:mod:`~narrativetrace.render.span_id`) — the id every other flavour prints for that call.
 """
 
 from __future__ import annotations
@@ -15,13 +17,10 @@ from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.render import camel
 from narrativetrace.render.concurrency import analyze, partition
+from narrativetrace.render.span_id import SpanCursor, concurrent_order
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.tree import TraceTree
 from narrativetrace.tree_walk import TreeWalk
-
-
-def _sig_key(node: TraceNode) -> str:
-    return f"{node.signature.class_name}.{node.signature.method_name}"
 
 
 def _render_param(param: ParameterCapture) -> str:
@@ -61,13 +60,16 @@ class ProseRenderer:
         parts: list[str] = []
         _append_trace_header(tree, parts)
         walk = TreeWalk()
-        for root in tree.roots:
-            self._render_node(root, 0, parts, walk)
+        self._render_children(tree.roots, 0, None, parts, walk)
         return "".join(parts).rstrip()
 
-    def _render_node(self, node: TraceNode, depth: int, parts: list[str], walk: TreeWalk) -> None:
+    def _render_node(
+        self, node: TraceNode, depth: int, node_id: str, parts: list[str], walk: TreeWalk
+    ) -> None:
+        """One sentence per span, citing its span id in parentheses after the action."""
         indent = "  " * depth
         self._append_action_phrase(parts, indent, node)
+        parts.append(f" ({node_id})")
         stop_reason = walk.stop_reason(node)
         if not node.children or stop_reason is not None:
             self._render_outcome_inline(node.outcome, node.signature, parts)
@@ -78,41 +80,63 @@ class ProseRenderer:
             walk.enter(node)
             try:
                 parts.append(":\n")
-                self._render_children(node.children, depth + 1, parts, walk)
+                self._render_children(node.children, depth + 1, node_id, parts, walk)
                 self._render_outcome_closing(node.outcome, indent, parts)
             finally:
                 walk.exit(node)
 
     def _render_children(
-        self, children: list[TraceNode], depth: int, parts: list[str], walk: TreeWalk
+        self,
+        children: list[TraceNode],
+        depth: int,
+        parent_id: str | None,
+        parts: list[str],
+        walk: TreeWalk,
     ) -> None:
+        """One sibling list (a tree's roots when ``parent_id`` is ``None``), each span taking its
+        id in the order it is laid out."""
+        ids = SpanCursor(parent_id)
         for segment in partition(children):
             if segment.group_id is None:
-                self._render_node(segment.nodes[0], depth, parts, walk)
+                self._render_node(segment.nodes[0], depth, ids.next(), parts, walk)
             elif segment.is_fire_and_forget():
-                self._render_fire_and_forget(segment.nodes[0], depth, parts, walk)
+                self._render_fire_and_forget(segment.nodes[0], depth, ids.next(), parts, walk)
             else:
-                self._render_concurrent_group(segment.nodes, depth, parts, walk)
+                self._render_concurrent_group(segment.nodes, depth, ids, parts, walk)
 
     def _render_fire_and_forget(
-        self, launcher: TraceNode, depth: int, parts: list[str], walk: TreeWalk
+        self, launcher: TraceNode, depth: int, launcher_id: str, parts: list[str], walk: TreeWalk
     ) -> None:
+        """The launch, cited by its id, then the launched work; the launcher goes through the walk
+        like any node, so a cycle or the depth limit ends it with the walk's marker."""
         indent = "  " * depth
-        parts.append(f"{indent}In the background:\n")
+        stop_reason = walk.stop_reason(launcher)
+        if stop_reason is not None:
+            parts.append(f"{indent}In the background ({launcher_id}) {stop_reason}.\n")
+            return
+        parts.append(f"{indent}In the background ({launcher_id}):\n")
         if not launcher.children:
             parts.append(f"{indent}  (launched, result not captured).\n")
-        else:
-            for child in launcher.children:
-                self._render_node(child, depth + 1, parts, walk)
+            return
+        walk.enter(launcher)
+        try:
+            self._render_children(launcher.children, depth + 1, launcher_id, parts, walk)
+        finally:
+            walk.exit(launcher)
 
     def _render_concurrent_group(
-        self, members: list[TraceNode], depth: int, parts: list[str], walk: TreeWalk
+        self,
+        members: list[TraceNode],
+        depth: int,
+        ids: SpanCursor,
+        parts: list[str],
+        walk: TreeWalk,
     ) -> None:
         indent = "  " * depth
         analysis = analyze(members)
         parts.append(f"{indent}Concurrently:\n")
-        for member in sorted(members, key=_sig_key):
-            self._render_node(member, depth + 1, parts, walk)
+        for member in sorted(members, key=concurrent_order):
+            self._render_node(member, depth + 1, ids.next(), parts, walk)
         if analysis.is_sequential_async:
             parts.append(
                 f"{indent}  (Note: tasks ran sequentially — total {analysis.total_millis}ms, "

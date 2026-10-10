@@ -84,19 +84,19 @@ class TestMarkdown:
             [],
             Returned("5"),
         )
-        assert MarkdownRenderer().render(_tree(node)) == "- **Svc.add**(a: `2`, b: `3`) → `5`"
+        assert MarkdownRenderer().render(_tree(node)) == "- **Svc.add**(a: `2`, b: `3`) → `5` #1"
 
     def test_slow_marker_is_strict_greater_than(self) -> None:
         exactly = TraceNode(_sig("S", "m"), [], Returned("x"), duration_nanos=200 * MS)
         over = TraceNode(_sig("S", "m"), [], Returned("x"), duration_nanos=201 * MS)
-        assert MarkdownRenderer().render(_tree(exactly)) == "- **S.m**() → `x` — 200ms"
-        assert MarkdownRenderer().render(_tree(over)) == "- **S.m**() → `x` — 201ms ⚠️ slow"
+        assert MarkdownRenderer().render(_tree(exactly)) == "- **S.m**() → `x` — 200ms #1"
+        assert MarkdownRenderer().render(_tree(over)) == "- **S.m**() → `x` — 201ms ⚠️ slow #1"
 
     def test_parent_closing_bullet_and_narration(self) -> None:
         child = TraceNode(_sig("Svc", "inner"), [], Returned("i"))
         parent = TraceNode(_sig("Svc", "outer", narration="doing work"), [child], Returned("o"))
         assert MarkdownRenderer().render(_tree(parent)) == (
-            "- **Svc.outer**()\n  *doing work*\n  - **Svc.inner**() → `i`\n  - → `o`"
+            "- **Svc.outer**() #1\n  *doing work*\n  - **Svc.inner**() → `i` #1.1\n  - → `o`"
         )
 
     def test_error_block(self) -> None:
@@ -106,18 +106,18 @@ class TestMarkdown:
             Threw(ValueError("kaboom")),
         )
         assert MarkdownRenderer().render(_tree(node)) == (
-            "- **Svc.boom**()\n\n  > ❌ `ValueError`: kaboom\n  > failed to boom"
+            "- **Svc.boom**() #1\n\n  > ❌ `ValueError`: kaboom\n  > failed to boom"
         )
 
     def test_redacted_param(self) -> None:
         node = TraceNode(
             _sig("S", "m", [ParameterCapture("pw", "", redacted=True)]), [], Returned("x")
         )
-        assert MarkdownRenderer().render(_tree(node)) == "- **S.m**(pw: `[REDACTED]`) → `x`"
+        assert MarkdownRenderer().render(_tree(node)) == "- **S.m**(pw: `[REDACTED]`) → `x` #1"
 
     def test_incomplete(self) -> None:
         node = TraceNode(_sig("S", "m"), [], Incomplete())
-        assert MarkdownRenderer().render(_tree(node)) == "- **S.m**() ⏳ in-flight"
+        assert MarkdownRenderer().render(_tree(node)) == "- **S.m**() ⏳ in-flight #1"
 
     def test_message_is_html_escaped(self) -> None:
         node = TraceNode(_sig("S", "m"), [], Threw(ValueError("<script>")))
@@ -317,7 +317,7 @@ class TestIndented:
         tree = _tree(parent)
         assert IndentedTextRenderer().render(tree) == (
             _indented_header(tree)
-            + "Svc.outer()\n├── Svc.inner() !! ValueError: boom | bad\n└── → o"
+            + "Svc.outer() #1\n├── Svc.inner() !! ValueError: boom | bad #1.1\n└── → o"
         )
 
     def test_redacted_and_void_return(self) -> None:
@@ -326,7 +326,7 @@ class TestIndented:
         )
         tree = _tree(node)
         assert IndentedTextRenderer().render(tree) == (
-            _indented_header(tree) + "S.m(pw: [REDACTED]) → null"
+            _indented_header(tree) + "S.m(pw: [REDACTED]) → null #1"
         )
 
     def test_a_newline_in_class_name_adds_no_line(self) -> None:
@@ -365,7 +365,7 @@ class TestProse:
         )
         tree = _tree(node)
         assert ProseRenderer().render(tree) == (
-            _prose_header(tree) + "The order service place order for id: 7, returning ok."
+            _prose_header(tree) + "The order service place order for id: 7 (#1), returning ok."
         )
 
     def test_failed_to_phrasing(self) -> None:
@@ -374,7 +374,7 @@ class TestProse:
         )
         tree = _tree(node)
         assert ProseRenderer().render(tree) == (
-            _prose_header(tree) + "The svc failed to charge — ValueError: nope (no funds)."
+            _prose_header(tree) + "The svc failed to charge (#1) — ValueError: nope (no funds)."
         )
 
     def test_parent_structure_and_closing(self) -> None:
@@ -382,7 +382,8 @@ class TestProse:
         parent = TraceNode(_sig("Svc", "outer"), [child], Returned("o"))
         tree = _tree(parent)
         assert ProseRenderer().render(tree) == (
-            _prose_header(tree) + "The svc outer:\n  The svc inner, returning i.\n  Returned o."
+            _prose_header(tree)
+            + "The svc outer (#1):\n  The svc inner (#1.1), returning i.\n  Returned o."
         )
 
     def test_a_newline_in_parameter_name_adds_no_line(self) -> None:

@@ -145,6 +145,33 @@ class TestLossyRuns:
         incomplete = tmp_path / "T" / "m.incomplete.nt"
         assert not incomplete.exists()
 
+    def test_a_lossy_run_whose_omission_shifted_later_ids_is_consistent(
+        self, tmp_path: Path
+    ) -> None:
+        approved = tmp_path / "T" / "m.approved.nt"
+        approved.parent.mkdir(parents=True)
+        approved.write_text(
+            "scenario: scenario\n\n#1 - Svc.lost() → value\n#2 - Svc.run() → value\n"
+            "#3 - Svc.other() → value\n",
+            encoding="utf-8",
+        )
+        loss = TraceLoss(dropped_events=1, refused_scopes=0, refused_spans=0)
+
+        note = approval.verify(_tree("run", "other"), "scenario", approved, loss)
+
+        assert "consistent with baseline" in note
+        assert not (tmp_path / "T" / "m.incomplete.nt").exists()
+
+    def test_an_id_free_baseline_still_matches_a_run_rendered_with_ids(
+        self, tmp_path: Path
+    ) -> None:
+        approved = tmp_path / "T" / "m.approved.nt"
+        approved.parent.mkdir(parents=True)
+        approved.write_text("scenario: scenario\n\n- Svc.run() → value\n", encoding="utf-8")
+
+        assert approval.verify(_tree("run"), "scenario", approved) == ""
+        assert not (tmp_path / "T" / "m.received.nt").exists()
+
     def test_a_lossy_run_with_an_addition_still_fails(self, tmp_path: Path) -> None:
         approved = tmp_path / "T" / "m.approved.nt"
         approved.parent.mkdir(parents=True)

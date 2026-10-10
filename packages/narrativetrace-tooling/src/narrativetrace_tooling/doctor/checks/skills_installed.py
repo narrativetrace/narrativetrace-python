@@ -36,9 +36,26 @@ from narrativetrace_tooling.init.project_state import InstalledSkill, Presence
 
 ID = "config.skills-installed"
 
+_NOT_OURS = " (there, but not ours)"
+
+# Quoted verbatim by documentation/agent-skills.md's "From a registry" section (rule 8, docs as
+# tests) — the marker pair around these three fields is that embed's source, never typed into the
+# page.
+# snippet:begin registryMessages
 _INIT_COMMAND = "uv run narrativetrace init --dry-run"
 
-_NOT_OURS = " (there, but not ours)"
+_READ_THE_DIFF = f"Run `{_INIT_COMMAND}`, read the diff, then run it without the flag."
+
+_FROM_A_REGISTRY = (
+    " Pages that are there without our line usually came from a registry (npx skills add, a plugin"
+    " or workspace install). A page identical to this release's is adopted, and no --force is"
+    " needed."
+)
+"""What a page with no provenance line most often IS: a registry install of this repository's own
+rendered pages (design D5 state 3). Naming the case matters because the obvious reading of "not
+ours" is "somebody else's work", which invites a ``--force`` nobody needs."""
+
+# snippet:end registryMessages
 
 _DOC_URL = DOC["agent_skills_installing"]
 
@@ -131,7 +148,7 @@ def _not_installed(snapshot: DoctorSnapshot) -> Finding:
     return failed(
         ID,
         f"the NarrativeTrace agent skills are not installed under {install_root}/{detail}",
-        f"Run `{_INIT_COMMAND}`, read the diff, then run it without the flag.",
+        _READ_THE_DIFF + (_FROM_A_REGISTRY if foreign else ""),
         _DOC_URL,
     )
 
@@ -151,8 +168,8 @@ def _incomplete(missing: tuple[str, ...]) -> Finding:
     return failed(
         ID,
         f"the agent skills are installed, but {', '.join(missing)} is missing",
-        f"Run `{_INIT_COMMAND}` to add the missing page(s); --force lets it replace a directory"
-        " somebody else owns.",
+        f"Run `{_INIT_COMMAND}` to add the missing page(s). A page identical to this release's is"
+        " adopted as it stands; --force is only for a directory somebody else really owns.",
         _DOC_URL,
     )
 

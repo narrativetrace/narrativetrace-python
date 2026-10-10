@@ -1,0 +1,1 @@
+Customers should get a receipt once their payment is confirmed: send it through our NotificationService, as a short message with the invoice id. Add it, then use the narrativetrace-verify skill to check what the code actually does before you report back.

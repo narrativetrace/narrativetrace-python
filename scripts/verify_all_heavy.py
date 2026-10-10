@@ -2,11 +2,12 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Row builders + runners for the four heavy/scheduled-cadence categories: `mutation`
+"""Row builders + runners for the five heavy/scheduled-cadence categories: `mutation`
 (`poe mutate-gate` + `poe mutate-glossary-gate` + `poe mutate-skills-gate`, combined into one row
-per SCHEMA.md's multi-module precedent), `fuzz-tier-b` (`poe fuzz`), `benchmarks`, and
+per SCHEMA.md's multi-module precedent), `fuzz-tier-b` (`poe fuzz`), `benchmarks`,
 `allocation` (not-implemented — no allocation-rate/GC-profiler benchmark distinct from
-wall-clock throughput exists in this ecosystem's suite).
+wall-clock throughput exists in this ecosystem's suite), and `vendor-validation`
+(`poe vendor-validate` — D6, phase-4-design-2026-09-27.md).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts import vendor_validation
 from scripts.verify_all_exec import CommandOutcome, run_command, with_log_hint
 from scripts.verify_all_schema import CategoryResult, Status
 from scripts.verify_all_testrun import parse_junit, summarize
@@ -282,4 +284,40 @@ def build_allocation_row() -> CategoryResult:
         metrics={},
         duration_seconds=0.0,
         note=note,
+    )
+
+
+# ------------------------------------------------------------------------------- vendor-validation
+
+_VENDOR_SKIPPED_LINE = re.compile(r"vendor-validate: every row SKIPPED")
+_VENDOR_PASSED_LINE = re.compile(r"vendor-validate: (\d+)/(\d+) rows passed")
+
+
+def run_vendor_validation(repo_root: Path, log_dir: Path) -> CommandOutcome:
+    return run_command(["poe", "vendor-validate"], log_dir / "vendor-validation.log", cwd=repo_root)
+
+
+def build_vendor_validation_row(outcome: CommandOutcome) -> CategoryResult:
+    """A SKIP is not a failure (an absent vendor CLI must not fail a gate about this
+    repository's own artifact) but is also not a PASS (nothing was validated) -- read from the
+    task's own printed verdict line, never inferred from the exit code alone, which a skip also
+    leaves at zero."""
+    metrics: dict[str, float | int] = {"rows": len(vendor_validation.CHECKS)}
+    status: Status
+    if outcome.exit_code != 0:
+        status = "failed"
+    elif _VENDOR_SKIPPED_LINE.search(outcome.output):
+        status = "skipped"
+    else:
+        status = "passed"
+        match = _VENDOR_PASSED_LINE.search(outcome.output)
+        if match:
+            metrics["rows_passed"] = int(match.group(1))
+    return CategoryResult(
+        category="vendor-validation",
+        tool="claude plugin validate (registry seam for future vendor rows)",
+        status=status,
+        metrics=metrics,
+        duration_seconds=outcome.seconds,
+        note=with_log_hint(None, outcome, status),
     )

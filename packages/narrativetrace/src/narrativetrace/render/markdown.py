@@ -6,7 +6,8 @@
 
 ``MarkdownRenderer``: headings, nested call lists, timing (``— Nms``, slow marker on a
 strict ``>`` threshold), narration, error blocks, and concurrency annotations, optionally wrapped
-in YAML frontmatter.
+in YAML frontmatter. Every span's call line ends with its span id (``#1.3``,
+:mod:`~narrativetrace.render.span_id`) — the same id every other flavour prints for that call.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
 from narrativetrace.render.base import TraceMetadata
 from narrativetrace.render.concurrency import analyze, partition
 from narrativetrace.render.frontmatter import FrontmatterBuilder
+from narrativetrace.render.span_id import SpanCursor, concurrent_order
 from narrativetrace.render.value_reference import ValueReferenceIndex
 from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.tree import TraceTree
@@ -44,6 +46,16 @@ def _thread_label(node: TraceNode) -> str:
     return info.thread_name if info.thread_name is not None else (info.task_label or "")
 
 
+@dataclass(frozen=True, slots=True)
+class _Entry:
+    """Where one span is printed: its list depth, its bullet (``- `` or ``- ↦ ``) and its span
+    id, which ends the call line."""
+
+    depth: int
+    prefix: str
+    span_id: str
+
+
 @dataclass(slots=True)
 class _RenderCtx:
     """The three things every recursive rendering call carries together: the output accumulator,
@@ -64,8 +76,7 @@ class MarkdownRenderer:
     def render(self, tree: TraceTree) -> str:
         """Renders the call-flow body (no frontmatter)."""
         ctx = _RenderCtx([], ValueReferenceIndex.build(tree), TreeWalk())
-        for root in tree.roots:
-            self._render_node(root, 0, ctx)
+        self._render_children(tree.roots, 0, None, ctx)
         return "".join(ctx.parts).rstrip()
 
     def render_document(self, tree: TraceTree, metadata: TraceMetadata) -> str:
@@ -76,8 +87,7 @@ class MarkdownRenderer:
         parts: list[str] = [frontmatter]
         self._render_header(tree, metadata, parts)
         ctx = _RenderCtx(parts, ValueReferenceIndex.build(tree), TreeWalk())
-        for root in tree.roots:
-            self._render_node(root, 0, ctx)
+        self._render_children(tree.roots, 0, None, ctx)
         return "".join(ctx.parts).rstrip()
 
     def _render_header(self, tree: TraceTree, metadata: TraceMetadata, parts: list[str]) -> None:
@@ -93,78 +103,100 @@ class MarkdownRenderer:
         )
         parts.append("### Call Flow\n\n")
 
-    def _render_node(self, node: TraceNode, depth: int, ctx: _RenderCtx) -> None:
-        self._render_entry(node, depth, "- ", ctx)
-
-    def _render_entry(self, node: TraceNode, depth: int, prefix: str, ctx: _RenderCtx) -> None:
+    def _render_entry(self, node: TraceNode, entry: _Entry, ctx: _RenderCtx) -> None:
         stop_reason = ctx.walk.stop_reason(node)
         if not node.children or stop_reason is not None:
-            self._render_leaf_entry(node, prefix, stop_reason, depth, ctx)
+            self._render_leaf_entry(node, entry, stop_reason, ctx)
         else:
-            self._render_branch_entry(node, prefix, depth, ctx)
+            self._render_branch_entry(node, entry, ctx)
 
     def _render_leaf_entry(
-        self, node: TraceNode, prefix: str, stop_reason: str | None, depth: int, ctx: _RenderCtx
+        self, node: TraceNode, entry: _Entry, stop_reason: str | None, ctx: _RenderCtx
     ) -> None:
         """A node with no children, or one whose children the walk stopped short of visiting --
-        the node still contributes its own header/outcome, only its subtree is cut off."""
-        indent = "  " * depth
+        the node still contributes its own header/outcome, only its subtree is cut off.
+
+        The span id ends the call line — which, for a thrown outcome, is BEFORE its blockquote,
+        so the id stays on the line that names the call."""
+        depth = entry.depth
         method_call = self._format_method_call(node.signature, ctx.refs)
-        ctx.parts.append(f"{indent}{prefix}{method_call}")
+        ctx.parts.append(f"{'  ' * depth}{entry.prefix}{method_call}")
+        opens_a_block = isinstance(node.outcome, Threw)
+        if opens_a_block:
+            ctx.parts.append(f" {entry.span_id}")
         self._render_outcome_inline(node.outcome, node.signature, depth, ctx.parts, ctx.refs)
         self._render_duration(node, ctx.parts)
         if stop_reason is not None and node.children:
             ctx.parts.append(f" {stop_reason}")
+        if not opens_a_block:
+            ctx.parts.append(f" {entry.span_id}")
         ctx.parts.append("\n")
 
-    def _render_branch_entry(
-        self, node: TraceNode, prefix: str, depth: int, ctx: _RenderCtx
-    ) -> None:
+    def _render_branch_entry(self, node: TraceNode, entry: _Entry, ctx: _RenderCtx) -> None:
         ctx.walk.enter(node)
         try:
+            depth = entry.depth
             indent = "  " * depth
             sig = node.signature
             method_call = self._format_method_call(sig, ctx.refs)
-            ctx.parts.append(f"{indent}{prefix}{method_call}")
+            ctx.parts.append(f"{indent}{entry.prefix}{method_call}")
             self._render_duration(node, ctx.parts)
-            ctx.parts.append("\n")
+            ctx.parts.append(f" {entry.span_id}\n")
             self._render_narration(sig, indent, ctx.parts)
-            self._render_children(node.children, depth + 1, ctx)
+            self._render_children(node.children, depth + 1, entry.span_id, ctx)
             ctx.parts.append(f"{indent}  - ")
             self._render_outcome_closing(node.outcome, sig, depth, ctx.parts, ctx.refs)
             ctx.parts.append("\n")
         finally:
             ctx.walk.exit(node)
 
-    def _render_children(self, children: list[TraceNode], depth: int, ctx: _RenderCtx) -> None:
+    def _render_children(
+        self, children: list[TraceNode], depth: int, parent_id: str | None, ctx: _RenderCtx
+    ) -> None:
+        """One sibling list (a tree's roots when ``parent_id`` is ``None``), each span taking its
+        id in the order it is laid out."""
+        ids = SpanCursor(parent_id)
         for segment in partition(children):
             if segment.group_id is None:
-                self._render_node(segment.nodes[0], depth, ctx)
+                self._render_entry(segment.nodes[0], _Entry(depth, "- ", ids.next()), ctx)
             elif segment.is_fire_and_forget():
-                self._render_fire_and_forget(segment.nodes[0], depth, ctx)
+                self._render_fire_and_forget(segment.nodes[0], depth, ids.next(), ctx)
             else:
-                self._render_concurrent_group(segment.nodes, depth, ctx)
+                self._render_concurrent_group(segment.nodes, depth, ids, ctx)
 
-    def _render_fire_and_forget(self, launcher: TraceNode, depth: int, ctx: _RenderCtx) -> None:
+    def _render_fire_and_forget(
+        self, launcher: TraceNode, depth: int, launcher_id: str, ctx: _RenderCtx
+    ) -> None:
+        """The launch takes one position; its id ends the marker line, and the launched work is
+        laid out under it like any other sibling list (a fork in it keeps its marker). The
+        launcher goes through the walk like any node: a cycle or the depth limit ends it."""
         indent = "  " * depth
         ctx.parts.append(f"{indent}- ⤳ fire-and-forget")
         if launcher.concurrency is not None:
             ctx.parts.append(f" [thread: {_thread_label(launcher)}]")
-        ctx.parts.append("\n")
+        stop_reason = ctx.walk.stop_reason(launcher)
+        if stop_reason is not None:
+            ctx.parts.append(f" {stop_reason} {launcher_id}\n")
+            return
+        ctx.parts.append(f" {launcher_id}\n")
         if not launcher.children:
             ctx.parts.append(f"{indent}  [launched, result not captured]\n")
-        else:
-            for child in launcher.children:
-                self._render_node(child, depth + 1, ctx)
+            return
+        ctx.walk.enter(launcher)
+        try:
+            self._render_children(launcher.children, depth + 1, launcher_id, ctx)
+        finally:
+            ctx.walk.exit(launcher)
 
     def _render_concurrent_group(
-        self, members: list[TraceNode], depth: int, ctx: _RenderCtx
+        self, members: list[TraceNode], depth: int, ids: SpanCursor, ctx: _RenderCtx
     ) -> None:
         indent = "  " * depth
         analysis = analyze(members)
         ctx.parts.append(f"{indent}- ⑂ fork [{len(members)} tasks]\n")
-        for member in sorted(members, key=_sig_key):
-            self._render_concurrent_member(member, depth + 1, analysis.is_sequential_async, ctx)
+        for member in sorted(members, key=concurrent_order):
+            entry = _Entry(depth + 1, "- ↦ ", ids.next())
+            self._render_concurrent_member(member, entry, analysis.is_sequential_async, ctx)
         wall_ms = max((m.duration_nanos for m in members), default=0) // _NANOS_PER_MILLI
         ctx.parts.append(f"{indent}- ⑃ join — {wall_ms}ms")
         _append_wait_analysis(members, ctx.parts)
@@ -176,11 +208,11 @@ class MarkdownRenderer:
             )
 
     def _render_concurrent_member(
-        self, node: TraceNode, depth: int, sequential_async: bool, ctx: _RenderCtx
+        self, node: TraceNode, entry: _Entry, sequential_async: bool, ctx: _RenderCtx
     ) -> None:
-        self._render_entry(node, depth, "- ↦ ", ctx)
+        self._render_entry(node, entry, ctx)
         if node.concurrency is not None:
-            indent = "  " * depth
+            indent = "  " * entry.depth
             suffix = "] [async, awaited sequentially]\n" if sequential_async else "]\n"
             ctx.parts.append(f"{indent}      [thread: {_thread_label(node)}{suffix}")
 
@@ -240,10 +272,6 @@ class MarkdownRenderer:
         class_name = markdown_text(sig.class_name)
         method_name = markdown_text(sig.method_name)
         return f"**{class_name}.{method_name}**({params})"
-
-
-def _sig_key(node: TraceNode) -> str:
-    return f"{node.signature.class_name}.{node.signature.method_name}"
 
 
 def _trace_phrase_prefix(tree: TraceTree) -> str:

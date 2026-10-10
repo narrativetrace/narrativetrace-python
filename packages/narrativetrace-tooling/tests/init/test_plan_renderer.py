@@ -19,11 +19,13 @@ import pytest
 
 from narrativetrace_tooling.init.action import (
     Action,
+    AdoptPage,
     CreateFile,
     DeleteDirectory,
     DeleteFile,
     Refuse,
     ReplaceBlock,
+    ReplaceLink,
 )
 from narrativetrace_tooling.init.plan import InitPlan
 from narrativetrace_tooling.init.plan_renderer import (
@@ -51,6 +53,21 @@ def make_plan(*actions: Action) -> InitPlan:
 
 def create() -> Action:
     return CreateFile(AGENTS_MD, "# Agents\n")
+
+
+def adopt() -> Action:
+    return AdoptPage(
+        DOCTOR_PAGE, "page\n", "<!-- installed by narrativetrace init from x -->\npage\n"
+    )
+
+
+def replace_link() -> Action:
+    return ReplaceLink(
+        Path(".claude/skills/doctor"),
+        Path(".claude/skills/doctor/SKILL.md"),
+        "../../.agents/skills/doctor",
+        "vendor page\n",
+    )
 
 
 class TestText:
@@ -88,6 +105,86 @@ class TestText:
         text = render_plan_text(make_plan(DeleteDirectory(Path(".agents/skills/doctor"))))
 
         assert "delete-directory .agents/skills/doctor" in text
+
+
+class TestWhatARegistryTreeReadsLike:
+    """Rule 17 says the plan, the diff and the report all say "adopted" rather than "replaced": a
+    person has to be told that nothing of theirs was overwritten. A line that only a preview carries
+    is a line the person who ran it for real never saw, so both texts say it.
+    """
+
+    def test_an_adoption_says_nothing_of_anybodys_was_overwritten(self) -> None:
+        text = render_plan_text(make_plan(adopt()))
+
+        assert (
+            "adopt   .agents/skills/doctor/SKILL.md — adopted: identical to this carrier's page, so"
+            " only the provenance line is added" in text
+        )
+
+    def test_the_report_says_it_too_and_not_only_the_preview(self) -> None:
+        text = render_report_text(ExecutionReport(COORDINATE, (applied(adopt()),)))
+
+        assert "applied adopt   .agents/skills/doctor/SKILL.md — adopted: identical" in text
+
+    def test_replacing_a_link_names_the_link_and_what_it_pointed_at(self) -> None:
+        text = render_plan_text(make_plan(replace_link()))
+
+        assert (
+            "replace-link .claude/skills/doctor/SKILL.md — replaces the symbolic link"
+            " .claude/skills/doctor → ../../.agents/skills/doctor" in text
+        )
+
+    def test_the_report_names_the_replaced_link_as_well(self) -> None:
+        text = render_report_text(ExecutionReport(COORDINATE, (applied(replace_link()),)))
+
+        assert "applied replace-link .claude/skills/doctor/SKILL.md — replaces the symbolic" in text
+
+    def test_a_filesystem_refusal_still_shows_its_own_detail_over_the_note(self) -> None:
+        """The detail is what actually happened; the note is what was planned."""
+        report = ExecutionReport(
+            COORDINATE, (refused(replace_link(), "OSError: a link on the way"),)
+        )
+
+        assert "refused replace-link" in render_report_text(report)
+        assert "OSError: a link on the way" in render_report_text(report)
+
+    def test_an_ordinary_action_carries_no_note_at_all(self) -> None:
+        """The whole line, not a substring: a note appended to every action would make "adopted"
+        meaningless, and a mutation run surviving on ``else ""`` is what proved the fragment
+        assertions elsewhere in this file could not see it."""
+        text = render_plan_text(make_plan(CreateFile(DOCTOR_PAGE, "page\n")))
+
+        assert text.splitlines()[-1] == "create  .agents/skills/doctor/SKILL.md"
+
+    def test_an_adoption_diffs_as_the_one_line_it_adds_and_removes_nothing(self) -> None:
+        """An adoption that showed a removal would be telling a person something of theirs went."""
+        diff = render_diff(make_plan(adopt()))
+
+        removed = [
+            line
+            for line in diff.splitlines()
+            if line.startswith("-") and not line.startswith("---")
+        ]
+        assert "+<!-- installed by narrativetrace init from x -->" in diff
+        assert removed == []
+
+    def test_replacing_a_link_diffs_as_a_page_that_was_not_there(self) -> None:
+        """``before`` is empty on purpose: what the link pointed at is left alone, and showing its
+        text here would read as an edit to a file this action does not touch."""
+        diff = render_diff(make_plan(replace_link()))
+
+        assert "+vendor page" in diff
+        assert "open standard" not in diff
+
+    def test_both_new_kinds_reach_the_json_envelope_by_their_own_names(self) -> None:
+        rows = json.loads(render_plan_json(make_plan(adopt(), replace_link())))["actions"]
+
+        assert [row["kind"] for row in rows] == ["adopt", "replace-link"]
+        assert [row["path"] for row in rows] == [
+            ".agents/skills/doctor/SKILL.md",
+            ".claude/skills/doctor/SKILL.md",
+        ]
+        assert {row["status"] for row in rows} == {"planned"}
 
 
 class TestJson:

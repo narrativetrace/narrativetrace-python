@@ -134,12 +134,15 @@ def _is_surrogate(codepoint: int) -> bool:
 
 
 def _is_hostile(codepoint: int) -> bool:
-    return _is_iso_control(codepoint) or _is_surrogate(codepoint)
+    """A control, a lone surrogate, or U+2028/U+2029 -- line terminators to JavaScript (where
+    Mermaid parses), regex engines and many viewers, so a raw one forges a line as ``\\n``
+    does."""
+    return _is_iso_control(codepoint) or _is_surrogate(codepoint) or codepoint in (0x2028, 0x2029)
 
 
 def diagram_message(text: str) -> str:
-    """Folds every ISO control character and lone surrogate to a single space so a value cannot
-    inject a new line or an unencodable code point."""
+    """Folds every ISO control character, lone surrogate and U+2028/U+2029 to a single space so a
+    value cannot inject a new line or an unencodable code point."""
     return "".join(" " if _is_hostile(ord(c)) else c for c in text)
 
 

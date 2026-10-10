@@ -22,6 +22,7 @@ import pytest
 from narrativetrace_tooling.init import plan as plan_module
 from narrativetrace_tooling.init.action import (
     Action,
+    AdoptPage,
     AppendBlock,
     AppendLine,
     CreateFile,
@@ -29,6 +30,7 @@ from narrativetrace_tooling.init.action import (
     DeleteFile,
     Refuse,
     ReplaceBlock,
+    ReplaceLink,
 )
 from narrativetrace_tooling.init.options import InitOptions, Scope, Vendor
 from narrativetrace_tooling.init.plan import InitPlan
@@ -105,21 +107,83 @@ class TestWhatEachActionPromises:
         assert refusal.reason == "two blocks"
         assert refusal.kind == "refuse"
 
+    def test_an_adoption_is_its_own_kind_and_not_a_replacement(self) -> None:
+        """A separate kind from ``replace`` so that the plan, the diff and the report all say
+        "adopted": a person has to be told that nothing of theirs was overwritten, which is also why
+        adoption needs no ``--force``."""
+        action = AdoptPage(Path(".agents/skills/doctor/SKILL.md"), "page\n", "stamped\npage\n")
+
+        assert action.before == "page\n"
+        assert action.after == "stamped\npage\n"
+        assert action.kind == "adopt"
+
+    def test_refuses_an_adoption_where_there_is_no_page_to_adopt(self) -> None:
+        with pytest.raises(ValueError, match=r"nothing to adopt where there is no page"):
+            AdoptPage(AGENTS_MD, "", "stamped\n")
+
+    def test_replacing_a_link_is_keyed_on_the_page_and_carries_no_before(self) -> None:
+        """``before`` is empty on purpose: the link is deleted first, so nothing this PATH used to
+        reach survives here — and what it pointed at is left exactly as it was, which is the whole
+        point. A diff showing the other flavour's text here would read as an edit to somebody's
+        file."""
+        action = ReplaceLink(
+            Path(".claude/skills/doctor"),
+            Path(".claude/skills/doctor/SKILL.md"),
+            "../../.agents/skills/doctor",
+            "vendor page\n",
+        )
+
+        assert action.path == Path(".claude/skills/doctor/SKILL.md")
+        assert action.link == Path(".claude/skills/doctor")
+        assert action.target == "../../.agents/skills/doctor"
+        assert action.before == ""
+        assert action.after == "vendor page\n"
+        assert action.kind == "replace-link"
+
+    def test_the_link_may_be_the_page_itself(self) -> None:
+        page = Path(".claude/skills/doctor/SKILL.md")
+
+        action = ReplaceLink(page, page, "../other/SKILL.md", "vendor page\n")
+
+        assert action.path == page
+        assert action.link == page
+
+    def test_refuses_to_replace_a_link_without_saying_what_it_pointed_at(self) -> None:
+        with pytest.raises(ValueError, match=r"replacing a link names what it pointed at"):
+            ReplaceLink(Path(".claude/skills/d"), Path(".claude/skills/d/SKILL.md"), " ", "page\n")
+
+    def test_refuses_to_replace_a_link_with_an_empty_file(self) -> None:
+        with pytest.raises(ValueError, match=r"replaced by a page, never by an empty file"):
+            ReplaceLink(Path(".claude/skills/d"), Path(".claude/skills/d/SKILL.md"), "../x", "")
+
+    def test_refuses_a_page_that_is_not_behind_the_link_being_replaced(self) -> None:
+        """Otherwise the plan would delete one path and write another, and the diff would describe
+        neither."""
+        with pytest.raises(ValueError, match=r"is not behind the link"):
+            ReplaceLink(
+                Path(".claude/skills/doctor"),
+                Path(".agents/skills/doctor/SKILL.md"),
+                "../x",
+                "page\n",
+            )
+
     def test_every_kind_is_its_own_stable_token(self) -> None:
         """The kind is what a JSON envelope and a text summary both print, so two actions sharing
         one would make a report ambiguous to whatever reads it."""
         kinds = [
             CreateFile(AGENTS_MD, "x").kind,
             ReplaceBlock(AGENTS_MD, "a", "b").kind,
+            AdoptPage(AGENTS_MD, "a", "b").kind,
             AppendBlock(AGENTS_MD, "a", "b").kind,
             AppendLine(AGENTS_MD, "a", "b").kind,
             DeleteFile(AGENTS_MD, "a").kind,
             DeleteDirectory(AGENTS_MD).kind,
             Refuse(AGENTS_MD, "why").kind,
+            ReplaceLink(Path("d"), Path("d/SKILL.md"), "../x", "page\n").kind,
         ]
 
         assert sorted(kinds) == sorted(set(kinds))
-        assert len(kinds) == 7
+        assert len(kinds) == 9
 
 
 class TestWhereAnActionMayPoint:

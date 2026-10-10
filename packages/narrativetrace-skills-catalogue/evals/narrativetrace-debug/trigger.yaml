@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+positive:
+  - "debug this with the trace"
+  - "find where this value goes wrong"
+  - "why is this result wrong"
+  - "a customer was charged 43.00 instead of 42.77, find out why"
+  - "this total is off by a few cents, find the cause"
+  - "the invoice shows the wrong date after the timezone change, track it down"
+  - "the right id goes into the service and the wrong one comes out"
+  - "this test fails with a value nobody expected, find the root cause"
+  - "the two threads sometimes run in the wrong order, figure out where"
+  - "a bug report says the discount is applied twice, investigate it with narrativetrace"
+
+negative:
+  - "verify this change with the trace"
+  - "pin this flow as a baseline"
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "add narrative tracing to my service"
+  - "report this to NarrativeTrace"
+  - "add a clarity report to this project"
+  - "rename this variable"
+  - "upgrade narrativetrace to the latest version"
+  - "explain what a span is in OpenTelemetry"

@@ -31,9 +31,11 @@ once.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw
+from narrativetrace.render import span_id
 from narrativetrace.tree_walk import TreeWalk
 from narrativetrace_diagrams.diagram_label import DiagramLabel
 from narrativetrace_diagrams.sequence_grammar import LimitReason, SequenceGrammar
@@ -66,53 +68,82 @@ def _collect(nodes: list[TraceNode], seen: dict[str, None], walk: TreeWalk) -> N
                 walk.exit(node)
 
 
+def render_all(
+    roots: list[TraceNode],
+    grammar: SequenceGrammar,
+    participant_label: ParticipantLabel,
+    parts: list[str],
+) -> None:
+    """Walks every root in order with one shared walk, each root cited by its own span id."""
+    walk = TreeWalk()
+    for root, root_id in zip(roots, span_id.ids_of(roots, None), strict=True):
+        render_sequence(root, grammar, participant_label, parts, walk, root_id)
+
+
 def render_sequence(
     root: TraceNode,
     grammar: SequenceGrammar,
     participant_label: ParticipantLabel,
     parts: list[str],
     walk: TreeWalk,
+    root_id: str = "#1",
 ) -> None:
     """Walks ``root``, appending every arrow and note ``grammar`` produces to ``parts``.
 
     ``walk`` is owned by the caller so a multi-root tree can share one traversal's ancestry
-    across its roots, exactly as the renderers already did before this was extracted.
+    across its roots, exactly as the renderers already did before this was extracted. Each call
+    arrow is followed by ``grammar.span_note`` citing the span's id (``root_id`` for the root,
+    then :func:`~narrativetrace.render.span_id.ids_of` for each child list -- the children are
+    walked in capture order, the order that function lists them in).
     """
-    _render_node(root, root.signature.class_name, grammar, participant_label, parts, walk)
+    caller = root.signature.class_name
+    _render_node(root, _Visit(caller, root_id), grammar, participant_label, parts, walk)
 
 
 def _return_text(value: str | None) -> str:
     return "null" if value is None else value
 
 
+@dataclass(frozen=True, slots=True)
+class _Visit:
+    """Who calls the node being visited, and the node's own span id."""
+
+    caller: str
+    span_id: str
+
+
 def _render_node(
     node: TraceNode,
-    caller: str,
+    visit: _Visit,
     grammar: SequenceGrammar,
     participant_label: ParticipantLabel,
     parts: list[str],
     walk: TreeWalk,
 ) -> None:
     target = node.signature.class_name
-    _append_call_arrow(node, caller, target, grammar, participant_label, parts)
-    _render_children_or_marker(node, target, grammar, participant_label, parts, walk)
-    _append_outcome(node, caller, target, grammar, participant_label, parts)
+    _append_call_arrow(node, visit.caller, target, grammar, participant_label, parts)
+    parts.append(grammar.span_note(participant_label(target), DiagramLabel.span_id(visit.span_id)))
+    _render_children_or_marker(node, visit.span_id, grammar, participant_label, parts, walk)
+    _append_outcome(node, visit.caller, target, grammar, participant_label, parts)
 
 
 def _render_children_or_marker(
     node: TraceNode,
-    target: str,
+    node_id: str,
     grammar: SequenceGrammar,
     participant_label: ParticipantLabel,
     parts: list[str],
     walk: TreeWalk,
 ) -> None:
+    target = node.signature.class_name
     stop_reason = walk.stop_reason(node)
     if stop_reason is None:
         walk.enter(node)
         try:
-            for child in node.children:
-                _render_node(child, target, grammar, participant_label, parts, walk)
+            child_ids = span_id.ids_of(node.children, node_id)
+            for child, child_id in zip(node.children, child_ids, strict=True):
+                visit = _Visit(target, child_id)
+                _render_node(child, visit, grammar, participant_label, parts, walk)
         finally:
             walk.exit(node)
     elif node.children:

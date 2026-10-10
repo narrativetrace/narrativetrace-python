@@ -181,6 +181,33 @@ class RedactionCase:
 
 
 @dataclass(frozen=True, slots=True)
+class FeedbackCase:
+    """One row of ``feedback.json``: problem-report text, and which way the value-free gate
+    (:mod:`narrativetrace_tooling.feedback`) must decide about it.
+
+    ``rule`` is the rule id a ``rejected`` row asserts is AMONG the refusing rules, and is
+    ``None`` on an ``accepted`` row. A rejected row asserts containment rather than equality: a
+    leak has a shape, not an id, and a pasted rendered line legitimately breaks the call rule and
+    the duration rule at once. An accepted row asserts that NO rule refuses it, and that half is
+    what keeps the gate usable -- a gate that refuses an install coordinate or a doctor finding id
+    is a gate an agent learns to route around.
+    """
+
+    id: str
+    description: str
+    value: str
+    expect: str
+    rule: str | None
+
+    @property
+    def must_be_rejected(self) -> bool:
+        return self.expect == "rejected"
+
+    def __str__(self) -> str:
+        return self.id
+
+
+@dataclass(frozen=True, slots=True)
 class TraceShapeCase:
     """A declarative ``TraceNode`` call-tree shape (``trace-shapes.json``): a linear ``chain``
     ``n`` deep, or a ``cycle`` ring of ``n`` nodes (``n == 1`` holds itself)."""
@@ -230,6 +257,16 @@ def _redaction_case(node: dict[str, Any]) -> RedactionCase:
     )
 
 
+def _feedback_case(node: dict[str, Any]) -> FeedbackCase:
+    return FeedbackCase(
+        node["id"],
+        node["description"],
+        _materialize(node, "value"),
+        node["expect"],
+        node.get("rule"),
+    )
+
+
 def _graph_case(node: dict[str, Any]) -> GraphCase:
     layers = node.get("layers")
     return GraphCase(
@@ -276,6 +313,13 @@ def redactions() -> tuple[RedactionCase, ...]:
     """Sensitive field names and national-id value shapes feeding the name deny-list and the
     value-shape matcher."""
     return tuple(_redaction_case(c) for c in _load("redaction.json")["cases"])
+
+
+@lru_cache
+def feedbacks() -> tuple[FeedbackCase, ...]:
+    """Problem-report text feeding the value-free gate the ``narrativetrace feedback`` verb runs
+    before it will build a URL or a body file."""
+    return tuple(_feedback_case(c) for c in _load("feedback.json")["cases"])
 
 
 @lru_cache

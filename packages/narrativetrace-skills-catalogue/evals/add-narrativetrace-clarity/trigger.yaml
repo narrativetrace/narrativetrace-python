@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+# Trigger cases: must fire on the positive phrasings, must stay quiet on the negative ones. Gates
+# on rate, target >=90%. Phrasings are adapted from the Java reference's own trigger file for this
+# skill and from guides/clarity.md's framing of the CI gate -- never invented.
+
+positive:
+  - "add a clarity report to this project"
+  - "run narrativetrace-clarity on our code"
+  - "explain our clarity scores"
+  - "show which method names make the trace hard to read"
+  - "set up a clarity quality gate"
+  - "make the clarity gate fail on low scores"
+  - "give me per-element clarity notes"
+  - "check naming quality in this Python service"
+  - "scan this project for unclear names"
+  - "fix the names the clarity gate flags"
+
+# Another skill's job, or no skill's job at all. Must NOT fire.
+negative:
+  - "add narrative tracing to my service"
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "generate a glossary from these classes"
+  - "render a Mermaid sequence diagram"
+  - "upgrade narrativetrace to the latest version"
+  - "report a bug in narrativetrace"
+  - "what does trace_object do"
+  - "fix the doctor's redaction finding"
+  - "rename this variable to snake_case"

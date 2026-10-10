@@ -46,11 +46,13 @@ from scripts.verify_all_heavy import (
     build_benchmarks_skipped_row,
     build_fuzz_tier_b_row,
     build_mutation_row,
+    build_vendor_validation_row,
     run_benchmarks,
     run_fuzz_tier_b,
     run_glossary_mutation,
     run_narrativetrace_mutation,
     run_skills_mutation,
+    run_vendor_validation,
 )
 from scripts.verify_all_schema import (
     CategoryResult,
@@ -282,6 +284,10 @@ def _fuzz_tier_b_row() -> list[CategoryResult]:
     return [build_fuzz_tier_b_row(run_fuzz_tier_b(REPO_ROOT, LOG_DIR))]
 
 
+def _vendor_validation_row() -> list[CategoryResult]:
+    return [build_vendor_validation_row(run_vendor_validation(REPO_ROOT, LOG_DIR))]
+
+
 def _benchmark_rows() -> list[CategoryResult]:
     """`allocation` is always `not-implemented` in this ecosystem (see
     `verify_all_heavy.build_allocation_row`'s own doc); `benchmarks` runs for real unless the
@@ -305,6 +311,7 @@ _STEPS: tuple[tuple[tuple[str, ...], Callable[[], list[CategoryResult]]], ...] =
     (("mutation",), _mutation_row),
     (("fuzz-tier-b",), _fuzz_tier_b_row),
     (("benchmarks", "allocation"), _benchmark_rows),
+    (("vendor-validation",), _vendor_validation_row),
 )
 
 

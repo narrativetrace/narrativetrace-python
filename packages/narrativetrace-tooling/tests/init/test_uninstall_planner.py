@@ -247,3 +247,88 @@ class TestRuleFilesScopeAndThePlanItself:
             plan_uninstall(MISSING, InitOptions())
         with pytest.raises(TypeError, match=r"project state and options"):
             plan_uninstall(ProjectState(), MISSING)
+
+
+class TestWhatTheRegistryKeeps:
+    """Rule 5, amended: an uninstall removes only what the installer created, and never FOLLOWS a
+    link out of the project. The registry's own files — its lock file, its pages behind a link — are
+    left exactly as they were.
+    """
+
+    def test_leaves_a_linked_skill_directory_entirely_alone(self) -> None:
+        """Deleting the page behind it would delete the OPEN-STANDARD page a registry installed, and
+        deleting the directory would delete the link's target."""
+        state = ProjectState(
+            installed_skills=(
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_DIRECTORY,
+                    body="page\n",
+                    link="../../.agents/skills/doctor",
+                ),
+            )
+        )
+
+        result = plan_uninstall(state, InitOptions())
+
+        assert result.actions == ()
+
+    def test_leaves_a_linked_page_alone_too(self) -> None:
+        state = ProjectState(
+            installed_skills=(
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_PAGE,
+                    body="page\n",
+                    link="../../.agents/skills/doctor/SKILL.md",
+                ),
+            )
+        )
+
+        assert plan_uninstall(state, InitOptions()).actions == ()
+
+    def test_leaves_a_linked_page_alone_even_when_the_page_it_reaches_is_stamped_as_ours(
+        self,
+    ) -> None:
+        """The stamp says the BYTES are ours; the link says the PATH is not, and only the path
+        decides what may be deleted."""
+        state = ProjectState(
+            installed_skills=(
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_DIRECTORY,
+                    body=f"<!-- installed by narrativetrace init from {COORDINATE} —"
+                    " edit the catalogue, not this file -->\n",
+                    link="../../.agents/skills/doctor",
+                ),
+            )
+        )
+
+        assert plan_uninstall(state, InitOptions()).actions == ()
+
+    def test_removes_our_own_install_beside_a_link_it_leaves(self) -> None:
+        state = ProjectState(
+            installed_skills=(
+                ours(),
+                InstalledSkill(
+                    SkillFlavour.CLAUDE,
+                    "doctor",
+                    Presence.LINKED_DIRECTORY,
+                    body="page\n",
+                    link="../../.agents/skills/doctor",
+                ),
+            )
+        )
+
+        result = plan_uninstall(state, InitOptions())
+
+        assert isinstance(action_on(result, DOCTOR_PAGE), DeleteFile)
+        assert action_on(result, Path(".claude/skills/doctor/SKILL.md")) is None
+
+    def test_says_nothing_about_a_flavour_whose_whole_install_root_is_a_link(self) -> None:
+        state = ProjectState(linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere/skills"})
+
+        assert plan_uninstall(state, InitOptions()).actions == ()

@@ -15,11 +15,12 @@ become Hypothesis strategies over the same line menu.
 
 from __future__ import annotations
 
-import tempfile
-from collections.abc import Iterable
+import contextlib
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 import carriers
+import projects
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -111,15 +112,6 @@ def _paths(plan: InitPlan) -> list[Path]:
     return [action.path for action in plan.actions]
 
 
-def _snapshot_of(project: Path) -> dict[str, str]:
-    """Every file under the project, by relative path, with its exact bytes."""
-    return {
-        str(file.relative_to(project)): file.read_bytes().decode("utf-8")
-        for file in sorted(project.rglob("*"))
-        if file.is_file()
-    }
-
-
 def _ending_with_newline(content: str) -> str:
     """The one documented exception to the round trip: a file the installer APPENDED to is left
     ending with a newline, because a block has to start on its own line and nothing records that the
@@ -139,13 +131,18 @@ def _install(project: Path, carrier: Carrier) -> InitPlan:
     return plan
 
 
-def _in_a_temporary_project(
-    contents: Iterable[tuple[str, str]],
-) -> tempfile.TemporaryDirectory[str]:
-    scratch = tempfile.TemporaryDirectory(prefix="narrativetrace-install-")
-    for name, content in contents:
-        _write(Path(scratch.name) / name, content)
-    return scratch
+@contextlib.contextmanager
+def _in_a_temporary_project(contents: Iterable[tuple[str, str]]) -> Iterator[Path]:
+    """A fresh temp project holding the given files, deleted whatever happened.
+
+    The create-run-delete shape and the whole-tree readings live in ``projects``, shared with
+    ``test_registry_tree_props``: one of those readings has to be careful about symbolic links, and
+    two careful implementations are one to get wrong.
+    """
+    with projects.in_a_temporary_one("narrativetrace-install") as project:
+        for name, content in contents:
+            _write(project / name, content)
+        yield project
 
 
 @settings(max_examples=60, deadline=None)
@@ -155,8 +152,7 @@ def test_planning_after_applying_finds_nothing_left_to_do(
 ) -> None:
     """A refusal may repeat — it is a decision about a file, not a change to one — so what must be
     empty is the set of EDITS."""
-    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as scratch:
-        project = Path(scratch)
+    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as project:
         _install(project, shared_carrier)
 
         second = plan_init(read_project_state(project), shared_carrier, PERMISSIVE)
@@ -171,14 +167,13 @@ def test_applying_the_same_plan_twice_changes_nothing_the_second_time(
 ) -> None:
     """Idempotence of the APPLY, not of the plan: every action carries the whole text it produces,
     so replaying one is a write of bytes that are already there."""
-    with _in_a_temporary_project([("AGENTS.md", agents_md)]) as scratch:
-        project = Path(scratch)
+    with _in_a_temporary_project([("AGENTS.md", agents_md)]) as project:
         plan = _install(project, shared_carrier)
-        once = _snapshot_of(project)
+        once = projects.snapshot_of(project)
 
         _apply(project, plan)
 
-        assert _snapshot_of(project) == once
+        assert projects.snapshot_of(project) == once
 
 
 @settings(max_examples=60, deadline=None)
@@ -188,14 +183,13 @@ def test_installing_then_uninstalling_leaves_the_project_as_it_was(
 ) -> None:
     """The one documented difference: a file the installer appended to is left ending with a
     newline, because a block has to start on its own line and nothing records that it lacked one."""
-    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as scratch:
-        project = Path(scratch)
-        before = _snapshot_of(project)
+    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as project:
+        before = projects.snapshot_of(project)
 
         _install(project, shared_carrier)
         _apply(project, plan_uninstall(read_project_state(project), PERMISSIVE))
 
-        after = _snapshot_of(project)
+        after = projects.snapshot_of(project)
         assert after.keys() == before.keys(), "no file gained or lost"
         for path, content in after.items():
             assert content in (before[path], _ending_with_newline(before[path])), path
@@ -206,8 +200,7 @@ def test_installing_then_uninstalling_leaves_the_project_as_it_was(
 def test_a_plan_never_touches_one_path_twice(
     shared_carrier: Carrier, agents_md: str, claude_md: str
 ) -> None:
-    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as scratch:
-        project = Path(scratch)
+    with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as project:
         (project / ".claude").mkdir()
 
         install = plan_init(read_project_state(project), shared_carrier, PERMISSIVE)
@@ -221,9 +214,7 @@ def test_a_plan_never_touches_one_path_twice(
 @settings(max_examples=60, deadline=None)
 @given(agents_md=CONTEXT_FILE)
 def test_what_was_planned_is_what_the_files_say(shared_carrier: Carrier, agents_md: str) -> None:
-    with _in_a_temporary_project([("AGENTS.md", agents_md)]) as scratch:
-        project = Path(scratch)
-
+    with _in_a_temporary_project([("AGENTS.md", agents_md)]) as project:
         plan = plan_init(read_project_state(project), shared_carrier, PERMISSIVE)
         _apply(project, plan)
 
@@ -241,7 +232,7 @@ def test_an_install_never_writes_outside_the_project(
     """The guard on every action's path, stated as a property: whatever a generated context file
     contains, every path a plan names stays inside the project it was planned for."""
     with _in_a_temporary_project([("AGENTS.md", agents_md), ("CLAUDE.md", claude_md)]) as scratch:
-        project = Path(scratch).resolve()
+        project = scratch.resolve()
 
         plan = plan_init(read_project_state(project), shared_carrier, PERMISSIVE)
 

@@ -21,6 +21,7 @@ core distribution bundles.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -131,6 +132,22 @@ class TestTheInstalledConsoleScript:
 
         assert done.returncode in (0, 1), done.stderr
         assert '"findings"' in done.stdout
+
+    def test_the_installed_doctor_prints_the_framework_wiring_its_own_wheel_carries(
+        self, bundled_only: Installed, project: Path
+    ) -> None:
+        """The framework table's wiring lines are package data in the tooling wheel; only an
+        installed doctor, far from this repository, proves they travel with it."""
+        (project / "pyproject.toml").write_text(
+            "[project]\nname = 'demo'\ndependencies = ['fastapi']\n", encoding="utf-8"
+        )
+
+        done = bundled_only.run(project, "doctor", "--json")
+
+        findings = {f["id"]: f for f in json.loads(done.stdout)["findings"]}
+        asgi = findings["config.asgi-middleware"]
+        assert asgi["status"] == "fail"
+        assert "app.add_middleware(NarrativeTraceMiddleware" in asgi["fix"]
 
 
 @pytest.mark.distribution

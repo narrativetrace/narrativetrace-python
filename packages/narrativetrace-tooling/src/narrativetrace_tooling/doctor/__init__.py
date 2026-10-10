@@ -6,7 +6,7 @@
 install and configuration.
 
 Mirrors the TypeScript runtime's ``@narrativetrace/cli`` doctor (``packages/cli/src/doctor/``):
-twelve checks with stable, dotted ids, a pure
+nineteen checks with stable, dotted ids (six of them built from the framework table), a pure
 :class:`~narrativetrace_tooling.doctor.types.DoctorCheck` signature over a
 :class:`~narrativetrace_tooling.doctor.types.DoctorSnapshot`, and one impure module that builds that
 snapshot from the real filesystem. Every check is a pure function: given the same snapshot it always

@@ -1,0 +1,5 @@
+{
+  "fixture": "packages/narrativetrace-skills-catalogue/evals/fixtures/clarity-unclear-name",
+  "install": "checkout",
+  "vcs": "git"
+}

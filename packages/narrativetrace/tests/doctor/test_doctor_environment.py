@@ -55,6 +55,27 @@ class TestBuildSnapshot:
         assert "app.py" in snapshot.source_files
         assert "notes.txt" not in snapshot.source_files
 
+    @pytest.mark.parametrize(
+        "manifest", ["requirements.txt", "requirements-dev.txt", "requirements/web.txt", "Pipfile"]
+    )
+    def test_every_manifest_the_framework_table_reads_is_a_source_file(
+        self, tmp_path: Path, manifest: str
+    ) -> None:
+        """The framework checks read what a project DECLARES, in every form it is written —
+        including the two that are neither TOML-suffixed nor Python."""
+        _write(tmp_path / manifest, "fastapi\n")
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.source_files == {str(Path(manifest)): "fastapi\n"}
+
+    @pytest.mark.parametrize(
+        "near_miss", ["myrequirements.txt", "requirementsx.txt", "docs/notes.txt", "Pipfile.lock"]
+    )
+    def test_a_near_miss_manifest_name_is_still_skipped(
+        self, tmp_path: Path, near_miss: str
+    ) -> None:
+        _write(tmp_path / near_miss, "fastapi\n")
+        assert build_snapshot(str(tmp_path), {}).source_files == {}
+
     def test_output_directory_files_bucketed_separately(self, tmp_path: Path) -> None:
         _write(tmp_path / "narrative-traces" / "T" / "m.md", "trace")
         _write(tmp_path / "app.py", "print(1)")

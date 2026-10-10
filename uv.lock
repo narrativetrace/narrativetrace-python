@@ -1184,7 +1184,7 @@ wheels = [
 
 [[package]]
 name = "narrativetrace"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace" }
 dependencies = [
     { name = "narrativetrace-tooling" },
@@ -1195,7 +1195,7 @@ requires-dist = [{ name = "narrativetrace-tooling", editable = "packages/narrati
 
 [[package]]
 name = "narrativetrace-asgi"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-asgi" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1229,7 +1229,7 @@ dev = [
 
 [[package]]
 name = "narrativetrace-clarity"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-clarity" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1240,7 +1240,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-diagrams"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-diagrams" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1251,7 +1251,7 @@ requires-dist = [{ name = "narrativetrace", editable = "packages/narrativetrace"
 
 [[package]]
 name = "narrativetrace-glossary"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-glossary" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1266,7 +1266,7 @@ requires-dist = [
 
 [[package]]
 name = "narrativetrace-otel"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-otel" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1289,7 +1289,7 @@ dev = [{ name = "opentelemetry-sdk", specifier = ">=1.20" }]
 
 [[package]]
 name = "narrativetrace-pytest"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-pytest" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1316,6 +1316,7 @@ dependencies = [
     { name = "narrativetrace" },
     { name = "narrativetrace-asgi" },
     { name = "narrativetrace-diagrams" },
+    { name = "narrativetrace-tooling" },
 ]
 
 [package.dev-dependencies]
@@ -1328,6 +1329,7 @@ requires-dist = [
     { name = "narrativetrace", editable = "packages/narrativetrace" },
     { name = "narrativetrace-asgi", editable = "packages/narrativetrace-asgi" },
     { name = "narrativetrace-diagrams", editable = "packages/narrativetrace-diagrams" },
+    { name = "narrativetrace-tooling", editable = "packages/narrativetrace-tooling" },
 ]
 
 [package.metadata.requires-dev]
@@ -1335,17 +1337,17 @@ dev = [{ name = "pyyaml", specifier = ">=6" }]
 
 [[package]]
 name = "narrativetrace-skills"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-skills" }
 
 [[package]]
 name = "narrativetrace-skills-catalogue"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-skills-catalogue" }
 
 [[package]]
 name = "narrativetrace-structlog"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-structlog" }
 dependencies = [
     { name = "narrativetrace" },
@@ -1360,12 +1362,12 @@ requires-dist = [
 
 [[package]]
 name = "narrativetrace-tooling"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/narrativetrace-tooling" }
 
 [[package]]
 name = "narrativetrace-workspace"
-version = "0.2.0"
+version = "0.3.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

@@ -2,14 +2,16 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""`scripts/skills_render.py`: `.claude/skills/{narrativetrace-doctor,add-narrative-tracing}/
-SKILL.md`, `.agents/skills/{narrativetrace-doctor,add-narrative-tracing}/SKILL.md`, this
-repository's own `AGENTS.md` managed section, the published `narrativetrace-skills` distribution's
-`skills/**` payload and its byte-identical copy bundled as `narrativetrace`'s own package data
-(`narrativetrace/_skills/**`) are BUILD OUTPUT of the typed `narrativetrace_skills` catalogue —
-this drift check is what `poe check`'s own `skills-check` task runs, exercised here too so a plain
-`uv run poe coverage` run also measures and gates it (`scripts/skills_render.py` itself is a CLI
-entry point, not imported by anything else that would otherwise cover it)."""
+"""`scripts/skills_render.py`: each shipped skill's (`narrativetrace-doctor`,
+`add-narrative-tracing`, `narrativetrace-feedback`, `add-narrativetrace-clarity`)
+`.claude/skills/<name>/SKILL.md` and `.agents/skills/<name>/SKILL.md`, this
+repository's own `AGENTS.md` managed section, `.claude-plugin/marketplace.json` (the Claude Code
+plugin-marketplace listing, Phase 4 milestone 1), the published `narrativetrace-skills`
+distribution's `skills/**` payload and its byte-identical copy bundled as `narrativetrace`'s own
+package data (`narrativetrace/_skills/**`) are BUILD OUTPUT of the typed `narrativetrace_skills`
+catalogue — this drift check is what `poe check`'s own `skills-check` task runs, exercised here
+too so a plain `uv run poe coverage` run also measures and gates it (`scripts/skills_render.py`
+itself is a CLI entry point, not imported by anything else that would otherwise cover it)."""
 
 from __future__ import annotations
 
@@ -20,8 +22,10 @@ from scripts.skills_render import (
     _check_all,
     _core_bundled_skills_dir,
     _fix_all,
+    _marketplace_json_path,
     _rendered_agents_md,
     _rendered_carrier_files,
+    _rendered_marketplace_json,
     _rendered_skill_files,
     _stray_carrier_files,
 )
@@ -33,17 +37,17 @@ class TestRenderedArtifactsMatchTheTypedCatalogue:
         """Fails naming the drifted path(s) — run `python scripts/skills_render.py --fix`."""
         assert _check_all() == []
 
-    def test_rendered_skill_files_cover_both_shipped_skills(self) -> None:
+    def test_rendered_skill_files_cover_every_shipped_skill(self) -> None:
         paths = {path.name for path in _rendered_skill_files()}
         assert paths == {"SKILL.md"}
 
-    def test_rendered_skill_files_cover_both_platforms_for_both_skills(self) -> None:
-        # Two shipped skills, two platforms (Claude Code + Codex) rendering the same body under
-        # different frontmatter -- four files, not two.
+    def test_rendered_skill_files_cover_both_platforms_for_every_skill(self) -> None:
+        # Six shipped skills, two platforms (Claude Code + Codex) rendering the same body under
+        # different frontmatter -- twelve files, not six.
         rendered = _rendered_skill_files()
-        assert len(rendered) == 4
-        assert sum(1 for path in rendered if ".claude" in path.parts) == 2
-        assert sum(1 for path in rendered if ".agents" in path.parts) == 2
+        assert len(rendered) == 12
+        assert sum(1 for path in rendered if ".claude" in path.parts) == 6
+        assert sum(1 for path in rendered if ".agents" in path.parts) == 6
 
     def test_rendered_agents_md_carries_the_markers(self) -> None:
         rendered = _rendered_agents_md()
@@ -118,3 +122,26 @@ class TestCarrierTreesMatchTheTypedCatalogue:
         _fix_all(tmp_path)
         assert not stray.exists()
         assert _check_all(tmp_path) == []
+
+
+class TestMarketplaceFileMatchesTheTypedCatalogue:
+    """`.claude-plugin/marketplace.json` -- the Claude Code plugin-marketplace listing rendered
+    from `narrativetrace_skills.MARKETPLACE` (Phase 4 milestone 1)."""
+
+    def test_no_drift_against_the_committed_file(self) -> None:
+        assert _check_all() == []
+
+    def test_lives_at_the_repo_root_claude_plugin_directory(self) -> None:
+        assert _marketplace_json_path() == REPO_ROOT / ".claude-plugin" / "marketplace.json"
+
+    def test_is_included_in_fix_all_and_check_all(self, tmp_path: Path) -> None:
+        written = _fix_all(tmp_path)
+        marketplace_path = _marketplace_json_path(tmp_path)
+        assert marketplace_path in written
+        assert marketplace_path.read_text(encoding="utf-8") == _rendered_marketplace_json()
+        assert _check_all(tmp_path) == []
+
+    def test_check_all_flags_a_hand_edited_marketplace_file(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        _marketplace_json_path(tmp_path).write_text("tampered", encoding="utf-8")
+        assert _marketplace_json_path(tmp_path) in _check_all(tmp_path)

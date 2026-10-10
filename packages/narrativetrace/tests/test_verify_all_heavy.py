@@ -18,6 +18,7 @@ from scripts.verify_all_heavy import (
     build_benchmarks_skipped_row,
     build_fuzz_tier_b_row,
     build_mutation_row,
+    build_vendor_validation_row,
 )
 
 
@@ -156,3 +157,40 @@ class TestBuildAllocationRow:
         assert row.status == "not-implemented"
         assert row.tool == "none"
         assert row.metrics == {}
+
+
+class TestBuildVendorValidationRow:
+    def test_passed_parses_the_rows_passed_count(self) -> None:
+        output = (
+            "vendor-validate: claude passed — validated .claude-plugin/marketplace.json\n"
+            "vendor-validate: 1/1 rows passed\n"
+        )
+        row = build_vendor_validation_row(_outcome(output, exit_code=0))
+        assert row.status == "passed"
+        assert row.metrics["rows"] == 1
+        assert row.metrics["rows_passed"] == 1
+
+    def test_skipped_when_every_row_skipped(self) -> None:
+        output = (
+            "vendor-validate: claude skipped — not found on PATH — "
+            ".claude-plugin/marketplace.json was NOT validated; install the agent CLI\n"
+            "vendor-validate: every row SKIPPED — nothing was validated. A skip is not a "
+            "pass; install the missing tool(s) named above and re-run for a real result.\n"
+        )
+        row = build_vendor_validation_row(_outcome(output, exit_code=0))
+        assert row.status == "skipped"
+        assert "rows_passed" not in row.metrics
+
+    def test_failed_when_the_task_exits_nonzero(self) -> None:
+        output = (
+            "vendor-validate: claude failed — claude rejected "
+            ".claude-plugin/marketplace.json (exit 1)\n"
+            "vendor-validate: a vendor rejected an artifact this repository publishes — "
+            "see the output above\n"
+        )
+        row = build_vendor_validation_row(_outcome(output, exit_code=1))
+        assert row.status == "failed"
+
+    def test_carries_the_registry_size_as_a_metric(self) -> None:
+        row = build_vendor_validation_row(_outcome("vendor-validate: 1/1 rows passed\n"))
+        assert row.metrics["rows"] == 1

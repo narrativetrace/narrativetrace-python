@@ -33,6 +33,21 @@ class TestControlSanitize:
         assert not any(ord(c) <= 0x1F or 0x7F <= ord(c) <= 0x9F for c in out)
 
 
+class TestControlSanitizeLineSeparators:
+    """U+2028/U+2029 are not ISO controls but line terminators to regex engines, JavaScript and
+    many log viewers, so a raw one forges a line exactly as ``\\n`` does (cross-port item 5)."""
+
+    def test_escapes_the_unicode_line_and_paragraph_separators(self) -> None:
+        assert control_sanitize("a\u2028b\u2029c") == "a\\u2028b\\u2029c"
+
+    def test_markdown_text_and_code_spans_escape_them_too(self) -> None:
+        assert markdown_text("a\u2028b") == "a\\u2028b"
+        assert markdown_code("a\u2029b") == "`a\\u2029b`"
+
+    def test_a_neighbouring_code_point_is_left_alone(self) -> None:
+        assert control_sanitize("\u2027\u202a") == "\u2027\u202a"
+
+
 class TestControlSanitizeSurrogates:
     """A security fuzz suite finding (mirrors Java's ``ControlEscape`` fix): a lone surrogate
     code point is not an ISO control character, so it used to pass through unescaped -- and no

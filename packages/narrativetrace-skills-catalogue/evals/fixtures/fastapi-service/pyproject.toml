@@ -1,0 +1,8 @@
+[project]
+# Not a uv workspace member (see README.md) -- a standalone fixture the eval runner scaffolds into
+# a scratch directory: a working FastAPI service with NO narrativetrace dependency. Adding one, and
+# wiring it into the app, is the agent's job.
+name = "fastapi-service-fixture"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.110", "uvicorn>=0.30"]

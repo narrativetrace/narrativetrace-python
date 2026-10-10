@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.2.0"
+version = "0.3.0"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.
@@ -168,6 +168,18 @@ sequence = [
     { ref = "mutate-skills" },
     { cmd = "python scripts/mutation_gate.py narrativetrace-skills-catalogue" },
 ]
+
+[tool.poe.tasks.vendor-validate]
+cmd = "python -m scripts.vendor_validation"
+help = """D6 (phase-4-design-2026-09-27.md): a REGISTRY of vendor checks (tool, probe, validate \
+command, artifact) -- one row today, the agent CLI's `plugin validate` against \
+.claude-plugin/marketplace.json staged from HEAD with `git archive`, so a vendor validates what \
+a publish would ship, not the working tree. Heavy/scheduled tier, never part of `poe check` -- a \
+per-commit gate may not depend on a third-party CLI being installed. Self-skipping: an absent \
+tool SKIPS with one line naming it and how to install it (never a CI-side exclusion), and a skip \
+is recorded as a skip under build/reports/vendor-validation/<tool>.status -- nothing validated \
+must never read as a pass. Run by hand once per milestone and the result recorded in the \
+backlog."""
 
 [tool.poe.tasks.demo]
 cmd = "python -m examples.demo"
@@ -466,8 +478,9 @@ help = """Runs EVERY verification this repo has, gate and heavy alike: unit test
 mutation (both packages), property, fuzz tier A (sliced) and tier B (poe fuzz), benchmarks \
 (host-load permitting) and allocation (not-implemented in this ecosystem), architecture \
 (import-linter), stress short/long, conformance, secrets, sast, sca, lint, format, types, \
-complexity, translation, clarity. A failing category never aborts the run; the process exits \
-non-zero iff any category's status is "failed". Writes reports/verification/<date>.json + \
+complexity, translation, clarity, vendor-validation (poe vendor-validate). A failing category \
+never aborts the run; the process exits non-zero iff any category's status is "failed". Writes \
+reports/verification/<date>.json + \
 <date>.md conforming to the cross-port schema in the Java golden repo's \
 reports/verification/SCHEMA.md — never a per-commit/CI gate, this is the long-running, \
 whole-repo audit `poe check`/`poe fuzz`/`poe mutate-gate`/`poe bench-gate` are each a fast \
@@ -591,6 +604,21 @@ exclude = [
     'examples/sixty_seconds/main(_with_logger|_llms|_with_loguru)?\.py$',
     'examples/sixty_seconds/redaction_llms\.py$',
     'packages/narrativetrace-skills-catalogue/evals/fixtures/redaction-gap/main\.py$',
+    # The two feedback fixtures are one consumer project twice (feedback-value-free is
+    # feedback-false-positive plus a saved trace), so checked together they are two top-level
+    # `payments` packages -- a duplicate module, not a typing finding. Their code is typed anyway.
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/feedback-(false-positive|value-free)/',
+    # The clarity case's fixture is untyped on purpose (its unclear names are the point), and its
+    # test module shares a basename with nothing else only until a second consumer fixture exists.
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/clarity-unclear-name/',
+    # The FastAPI case's fixture is the existing-service consumer project's `billing` package as
+    # a web app -- a second top-level `billing`, a duplicate module rather than a typing finding.
+    # Its code is typed anyway.
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/fastapi-service/',
+    # The Phase 7 trace-skill fixtures are the same consumer `billing` package grown into a
+    # checkout -- two more top-level `billing`s, duplicates rather than typing findings, and the
+    # verify fixture's vendored shopkit is a stand-in third-party framework. Their code is typed.
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/existing-service-checkout(-currency)?/',
 ]
 
 # atheris is platform-conditional (see the `security` dependency group below and
@@ -691,7 +719,7 @@ narrativetrace_security_tests = "src/narrativetrace_security_tests/__init__.py i
 # `[tool.coverage.run] source` entries that are bare paths, not packages/*/ import names, and why
 # each is legitimate -- read by test_coverage_source_completeness.py so that
 # `source - real_names` only ever contains entries accounted for here, never a silent addition.
-"packages/narrativetrace-skills-catalogue/evals" = "Tier B eval runner code (run.py/quota.py/platform_presets.py/tier_precondition.py), not under src/narrativetrace_skills/ -- see evals/README.md's layout; 2026-09-13 ruling that eval-invoked code is normal source code held to the full house standard."
+"packages/narrativetrace-skills-catalogue/evals" = "Tier B eval runner code (the runner modules listed in evals/pyproject.toml's [tool.mutmut] source_paths), not under src/narrativetrace_skills/ -- see evals/README.md's layout; 2026-09-13 ruling that eval-invoked code is normal source code held to the full house standard."
 
 [tool.coverage.report]
 fail_under = 95  # ratchet toward the Java 98% gate; raise as headroom allows

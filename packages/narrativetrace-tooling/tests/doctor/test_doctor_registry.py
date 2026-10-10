@@ -8,11 +8,21 @@ from snapshot_factory_types import MakePackageInfo, MakeSnapshot
 
 from narrativetrace_tooling.doctor.doctor import DOCTOR_CHECKS, run_doctor
 from narrativetrace_tooling.doctor.finding_skills import knows
+from narrativetrace_tooling.frameworks.table import wiring_check_ids
 
 
 class TestDoctorChecks:
-    def test_twelve_checks_registered(self) -> None:
-        assert len(DOCTOR_CHECKS) == 12
+    def test_nineteen_checks_registered(self) -> None:
+        assert len(DOCTOR_CHECKS) == 19
+
+    def test_one_check_per_framework_table_row_follows_the_thirteen_core_checks(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        """Phase 6 D3: the registry derives the framework checks from the table, in table order,
+        appended after the core checks so no shipped id moves."""
+        snapshot = make_snapshot()
+        ids = tuple(check(snapshot).id for check in DOCTOR_CHECKS)
+        assert ids[13:] == wiring_check_ids()
 
     def test_every_check_id_is_unique(self, make_snapshot: MakeSnapshot) -> None:
         snapshot = make_snapshot()
@@ -46,7 +56,7 @@ class TestRunDoctor:
         )
         report = run_doctor(snapshot)
         assert report.exit_code == 0
-        assert len(report.findings) == 12
+        assert len(report.findings) == 19
 
     def test_exit_code_one_when_any_finding_fails(self, make_snapshot: MakeSnapshot) -> None:
         snapshot = make_snapshot(python_version="3.9.0")
@@ -58,5 +68,7 @@ class TestRunDoctor:
         report = run_doctor(snapshot)
         ids = [finding.id for finding in report.findings]
         assert ids[0] == "toolchain.python-version"
-        assert ids[-1] == "trap.llms-before-you-start"
+        assert ids[11] == "trap.llms-before-you-start"
+        assert ids[12] == "config.approval-mode"
+        assert ids[-1] == "config.django-integration"
         assert ids[5] == "config.skills-installed"
