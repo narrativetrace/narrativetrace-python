@@ -29,8 +29,9 @@ from typing import Literal, get_args
 import isolated_agent_config
 from narrativetrace_skills import MARKETPLACE
 
-Registry = Literal["claude-marketplace", "npx-skills"]
-"""The closed vocabulary of registry deliveries a Tier B case may declare."""
+Registry = Literal["claude-marketplace", "npx-skills", "narrativetrace-init"]
+"""The closed vocabulary of deliveries a Tier B case may declare: two registries and this checkout's
+own installer (``narrativetrace-init``, which is no registry but delivers pages the same way)."""
 
 REGISTRIES: tuple[Registry, ...] = get_args(Registry)
 
@@ -84,7 +85,12 @@ def staging_commands(repo_root: Path, into: Path) -> tuple[tuple[str, ...], ...]
 
 def commands_for(registry: Registry, repo_root: Path, staged: Path) -> tuple[tuple[str, ...], ...]:
     """Everything ``registry`` runs before the agent starts: the staging of ``HEAD``'s registry
-    surface, then the registry tool's own documented lines against the staged tree."""
+    surface, then the registry tool's own documented lines against the staged tree.
+
+    The installer delivery stages nothing: it is this checkout's own ``narrativetrace init``, run
+    through the checkout's workspace, and reads the carrier it bundles."""
+    if registry == "narrativetrace-init":
+        return (("uv", "run", "--project", str(repo_root), "narrativetrace", "init"),)
     return (*staging_commands(repo_root, staged), *_registry_commands(registry, staged))
 
 

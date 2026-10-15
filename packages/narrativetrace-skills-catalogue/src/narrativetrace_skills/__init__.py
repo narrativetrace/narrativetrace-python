@@ -41,6 +41,10 @@ from narrativetrace_skills.render.carrier import render_carrier_files
 from narrativetrace_skills.render.catalogue_manifest import render_catalogue_manifest
 from narrativetrace_skills.render.claude import render_claude_skill
 from narrativetrace_skills.render.codex import render_codex_skill
+from narrativetrace_skills.render.cursor_plugin import (
+    render_cursor_marketplace_json,
+    render_cursor_plugin_json,
+)
 from narrativetrace_skills.render.marketplace import render_marketplace_json
 from narrativetrace_skills.replay import StepReplayResult, replay_skill, run_replay_command
 from narrativetrace_skills.skill import (
@@ -62,7 +66,7 @@ from narrativetrace_skills.skill import (
     vocabulary_violations,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "AGENTS_MD_BEGIN",
@@ -106,6 +110,8 @@ __all__ = [
     "render_catalogue_manifest",
     "render_claude_skill",
     "render_codex_skill",
+    "render_cursor_marketplace_json",
+    "render_cursor_plugin_json",
     "render_marketplace_json",
     "replay_skill",
     "run_replay_command",

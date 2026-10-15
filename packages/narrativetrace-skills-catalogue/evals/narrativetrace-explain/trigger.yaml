@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
+# years from publication; Change License: Apache-2.0
+# Copyright (c) 2026 Empower Agile
+positive:
+  - "show me what my application actually does"
+  - "walk me through what happens when a user checks out"
+  - "I inherited this service, how does an order flow"
+  - "what does this endpoint call"
+  - "show me what this application actually does when an order is placed"
+  - "explain how checkout works in this codebase"
+  - "I am new to this project, how does a payment get processed"
+  - "document the call flow of this service before I change it"
+  - "which collaborators does place_order actually talk to at runtime"
+  - "where does a request spend its time in this flow"
+
+negative:
+  - "explain what this pure function does"
+  - "verify this change with the trace"
+  - "pin this flow as a baseline"
+  - "debug this with the trace"
+  - "find where this value goes wrong"
+  - "check my narrativetrace setup"
+  - "why isn't anything being traced"
+  - "add narrative tracing to my service"
+  - "report this to NarrativeTrace"
+  - "add a clarity report to this project"
+  - "rename this variable"
+  - "explain what a span is in OpenTelemetry"

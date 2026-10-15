@@ -1,0 +1,6 @@
+scenario: Test the stock is released when the card is declined
+
+#1 - OrderService.place_order(customer_id, sku, quantity, card_number) !! PaymentDeclinedError
+  #1.1 - InventoryService.reserve(sku, quantity) → value
+  #1.2 - PaymentService.charge(customer_id, amount_cents, card) !! PaymentDeclinedError
+  #1.3 - InventoryService.release(sku, quantity) → value

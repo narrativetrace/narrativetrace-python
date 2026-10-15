@@ -18,6 +18,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
+from narrativetrace_tooling.init.pointer_reading import PointerReading
 from narrativetrace_tooling.init.project_state import InstalledSkill
 
 Env = Mapping[str, str]
@@ -67,6 +68,10 @@ class DoctorSnapshot:
     own :func:`~narrativetrace_tooling.init.project_state_reader.read_project_state` — one reader
     of a project's skill directories, so the doctor and ``init`` can never disagree about which
     directory belongs to whom."""
+    pointer_readings: tuple[PointerReading, ...] = ()
+    """One reading per detected platform whose row has a pointer file, in platform-table order —
+    the installer's own reading (:func:`~narrativetrace_tooling.init.pointer_reading.read_all`), so
+    the doctor and ``init`` agree on what "present" means."""
     catalogue_skill_names: tuple[str, ...] = ()
     """Every skill name this environment's skills carrier lists, resolved through the same
     preference order ``init`` uses (:func:`~narrativetrace_tooling.init.carrier.resolve_carrier`).

@@ -18,6 +18,7 @@ import pytest
 from examples.import_and_use import write_artifact as write_import_and_use_artifact
 from examples.not_traced_fields import write_artifact as write_not_traced_fields_artifact
 from examples.place_order import write_artifact as write_place_order_artifact
+from examples.recipes.checkout.recipe_artifacts import write_artifacts as write_recipe_artifacts
 from examples.sixty_seconds.tutorial_artifacts import (
     write_agent_skills_preview,
     write_artifacts,
@@ -209,6 +210,41 @@ class TestDurationMasking:
             "<!-- /snippet -->\n",
         )
         assert check_repository(tmp_path) == []
+
+    def test_the_markdown_trace_header_durations_are_masked_too(self, tmp_path: Path) -> None:
+        """A `.md` trace artifact states its duration twice more -- the `duration_ms:` frontmatter
+        field and the `**Duration:**` line -- neither introduced by the `— Nms` shape."""
+        _write(
+            tmp_path,
+            "src/thing.txt",
+            "duration_ms: 1.5\n**Duration:** 1.5ms | **Result:** PASSED\n",
+        )
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=duration -->\n"
+            "```text\n"
+            "duration_ms: 0\n"
+            "**Duration:** 0ms | **Result:** PASSED\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert check_repository(tmp_path) == []
+
+    def test_a_different_result_beside_a_masked_duration_is_still_drift(
+        self, tmp_path: Path
+    ) -> None:
+        _write(tmp_path, "src/thing.txt", "**Duration:** 1ms | **Result:** FAILED\n")
+        _write(
+            tmp_path,
+            "documentation/page.md",
+            "<!-- snippet: src/thing.txt mask=duration -->\n"
+            "```text\n"
+            "**Duration:** 0ms | **Result:** PASSED\n"
+            "```\n"
+            "<!-- /snippet -->\n",
+        )
+        assert len(check_repository(tmp_path)) == 1
 
     def test_check_repository_still_catches_a_real_drift_under_masking(
         self, tmp_path: Path
@@ -488,7 +524,8 @@ class TestRealRepository:
     Some snippet sources (``examples/sixty_seconds/build/*.txt``,
     ``examples/sixty_seconds/build/agent-skills-init-preview.json``,
     ``examples/build/not_traced_fields.txt``, ``examples/build/import_and_use.txt``,
-    ``examples/build/place_order_failing.txt``) are git-ignored, generated artifacts that only
+    ``examples/build/place_order_failing.txt``, and every file under
+    ``examples/recipes/checkout/build/``) are git-ignored, generated artifacts that only
     their own example's test module writes -- regenerated here too rather than relying on that
     test having run first: pytest collects ``packages`` before ``examples`` (``testpaths`` in
     ``pyproject.toml``), and a pristine checkout has no pre-existing ``build/`` at all.
@@ -500,6 +537,7 @@ class TestRealRepository:
         write_not_traced_fields_artifact()
         write_import_and_use_artifact()
         write_place_order_artifact()
+        write_recipe_artifacts()
 
     def test_the_real_repository_has_no_drifted_snippets(self) -> None:
         self._regenerate_build_artifacts()

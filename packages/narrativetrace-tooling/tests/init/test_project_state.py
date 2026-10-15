@@ -204,3 +204,41 @@ class TestAFlavourWhoseWholeInstallRootIsALink:
                 installed_skills=(ours("doctor", SkillFlavour.CLAUDE),),
                 linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere"},
             )
+
+
+class TestThePlatformFacts:
+    def test_an_untouched_project_is_on_no_platform_and_has_no_pointer(self) -> None:
+        state = ProjectState()
+
+        assert state.detected_platforms == frozenset()
+        assert dict(state.pointer_files) == {}
+        assert state.pointers_behind_links == frozenset()
+
+    def test_keeps_what_it_was_given(self) -> None:
+        state = ProjectState(
+            detected_platforms={"cursor"},
+            pointer_files={"replit.md": "text"},
+            pointers_behind_links={".cursor/rules/narrativetrace.mdc"},
+        )
+
+        assert state.detected_platforms == frozenset({"cursor"})
+        assert state.pointer_files["replit.md"] == "text"
+        assert state.pointers_behind_links == frozenset({".cursor/rules/narrativetrace.mdc"})
+
+    def test_keeps_its_platform_collections_immutable(self) -> None:
+        state = ProjectState(pointer_files={"replit.md": "text"})
+
+        with pytest.raises(TypeError):
+            state.pointer_files["other"] = "x"  # type: ignore[index]
+
+    def test_refuses_a_platform_that_is_not_in_the_table(self) -> None:
+        with pytest.raises(ValueError, match="cursorx"):
+            ProjectState(detected_platforms={"cursorx"})
+
+    def test_refuses_a_pointer_path_that_is_both_read_and_behind_a_link(self) -> None:
+        with pytest.raises(ValueError, match=r"replit\.md"):
+            ProjectState(pointer_files={"replit.md": "x"}, pointers_behind_links={"replit.md"})
+
+    def test_refuses_a_pointer_file_that_is_not_text(self) -> None:
+        with pytest.raises(TypeError):
+            ProjectState(pointer_files={"replit.md": MISSING})

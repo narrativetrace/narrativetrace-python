@@ -32,6 +32,8 @@ from narrativetrace_skills import (
     render_carrier_files,
     render_claude_skill,
     render_codex_skill,
+    render_cursor_marketplace_json,
+    render_cursor_plugin_json,
     render_marketplace_json,
     splice_agents_md_section,
 )
@@ -40,6 +42,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.snippet_check import _strip_license_header
 from scripts.translation_check import REPO_ROOT
+
+from narrativetrace_tooling.init.cursor_rule import render_cursor_rule
+from narrativetrace_tooling.platforms.table import Rule, row
 
 
 # Every OUTPUT path is derived from a `root` the caller names (defaulting to this repository), so
@@ -118,6 +123,29 @@ def _rendered_marketplace_json() -> str:
     return render_marketplace_json(MARKETPLACE)
 
 
+# Phase 8, platform pointers: the Cursor plugin pair is rendered from the same listing as the
+# Claude file, and the one rule it ships is the platform table's Cursor pointer, UNSTAMPED -- the
+# copy `init` adopts.
+def _cursor_plugin_json_path(root: Path = REPO_ROOT) -> Path:
+    return root / ".cursor-plugin" / "plugin.json"
+
+
+def _cursor_marketplace_json_path(root: Path = REPO_ROOT) -> Path:
+    return root / ".cursor-plugin" / "marketplace.json"
+
+
+def _cursor_rule_path(root: Path = REPO_ROOT) -> Path:
+    pointer = row("cursor").pointer
+    assert isinstance(pointer, Rule), "the Cursor row's pointer is a rule"
+    return root / pointer.path
+
+
+def _rendered_cursor_rule() -> str:
+    pointer = row("cursor").pointer
+    assert isinstance(pointer, Rule), "the Cursor row's pointer is a rule"
+    return render_cursor_rule(pointer.text, "")
+
+
 def _rendered_agents_md(root: Path = REPO_ROOT) -> str:
     path = _agents_md_path(root)
     current = path.read_text(encoding="utf-8") if path.is_file() else ""
@@ -129,6 +157,9 @@ def _rendered_files(root: Path) -> dict[Path, str]:
         **_rendered_skill_files(root),
         **_rendered_carrier_files(root),
         _marketplace_json_path(root): _rendered_marketplace_json(),
+        _cursor_plugin_json_path(root): render_cursor_plugin_json(MARKETPLACE),
+        _cursor_marketplace_json_path(root): render_cursor_marketplace_json(MARKETPLACE),
+        _cursor_rule_path(root): _rendered_cursor_rule(),
     }
 
 

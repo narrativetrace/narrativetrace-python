@@ -61,7 +61,7 @@ number and every file it owns. Read that when you know the scenario and want the
 
 ## Content
 
-```
+```text
 scenario: Weekend trip settles with three transfers
 
 #1 - TripSettlementService.record_expense(trip_name, expense)

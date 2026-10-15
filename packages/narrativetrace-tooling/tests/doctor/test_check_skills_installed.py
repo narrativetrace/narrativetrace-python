@@ -4,10 +4,13 @@
 # Copyright (c) 2026 Empower Agile
 from __future__ import annotations
 
+import pytest
 from snapshot_factory_types import MakeSnapshot
 
 from narrativetrace_tooling.doctor.checks.skills_installed import _DOC_URL, check_skills_installed
+from narrativetrace_tooling.doctor.types import DoctorSnapshot
 from narrativetrace_tooling.init.catalogue import SkillFlavour
+from narrativetrace_tooling.init.pointer_reading import PointerReading, Status
 from narrativetrace_tooling.init.project_state import InstalledSkill, Presence
 
 _CATALOGUE = ("narrativetrace-doctor", "add-narrative-tracing")
@@ -393,3 +396,131 @@ class TestEveryOutcomeSharesShape:
         would point at the very page that is missing."""
         finding = check_skills_installed(make_snapshot())
         assert finding.skill is None
+
+
+_RULE = ".cursor/rules/narrativetrace.mdc"
+
+
+def _reading(
+    status: Status, coordinate: str = "", platform: str = "cursor", name: str = "Cursor"
+) -> PointerReading:
+    path = _RULE if platform == "cursor" else "replit.md"
+    return PointerReading(platform, name, path, status, coordinate)
+
+
+def _installed_with(make_snapshot: MakeSnapshot, *readings: PointerReading) -> DoctorSnapshot:
+    return make_snapshot(
+        catalogue_skill_names=_CATALOGUE,
+        installed_skills=(_installed("narrativetrace-doctor"), _installed("add-narrative-tracing")),
+        pointer_readings=readings,
+        narrativetrace_version=_VERSION,
+    )
+
+
+class TestPlatformPointers:
+    """Phase 8, platform pointers: the check reports each detected platform's pointer, and fails on
+    a missing, foreign, linked, stale or unstamped one."""
+
+    def test_says_each_detected_pointer_is_present_and_current(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        snapshot = _installed_with(
+            make_snapshot,
+            _reading(Status.SECTION, _CARRIER),
+            _reading(Status.SECTION, _CARRIER, "replit", "Replit"),
+        )
+
+        finding = check_skills_installed(snapshot)
+
+        assert finding.status == "pass"
+        assert finding.message == (
+            "all 2 agent skill(s) are installed and current; Cursor pointer present and current,"
+            " Replit pointer present and current"
+        )
+
+    def test_says_nothing_extra_for_a_project_on_no_platform_with_a_pointer(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        finding = check_skills_installed(_installed_with(make_snapshot))
+
+        assert finding.message == "all 2 agent skill(s) are installed and current"
+
+    @pytest.mark.parametrize(
+        ("reading", "sentence"),
+        [
+            (_reading(Status.ABSENT), f"Cursor pointer {_RULE} is missing"),
+            (
+                _reading(Status.LINKED),
+                f"Cursor pointer {_RULE} is behind a symbolic link, and nothing is written"
+                " through one",
+            ),
+            (
+                _reading(Status.FOREIGN),
+                f"Cursor pointer {_RULE} exists but has no NarrativeTrace section of ours",
+            ),
+            (
+                _reading(Status.SECTION, _OLDER),
+                f"Cursor pointer {_RULE} was written for {_OLDER}, project resolves"
+                f" narrativetrace=={_VERSION}",
+            ),
+            (
+                _reading(Status.SECTION, ""),
+                f"Cursor pointer {_RULE} carries no stamp, so no release it describes can be"
+                " named — init will stamp it",
+            ),
+        ],
+    )
+    def test_fails_on_a_pointer_that_is_not_present_and_current(
+        self, make_snapshot: MakeSnapshot, reading: PointerReading, sentence: str
+    ) -> None:
+        finding = check_skills_installed(_installed_with(make_snapshot, reading))
+
+        assert finding.status == "fail"
+        assert finding.message == f"the agent skills are installed, but {sentence}"
+        assert finding.fix is not None
+        assert "uv run narrativetrace init --dry-run" in finding.fix
+
+    def test_names_every_wrong_pointer_in_one_finding(self, make_snapshot: MakeSnapshot) -> None:
+        snapshot = _installed_with(
+            make_snapshot,
+            _reading(Status.ABSENT),
+            _reading(Status.FOREIGN, platform="replit", name="Replit"),
+        )
+
+        message = check_skills_installed(snapshot).message
+
+        assert message.count("pointer") == 2
+        assert "; Replit pointer replit.md exists" in message
+
+    def test_a_pointer_stamped_by_the_core_distribution_at_this_release_is_current(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        snapshot = _installed_with(
+            make_snapshot, _reading(Status.SECTION, f"narrativetrace=={_VERSION}")
+        )
+
+        assert check_skills_installed(snapshot).status == "pass"
+
+    def test_a_missing_skill_is_reported_before_any_pointer_problem(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        snapshot = make_snapshot(
+            catalogue_skill_names=_CATALOGUE,
+            installed_skills=(_installed("narrativetrace-doctor"),),
+            pointer_readings=(_reading(Status.ABSENT),),
+            narrativetrace_version=_VERSION,
+        )
+
+        assert "is missing" in check_skills_installed(snapshot).message
+        assert "pointer" not in check_skills_installed(snapshot).message
+
+    def test_no_installed_skill_fails_the_check_whatever_the_pointers_say(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        snapshot = make_snapshot(
+            catalogue_skill_names=_CATALOGUE,
+            pointer_readings=(_reading(Status.SECTION, _CARRIER),),
+            narrativetrace_version=_VERSION,
+        )
+
+        assert check_skills_installed(snapshot).status == "fail"

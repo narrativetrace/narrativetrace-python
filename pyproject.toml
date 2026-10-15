@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.3.0"
+version = "0.4.0"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.
@@ -357,6 +357,12 @@ coordinate must equal this repo's own version; a '*(since X)*' marker or docs-vs
 is forbidden) — no network, reads files only. Depends on 'coverage' having just run: that is what \
 produces examples/sixty_seconds/build/*.txt, the tutorial page's embedded output blocks."""
 
+[tool.poe.tasks.recipe-artifacts]
+cmd = "python -m examples.recipes.checkout.recipe_artifacts"
+help = """Runs every recipe scenario (examples/recipes/checkout) as a real pytest process and writes \
+the output files documentation/recipes/*.md embeds, under examples/recipes/checkout/build/ \
+(git-ignored). 'poe snippet-check' reads them; the tests that call it regenerate them too."""
+
 [tool.poe.tasks.snippet-sync]
 cmd = "python scripts/snippet_sync.py"
 help = """Rewrites every drifted '<!-- snippet: ... -->' block in place, English pages only \
@@ -444,11 +450,18 @@ must match ledger/runs.jsonl -- fails naming the drift; 'poe promotion-render' f
 cmd = "python scripts/promotion_render.py --fix"
 help = "Regenerates packages/narrativetrace-skills-catalogue/ledger/promotion.md from ledger/runs.jsonl."
 
+[tool.poe.tasks.context7-check]
+cmd = "python scripts/context7_check.py"
+help = """Context7 gate (scripts/context7_check.py): context7.json validates against the committed \
+copy of Context7's schema (config/context7/), previousVersions equal the v* tags newest first, and \
+every code fence in a file Context7 indexes carries a language tag -- no network, reads files and \
+git tags only"""
+
 [tool.poe.tasks.check]
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
 duplication-check + contract-lint + comment-hygiene + deep-fixture-budget + timeout-floor + \
-bandit + skills-check + promotion-check"""
+bandit + skills-check + promotion-check + context7-check"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -470,6 +483,7 @@ sequence = [
     { ref = "bandit" },
     { ref = "skills-check" },
     { ref = "promotion-check" },
+    { ref = "context7-check" },
 ]
 
 [tool.poe.tasks.verify-all]
@@ -493,6 +507,8 @@ slice of."""
 line-length = 100
 target-version = "py312"
 src = ["packages/narrativetrace/src", "packages/narrativetrace-tooling/src"]
+# The master's read-only reference copy: another runtime's files, kept byte-identical to the original.
+extend-exclude = ["planning"]
 
 [tool.ruff.lint]
 select = [

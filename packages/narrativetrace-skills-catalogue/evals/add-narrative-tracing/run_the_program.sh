@@ -14,6 +14,7 @@
 # plugin writing test-time artifacts), which this prompt never asks for -- grading that failed both
 # of Java's cases on agents that had done exactly what was asked (2026-09-25).
 set -e
+. "$(dirname "$0")/bounded.sh"
 
 service="$1"
 if [ -z "$service" ]; then
@@ -44,7 +45,7 @@ program=$(entry_point) || {
 
 # Bounded, always: a cold run resolves and downloads the packages, and a program that hangs has to
 # fail this case rather than the whole harness.
-if ! timeout 900 uv run "$program" >"$log" 2>&1; then
+if ! bounded 900 uv run "$program" >"$log" 2>&1; then
   echo "\`uv run $program\` failed -- the prompt says to run the program and read its output" >&2
   cat "$log" >&2
   exit 1

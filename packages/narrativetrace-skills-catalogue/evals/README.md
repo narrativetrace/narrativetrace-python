@@ -3,7 +3,7 @@
 Engine-neutral cases: fixture + task prompt + world-state verifier, portable by construction.
 **Never run in `poe check`** — Tier A (lints) and Tier A2 (oracle replay) ride `check` every
 commit; Tier B runs through the subscription CLIs, on the regular nightly cadence for the Claude
-lane, sporadically (below) for Codex/Gemini, and change-triggered (not scheduled) for a patch
+lane, sporadically (below) for Codex/Antigravity/Cursor, and change-triggered (not scheduled) for a patch
 release's follow-up delta.
 
 ## Layout
@@ -60,6 +60,16 @@ evals/
 │   │   ├── prompt.md          # the same published bytes
 │   │   └── graders/verify.sh  # config.asgi-middleware passes, then grade_the_prompt.sh with a
 │   │                          # server as the program (run_the_server.py)
+│   ├── fresh-session-sees-the-skills/
+│   │   ├── case.json          # fixtures/empty-project + "registry": "narrativetrace-init" -- the
+│   │   │                      # harness runs this checkout's own installer before the agent
+│   │   ├── prompt.md          # ONE turn, a fresh session: a doctor-shaped question
+│   │   └── graders/verify.sh  # its init event lists every skill and it reaches for the doctor
+│   │                          # (grade_the_fresh_session.py)
+│   ├── fresh-session-after-the-prompt/
+│   │   ├── case.json          # "turns": {"2": approve, "3": ask} + "freshTurns": [3]
+│   │   ├── prompt.md          # the same published prompt, same bytes -- turn 1 is the install up to its diff
+│   │   └── graders/verify.sh  # the same grader on turn 3, a NEW session
 │   ├── registry-claude-marketplace/
 │   │   ├── case.json          # "registry": "claude-marketplace" -- the pre-step, from a closed
 │   │   ├── prompt.md          # vocabulary; same published bytes again
@@ -91,7 +101,7 @@ evals/
 │   ├── grade_the_debug.py     # imports grade_the_verify's reader
 │   └── debug-value-divergence/  # ticket 4471: CHF 43.00 charged where 42.77 was due
 ├── trace_skill_rehearsal.py   # the graders' rehearsal harness (real plugin, real approve verb)
-├── platform_presets.py        # --platform claude|codex|gemini -> the --agent-command default
+├── platform_presets.py        # --platform claude|codex|antigravity|cursor -> the --agent-command default
 ├── tier_precondition.py       # the sporadic lanes' Tier A/A2-green precondition
 ├── quota.py                   # the sporadic lanes' weekly-allowance guard (ledger/quota.md)
 ├── registry_delivery.py       # a registry case's closed vocabulary, its staged HEAD snapshot
@@ -233,9 +243,32 @@ it — `--allowed-tools` pre-approves, it does not restrict every tool. Both onl
 
 A case whose `case.json` declares `"turns": {"2": "...", "3": "..."}` is a conversation: turn 1
 is `prompt.md`, each scripted reply is a turn of its own, all in ONE session (`--session-id` then
-`--resume`, verified by hand on `claude-haiku-5-5`; Codex and Gemini refuse until theirs are). A
+`--resume`, verified by hand on `claude-haiku-5-5`; Codex, Antigravity and Cursor refuse until theirs are). A
 turn that fails stops the trial. `case_turns.py` is the one home of a reply: the graders read it
 from there, never as an argument.
+**What does the NEXT session find?** Item 166 (2026-10-10): the install went green and the next
+Claude Code session listed no skill, because it loads `.claude/skills` only and the installer wrote
+that directory just where `.claude/` or `CLAUDE.md` already existed. Two cases ask the question, one
+grader (`grade_the_fresh_session.py`: the LAST turn's `system/init` event lists every catalogue
+skill, and the doctor is reached for by skill or by command):
+
+- `fresh-session-sees-the-skills` -- the INSTALLER's question, deterministic. `"registry":
+  "narrativetrace-init"` makes the harness run `uv run --project <this checkout> narrativetrace
+  init` (the workspace's own carrier, no staging, never a published package) in the scratch project
+  before the agent starts; the agent gets one turn, a fresh session with a doctor-shaped question.
+  Any lane can run it. The install must come from the checkout: one that pulls the published
+  package measures the previous release (every port's first row went red on exactly that).
+- `fresh-session-after-the-prompt` -- the whole real path, the agent's own install included: the
+  published prompt as turn 1 (it stops at the diff -- the first Tier B run, 2026-10-10, ended at the
+  prompt's own "run it for real only after I have seen the diff" and measured nothing), a scripted
+  approval of the diff as turn 2, and the doctor question as a fresh turn 3. Red here with the other
+  case green is the prompt path (an agent that never reached the install), not the installer.
+
+**A scripted turn can open a FRESH session.** `case.json` adds `"freshTurns": [3]`: that turn runs
+the first-turn template under a session id of its own instead of `--resume`, so its agent remembers
+nothing of the turns before it. A fresh turn must be the last turn (the turn after it would have to
+resume the new session, and nothing carries its id yet); turn 1 may not be listed, and a fresh turn
+with no scripted reply is refused.
 
 A case declaring `"install": "checkout"` measures behaviour the published release predates: the
 runner builds every workspace wheel into the work directory and points the agent's own `uv` at them
@@ -322,16 +355,54 @@ question was not asked. Note-only signal, not gated: "what was promoted was show
 before the yes" was False in two verify trials (the review copy was described, not pasted) — watch
 it on the next run.
 
-## The sporadic policy (Codex, Gemini)
+## The explain cases
 
-Codex and Gemini sit on cheaper plans than Claude's and must be used sporadically -- binding for
-these two lanes only, Claude is exempt from all seven rules:
+`narrativetrace-explain` is the seventh skill and the only one that triggers with nothing broken and
+no change to read. Three cases on `existing-service-checkout` (checkout install, as above), all
+graded by `narrativetrace-explain/grade_the_explain.py`, which reads the transcript through the
+verify grader's own reader:
+
+- **explain-an-unfamiliar-flow** — "Show me what this application actually does when an order is
+  placed." Names nothing of ours. Gates: the Skill tool invoked the skill, the run left a structural
+  trace, that trace reached the agent before its answer, the answer cites a span id the trace
+  carries, `src/` and `pyproject.toml` untouched. Reported, not gated: calls named in order, the
+  unobserved code named, values opened.
+- **happy-path** — the same ask with the skill named; the same grader.
+- **pure-function-control** — "Explain what fee_for does." The cost rule: nothing installed, nothing
+  run (judged by the program a command starts, so a `grep` for the word `pytest` is not a run),
+  nothing traced, the answer from the source with the function, the rate and the not-late case.
+
+The flow the answer has to get right: `CheckoutService.checkout` (#1) issues the invoice (#1.1),
+authorizes (#1.2), records the payment on the ledger through the one `payment_succeeded` hook (#1.3)
+and confirms (#1.4); shopkit's `CheckoutFlow` and `Hooks` have no span of their own and
+`NotificationService` is handed in and never called. `uv.lock` and `__pycache__` are tool side
+effects, not edits. The grader was rehearsed before any trial (`test_explain_graders.py`): a solved
+trial, an untouched project and each near miss, asserting the grader's reason.
+
+### Trial results (2026-10-15, `claude-haiku-5-5`, three trials per case, no wording iteration)
+
+| Case | Result | What it establishes |
+|---|---|---|
+| `explain-an-unfamiliar-flow` | 3/3 pass | the skill was selected from a prompt naming nothing of ours, ran the existing test, read the `.nt` and cited real ids |
+| `happy-path` | 3/3 pass | the loop works once loaded |
+| `pure-function-control` | 3/3 pass | nothing installed, run or traced, answered from the source — the skill was not invoked here, so the row is "no regression", not "the cost rule fired" |
+
+The master's Java rows differ on the unnamed ask (0/6 there, never invoked); here it was invoked 3/3.
+The rows are recorded as measured and the wording was not touched. Whether the difference is the
+runtime's scaffold, the fixture or noise is not established by three trials, and the discovery study
+(not this ledger) is where autonomous selection is measured. `trigger.yaml` (10 positive, 12
+negative) is committed and scored by nobody, as for every skill.
+
+## The sporadic policy (Codex, Antigravity, Cursor)
+
+Codex, Antigravity and Cursor sit on cheaper plans than Claude's and must be used sporadically --
+binding for these three lanes only, Claude is exempt from all seven rules:
 
 1. **Never scheduled.** A cheaper-lane run starts only from an explicit owner go or a promotion
    point (below) — never the nightly, never a cron.
 2. **Promotion points only.** A skill first becoming a release candidate, and each patch release's
    follow-up delta re-run. Nothing else triggers it.
-3. **Deterministic tiers first, always.** `run.py` refuses to start a codex/gemini trial unless
+3. **Deterministic tiers first, always.** `run.py` refuses to start a codex/antigravity/cursor trial unless
    `narrativetrace-skills-catalogue`'s Tier A lints and Tier A2 replay are green at HEAD
    (`tier_precondition.py`) — a Tier B trial on a skill whose replay is red is quota burned on a
    known defect.
@@ -343,14 +414,20 @@ these two lanes only, Claude is exempt from all seven rules:
    platform whose allowance is spent and says so; **there is no override flag** — the owner edits
    the ledger.
 6. **A cheaper-lane red never blocks.** It files a finding the next Claude-lane run and the
-   skill's author read. Shipping requires Claude green; Codex/Gemini status may be `pending` at
+   skill's author read. Shipping requires Claude green; Codex/Antigravity status may be `pending` at
    ship time.
 7. **Cheapest model per platform, fixed in the ledger.** A skill that passes only on a stronger
    model is a defect signal for the skill's code layer, not a reason to raise the model.
 
-Codex defaults to the same allowance the TypeScript reference uses (basic plan, 4 cases/week);
-Gemini stays at 0 — the `gemini` preset is built but every trial refuses — until the CLI is
-installed, signed in, and the owner raises the allowance in `ledger/quota.md`.
+Codex and Antigravity default to the same allowance the TypeScript reference uses (4 cases/week;
+Antigravity replaced the Gemini CLI lane on 2026-10-10). **Cursor stays at 0** — its preset is built
+but every trial SKIPS, printing one line that names the tool (`agent`) and exiting 0, until the CLI
+is installed, signed in, and the owner raises the allowance in `ledger/quota.md`. A zero allowance is the skip; a missing row, a spent
+allowance and a red Tier A/A2 stay refusals. The Cursor lane (Phase 8, platform pointers) drives
+`agent -p "{prompt}" --output-format text --force` — `--force` for every skill, the doctor included,
+because a preset narrower than the prompt measures the sandbox; its `--model` is a ledger label and
+is never passed to the CLI, and it has no multi-turn pair (nothing was verified), so a conversation
+case on it is refused.
 
 ## Running a trial
 
@@ -369,8 +446,9 @@ runs the program and the doctor (`Bash`), and its step 4 is "if the `add-narrati
 is now available, follow it" (`Skill`). A preset narrower than its prompt measures the sandbox
 instead of the skill: an agent refused mid-step-1 files a red row that says nothing about the
 product, and a registry case whose agent cannot invoke a skill measures nothing the registry
-delivered. Codex and Gemini scope the same intent through their own flags (`--sandbox`,
-`--approval-mode`), by skill rather than by tool.
+delivered. Codex scopes the same intent through its own flag (`--sandbox`), by skill rather than by tool;
+Antigravity and Cursor have only a blanket auto-approval (`--dangerously-skip-permissions`,
+`--force`) and carry it on every skill.
 
 Case and fixture paths are always resolved from this module's own location, never from the
 caller's cwd, so the invocation below works unchanged from the repo root (`uv run python
@@ -386,13 +464,18 @@ uv run python evals/run.py --skill narrativetrace-doctor --case happy-path \
 uv run python evals/run.py --skill narrativetrace-doctor --case happy-path \
   --platform codex --model <the plan's cheapest/mini model>
 
-# Gemini -- same guards; refuses today (allowance 0 until the CLI is installed).
+# Antigravity -- same guards; the model is one of `agy models`' slugs (verified on `agy` 1.3.3).
 uv run python evals/run.py --skill narrativetrace-doctor --case happy-path \
-  --platform gemini --model flash
+  --platform antigravity --model gemini-3.8-flash-low
+
+# Cursor -- same guards; skips with one line today (allowance 0 until `agent` is installed). The
+# model is a ledger label, never passed to the CLI.
+uv run python evals/run.py --skill narrativetrace-doctor --case happy-path \
+  --platform cursor --model auto
 ```
 
 Each CLI runs headless, on its own subscription login — the harness never passes an API key. Every
-run is noted in `ledger/runs.jsonl` regardless of outcome (a codex/gemini trial also appends a
+run is noted in `ledger/runs.jsonl` regardless of outcome (a codex/antigravity/cursor trial also appends a
 spend row to `ledger/quota.md`); `ledger/promotion.md` is the regenerated skill × platform matrix
 (`scripts/promotion_render.py`, drift-checked in `poe check` the way `SKILL.md` is), cleared on a
 wording or fixture change.

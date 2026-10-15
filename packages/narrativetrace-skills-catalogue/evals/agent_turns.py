@@ -19,8 +19,9 @@ its grader -- "nothing was filed" -- for a reason that has nothing to do with th
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
-from dataclasses import dataclass
+import uuid
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Final
 
 from platform_presets import (
@@ -39,11 +40,15 @@ silently change the command it was spliced into."""
 @dataclass(frozen=True, slots=True)
 class AgentTurns:
     """``first_turn_command`` drives turn 1; ``resumed_turn_command`` every turn after it (``None``
-    for one turn); ``prompts`` is ``prompt.md`` then the case's scripted replies, in turn order."""
+    for one turn); ``prompts`` is ``prompt.md`` then the case's scripted replies, in turn order;
+    ``fresh_turn_commands`` maps each turn that opens a NEW session instead of resuming to its
+    command -- the first-turn template under a session id of its own (empty for a case that
+    resumes every turn)."""
 
     first_turn_command: str
     resumed_turn_command: str | None
     prompts: tuple[str, ...]
+    fresh_turn_commands: Mapping[int, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.prompts:
@@ -54,6 +59,16 @@ class AgentTurns:
             raise ValueError(
                 f"a trial of {len(self.prompts)} turns needs a template that resumes its session"
             )
+        for fresh in self.fresh_turn_commands:
+            if not 2 <= fresh <= len(self.prompts):
+                raise ValueError(
+                    f"fresh turn {fresh} is outside a conversation of {len(self.prompts)}"
+                )
+            if fresh != len(self.prompts):
+                raise ValueError(
+                    "a fresh turn must be the last turn: the turn after it would have to resume "
+                    "the NEW session, and nothing here carries its id"
+                )
 
     @classmethod
     def of(  # noqa: PLR0913 - mirrors the runner's own inputs one to one
@@ -65,8 +80,13 @@ class AgentTurns:
         first_prompt: str,
         scripted_replies: Sequence[str],
         session_id: str | None,
+        fresh_turns: Collection[int] = frozenset(),
     ) -> AgentTurns:
         """What drives this case on this platform.
+
+        Each of ``fresh_turns`` (2-based: turn 1 is fresh by definition) runs the first-turn
+        template under a session id generated here, so that turn's agent remembers nothing of the
+        turns before it.
 
         A blank ``override`` counts as none, like an empty one: the preset drives the trial.
 
@@ -76,7 +96,34 @@ class AgentTurns:
         prompts = (first_prompt, *scripted_replies)
         override = override.strip() if override else None
         if len(prompts) == 1:
-            return cls(override or preset_agent_command(platform, model, skill), None, prompts)
+            return cls._one_turn(platform, model, skill, override, prompts, fresh_turns)
+        return cls._conversation(platform, model, skill, override, prompts, session_id, fresh_turns)
+
+    @classmethod
+    def _one_turn(
+        cls,
+        platform: Platform,
+        model: str,
+        skill: str,
+        override: str | None,
+        prompts: tuple[str, ...],
+        fresh_turns: Collection[int],
+    ) -> AgentTurns:
+        if fresh_turns:
+            raise ValueError(f"fresh turn {min(fresh_turns)} is outside a conversation of 1")
+        return cls(override or preset_agent_command(platform, model, skill), None, prompts)
+
+    @classmethod
+    def _conversation(  # noqa: PLR0913 - the same inputs `of` was handed
+        cls,
+        platform: Platform,
+        model: str,
+        skill: str,
+        override: str | None,
+        prompts: tuple[str, ...],
+        session_id: str | None,
+        fresh_turns: Collection[int],
+    ) -> AgentTurns:
         if override:
             raise ValueError(
                 "a multi-turn case runs on its platform's preset: one --agent-command cannot be "
@@ -98,6 +145,7 @@ class AgentTurns:
             first.replace(SESSION_PLACEHOLDER, session_id),
             resumed.replace(SESSION_PLACEHOLDER, session_id),
             prompts,
+            {turn: first.replace(SESSION_PLACEHOLDER, str(uuid.uuid4())) for turn in fresh_turns},
         )
 
     @property
@@ -110,10 +158,17 @@ class AgentTurns:
 
     def command_for_turn(self, turn: int) -> str:
         """The template ``turn`` runs, session id already substituted."""
+        if turn in self.fresh_turn_commands:
+            return self.fresh_turn_commands[turn]
         if self._index(turn) == 0:
             return self.first_turn_command
         assert self.resumed_turn_command is not None, "checked at construction"
         return self.resumed_turn_command
+
+    def is_fresh_turn(self, turn: int) -> bool:
+        """Whether ``turn`` opens a new session rather than resuming the conversation."""
+        self._index(turn)
+        return turn in self.fresh_turn_commands
 
     def _index(self, turn: int) -> int:
         if not 1 <= turn <= len(self.prompts):

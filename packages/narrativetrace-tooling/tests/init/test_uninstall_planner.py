@@ -107,6 +107,15 @@ class TestTheManagedSection:
         assert isinstance(action_on(result, AGENTS_MD), DeleteFile)
         assert after(result, AGENTS_MD) == ""
 
+    def test_deletes_a_created_file_saved_with_a_byte_order_mark_once_nothing_of_it_is_left(
+        self,
+    ) -> None:
+        text = "\ufeff" + CREATED + BLOCK
+
+        result = plan(ProjectState(agents_md=text))
+
+        assert action_on(result, AGENTS_MD) == DeleteFile(AGENTS_MD, text)
+
     def test_keeps_a_file_the_installer_created_once_somebody_else_has_written_in_it(self) -> None:
         """The blank line before "my own notes" is the SEPARATOR THAT PERSON TYPED, not ours: our
         own separator, when there is one, sits before our section and goes with it. Removing exactly

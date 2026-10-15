@@ -1,0 +1,3 @@
+Fetched 2026-10-12 from https://context7.com/schema/context7.json (unmodified).
+Refresh by hand: curl -sS https://context7.com/schema/context7.json -o config/context7/context7.schema.json, then update this date.
+Field semantics: https://context7.com/docs/library-owners and https://context7.com/docs/adding-libraries

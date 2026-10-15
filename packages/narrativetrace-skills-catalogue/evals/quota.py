@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from platform_presets import Platform, cli_tool, is_sporadic_platform
+
 
 @dataclass(frozen=True, slots=True)
 class QuotaAllowance:
@@ -114,11 +116,42 @@ def check_quota(ledger: QuotaLedger, platform: str, now: date | None = None) -> 
     return QuotaDecision(allowed=True)
 
 
+def skip_reason(platform: Platform, ledger: QuotaLedger) -> str | None:
+    """The one line a lane prints INSTEAD of running when its weekly allowance is zero, or ``None``
+    when the lane should go on to the precondition and quota checks.
+
+    **@llmNote** A zero allowance row is the owner's own "the CLI is not installed or signed in yet"
+    (the ledger convention for a lane whose CLI is not there yet, Cursor's today), so the lane skips
+    and the run exits green — it never fails a build over a tool nobody has installed. A MISSING
+    row, a spent allowance and a red tier are not that state: they stay refusals
+    (:func:`check_quota`).
+    """
+    if not is_sporadic_platform(platform):
+        return None
+    not_installed = any(
+        row.platform == platform and row.weekly_allowance == 0 for row in ledger.allowances
+    )
+    if not not_installed:
+        return None
+    return (
+        f"SKIP: the {platform} lane did not run — its `{cli_tool(platform)}` CLI is not installed"
+        " or signed in (weekly allowance 0 in ledger/quota.md); the owner raises the allowance"
+        " once it is"
+    )
+
+
+def _ends_without_newline(path: Path) -> bool:
+    """Whether a hand-edited ledger stops mid-line, where a new row would be glued onto the last."""
+    content = path.read_bytes()
+    return bool(content) and not content.endswith(b"\n")
+
+
 def append_spend_row(quota_path: Path, row: QuotaSpendRow) -> None:
     """Appends one spend row to ``quota_path``'s "## Spend log" pipe table."""
     line = f"| {row.date} | {row.platform} | {row.skill} | {row.case_name} | {row.week} |\n"
+    needs_newline = _ends_without_newline(quota_path)
     with quota_path.open("a", encoding="utf-8") as handle:
-        handle.write(line)
+        handle.write(("\n" if needs_newline else "") + line)
 
 
 __all__ = [
@@ -130,5 +163,6 @@ __all__ = [
     "check_quota",
     "iso_week",
     "parse_quota_markdown",
+    "skip_reason",
     "spend_count_this_week",
 ]

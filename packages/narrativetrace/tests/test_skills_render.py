@@ -15,16 +15,23 @@ itself is a CLI entry point, not imported by anything else that would otherwise 
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from scripts.skills_render import (
     _carrier_skills_dir,
     _check_all,
     _core_bundled_skills_dir,
+    _cursor_marketplace_json_path,
+    _cursor_plugin_json_path,
+    _cursor_rule_path,
     _fix_all,
     _marketplace_json_path,
     _rendered_agents_md,
     _rendered_carrier_files,
+    _rendered_cursor_rule,
     _rendered_marketplace_json,
     _rendered_skill_files,
     _stray_carrier_files,
@@ -42,12 +49,12 @@ class TestRenderedArtifactsMatchTheTypedCatalogue:
         assert paths == {"SKILL.md"}
 
     def test_rendered_skill_files_cover_both_platforms_for_every_skill(self) -> None:
-        # Six shipped skills, two platforms (Claude Code + Codex) rendering the same body under
-        # different frontmatter -- twelve files, not six.
+        # Seven shipped skills, two platforms (Claude Code + Codex) rendering the same body under
+        # different frontmatter -- fourteen files, not seven.
         rendered = _rendered_skill_files()
-        assert len(rendered) == 12
-        assert sum(1 for path in rendered if ".claude" in path.parts) == 6
-        assert sum(1 for path in rendered if ".agents" in path.parts) == 6
+        assert len(rendered) == 14
+        assert sum(1 for path in rendered if ".claude" in path.parts) == 7
+        assert sum(1 for path in rendered if ".agents" in path.parts) == 7
 
     def test_rendered_agents_md_carries_the_markers(self) -> None:
         rendered = _rendered_agents_md()
@@ -145,3 +152,62 @@ class TestMarketplaceFileMatchesTheTypedCatalogue:
         _fix_all(tmp_path)
         _marketplace_json_path(tmp_path).write_text("tampered", encoding="utf-8")
         assert _marketplace_json_path(tmp_path) in _check_all(tmp_path)
+
+
+class TestCursorFilesMatchTheTypedCatalogueAndThePlatformTable:
+    """`.cursor-plugin/plugin.json`, `.cursor-plugin/marketplace.json` (rendered from the same
+    `MARKETPLACE` as the Claude file) and `.cursor/rules/narrativetrace.mdc` (the platform
+    table's Cursor pointer, unstamped) — Phase 8, platform pointers."""
+
+    def test_the_files_live_where_cursor_looks_for_them(self) -> None:
+        assert _cursor_plugin_json_path() == REPO_ROOT / ".cursor-plugin" / "plugin.json"
+        assert _cursor_marketplace_json_path() == REPO_ROOT / ".cursor-plugin" / "marketplace.json"
+        assert _cursor_rule_path() == REPO_ROOT / ".cursor" / "rules" / "narrativetrace.mdc"
+
+    def test_the_committed_rule_is_the_unstamped_one_the_installer_adopts(self) -> None:
+        rule = _cursor_rule_path().read_text(encoding="utf-8")
+
+        assert rule == _rendered_cursor_rule()
+        assert "<!-- narrativetrace:start -->\n" in rule
+
+    def test_the_plugin_manifest_points_at_the_rule_file_this_check_holds(self) -> None:
+        plugin = json.loads(_cursor_plugin_json_path().read_text(encoding="utf-8"))
+
+        assert REPO_ROOT.joinpath(plugin["rules"]).resolve() == _cursor_rule_path().resolve()
+        assert REPO_ROOT.joinpath(plugin["skills"]).is_dir()
+
+    def test_fix_all_writes_and_check_all_covers_all_three(self, tmp_path: Path) -> None:
+        written = _fix_all(tmp_path)
+
+        for path in (
+            _cursor_plugin_json_path(tmp_path),
+            _cursor_marketplace_json_path(tmp_path),
+            _cursor_rule_path(tmp_path),
+        ):
+            assert path in written
+            assert path.is_file()
+        assert _check_all(tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "path_of",
+        [_cursor_plugin_json_path, _cursor_marketplace_json_path, _cursor_rule_path],
+    )
+    def test_check_all_flags_a_hand_edited_cursor_file(
+        self, tmp_path: Path, path_of: Callable[[Path], Path]
+    ) -> None:
+        _fix_all(tmp_path)
+        path_of(tmp_path).write_text("tampered", encoding="utf-8")
+
+        assert path_of(tmp_path) in _check_all(tmp_path)
+
+    @pytest.mark.parametrize(
+        "path_of",
+        [_cursor_plugin_json_path, _cursor_marketplace_json_path, _cursor_rule_path],
+    )
+    def test_check_all_flags_a_missing_cursor_file(
+        self, tmp_path: Path, path_of: Callable[[Path], Path]
+    ) -> None:
+        _fix_all(tmp_path)
+        path_of(tmp_path).unlink()
+
+        assert path_of(tmp_path) in _check_all(tmp_path)

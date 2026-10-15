@@ -318,7 +318,7 @@ class TestTheSkills:
         )
         assert provenance.coordinate_in(after(plan, DOCTOR_PAGE)) == carriers.FAKE_COORDINATE
 
-    def test_installs_the_vendor_flavour_where_the_vendor_is_detected(
+    def test_installs_the_vendor_flavour_on_every_project_because_claude_code_reads_nothing_else(
         self, carrier: Carrier
     ) -> None:
         by_directory = plan_init(ProjectState(claude_directory=True), carrier, InitOptions())
@@ -327,9 +327,9 @@ class TestTheSkills:
 
         assert action_on(by_directory, VENDOR_DOCTOR_PAGE) is not None
         assert action_on(by_context_file, VENDOR_DOCTOR_PAGE) is not None
-        assert action_on(by_neither, VENDOR_DOCTOR_PAGE) is None
+        assert action_on(by_neither, VENDOR_DOCTOR_PAGE) is not None
 
-    def test_obeys_an_explicit_vendor_choice_over_detection(self, carrier: Carrier) -> None:
+    def test_obeys_an_explicit_vendor_choice(self, carrier: Carrier) -> None:
         on = dataclasses.replace(InitOptions(), vendor_claude=Vendor.ON)
         off = dataclasses.replace(InitOptions(), vendor_claude=Vendor.OFF)
 
@@ -690,11 +690,13 @@ class TestAFlavourWhoseInstallRootIsALink:
     def test_says_nothing_about_a_flavour_it_was_not_going_to_install_anyway(
         self, carrier: Carrier
     ) -> None:
-        """A project with no vendor directory gets no vendor pages, so a link at the vendor root is
+        """A run with the vendor flavour off gets no vendor pages, so a link at the vendor root is
         not this run's business and a refusal about it would be noise."""
         state = ProjectState(linked_install_roots={SkillFlavour.CLAUDE: "../elsewhere/skills"})
 
-        plan = plan_init(state, carrier, InitOptions())
+        plan = plan_init(
+            state, carrier, dataclasses.replace(InitOptions(), vendor_claude=Vendor.OFF)
+        )
 
         assert plan.has_refusals is False
 

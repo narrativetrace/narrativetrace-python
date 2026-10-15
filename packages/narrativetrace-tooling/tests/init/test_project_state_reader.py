@@ -462,3 +462,130 @@ class TestWhenTheReaderRefuses:
 
         with pytest.raises(ValueError, match=r"cannot list .*skills"):
             read_project_state(tmp_path)
+
+
+class TestReadingThePlatforms:
+    """Phase 8, platform pointers: which platform rows the project is on, and what each pointer file
+    says now."""
+
+    @pytest.mark.parametrize(
+        ("marker", "platform"),
+        [
+            (".cursor/", "cursor"),
+            ("replit.md", "replit"),
+            (".replit", "replit"),
+            (".agents/rules/", "antigravity"),
+            (".agents/workflows/", "antigravity"),
+            (".agent/", "antigravity"),
+            (".github/copilot-instructions.md", "github-copilot"),
+            (".claude/", "claude-code"),
+        ],
+    )
+    def test_detects_a_platform_by_its_exact_marker_path(
+        self, tmp_path: Path, marker: str, platform: str
+    ) -> None:
+        if marker.endswith("/"):
+            (tmp_path / marker).mkdir(parents=True)
+        else:
+            write(tmp_path / marker, "x")
+
+        assert read_project_state(tmp_path).detected_platforms == frozenset({platform})
+
+    def test_the_skills_directory_init_writes_is_not_an_antigravity_marker(
+        self, tmp_path: Path
+    ) -> None:
+        """``.agents/skills`` is what ``init`` itself writes, so it must prove nothing: a project
+        that ran ``init`` on Copilot must not come back "on Antigravity" the next time."""
+        (tmp_path / ".agents/skills/narrativetrace-doctor").mkdir(parents=True)
+
+        assert read_project_state(tmp_path).detected_platforms == frozenset()
+
+    @pytest.mark.parametrize(
+        "near_miss", [".cursorx", ".cursor-old", "cursor", ".replitx", ".agent2", ".gemini"]
+    )
+    def test_a_near_miss_marker_proves_nothing(self, tmp_path: Path, near_miss: str) -> None:
+        (tmp_path / near_miss).mkdir()
+
+        assert read_project_state(tmp_path).detected_platforms == frozenset()
+
+    def test_a_replit_directory_marks_the_project_like_the_replit_file_does(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / ".replit").mkdir()
+
+        assert read_project_state(tmp_path).detected_platforms == frozenset({"replit"})
+
+    def test_two_markers_at_once_detect_both_platforms(self, tmp_path: Path) -> None:
+        (tmp_path / ".cursor").mkdir()
+        write(tmp_path / "replit.md", "# Notes\n")
+
+        state = read_project_state(tmp_path)
+
+        assert state.detected_platforms == frozenset({"cursor", "replit"})
+        assert dict(state.pointer_files) == {"replit.md": "# Notes\n"}
+
+    def test_reads_an_existing_pointer_file_byte_for_byte(self, tmp_path: Path) -> None:
+        rule = ".cursor/rules/narrativetrace.mdc"
+        write(tmp_path / rule, BOM + "a\r\nb")
+
+        assert read_project_state(tmp_path).pointer_files[rule] == BOM + "a\r\nb"
+
+    def test_reads_a_pointer_file_even_when_its_platform_is_no_longer_detected(
+        self, tmp_path: Path
+    ) -> None:
+        """An uninstall must still find what the installer wrote after the marker is gone."""
+        write(tmp_path / ".cursor/rules/narrativetrace.mdc", "x")
+        (tmp_path / ".cursor/rules").mkdir(exist_ok=True)
+
+        assert ".cursor/rules/narrativetrace.mdc" in read_project_state(tmp_path).pointer_files
+
+    def test_a_pointer_file_that_is_a_link_is_behind_a_link_and_not_read(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path / "outside.md"
+        write(outside, "secret\n")
+        project = tmp_path / "project"
+        project.mkdir()
+        os.symlink(outside, project / "replit.md")
+
+        state = read_project_state(project)
+
+        assert state.pointers_behind_links == frozenset({"replit.md"})
+        assert "replit.md" not in state.pointer_files
+        assert state.detected_platforms == frozenset({"replit"})
+
+    def test_a_directory_above_the_pointer_that_is_a_link_puts_it_behind_a_link(
+        self, tmp_path: Path
+    ) -> None:
+        elsewhere = tmp_path / "elsewhere"
+        write(elsewhere / "rules/narrativetrace.mdc", "x")
+        project = tmp_path / "project"
+        project.mkdir()
+        os.symlink(elsewhere, project / ".cursor")
+
+        state = read_project_state(project)
+
+        assert state.pointers_behind_links == frozenset({".cursor/rules/narrativetrace.mdc"})
+        assert dict(state.pointer_files) == {}
+        assert state.detected_platforms == frozenset({"cursor"})
+
+    def test_a_dangling_link_marker_still_counts_as_present(self, tmp_path: Path) -> None:
+        os.symlink(tmp_path / "nowhere", tmp_path / ".replit")
+
+        assert read_project_state(tmp_path).detected_platforms == frozenset({"replit"})
+
+    def test_a_pointer_path_that_is_a_directory_is_absent_not_an_error(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "replit.md").mkdir()
+
+        state = read_project_state(tmp_path)
+
+        assert dict(state.pointer_files) == {}
+        assert state.detected_platforms == frozenset({"replit"})
+
+    def test_an_unreadable_pointer_file_is_a_failure_not_absence(self, tmp_path: Path) -> None:
+        (tmp_path / "replit.md").write_bytes(b"\xff\xfe\x00bad")
+
+        with pytest.raises(ValueError, match=r"replit\.md"):
+            read_project_state(tmp_path)

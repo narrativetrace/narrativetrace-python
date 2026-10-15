@@ -21,6 +21,7 @@ Editing the prompt means editing every copy. The mirrors' blob-hash headers are 
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -49,6 +50,7 @@ _CASES_THAT_MUST_REPLAY_THE_PROMPT = (
     "add-narrative-tracing/init-prompt-existing-project/prompt.md",
     "add-narrative-tracing/registry-claude-marketplace/prompt.md",
     "add-narrative-tracing/registry-npx-skills/prompt.md",
+    "add-narrative-tracing/fresh-session-after-the-prompt/prompt.md",
 )
 """The cases this repository is known to replay the published prompt through. Asserted to be AMONG
 the discovered copies, never to be all of them: a new case nobody listed here is still gated."""
@@ -133,3 +135,33 @@ class TestInitPromptDrift:
         for relative in _TRIGGER_FILES:
             text = (_REPO_ROOT / relative).read_text(encoding="utf-8")
             assert _FIRST_LINE not in text, f"{relative} now carries the init prompt"
+
+
+class TestTheFreshSessionCasesAreSplit:
+    """The installer's question and the prompt path's question are separate cases (Java
+    the Java reference split it the same way): a red on the second with the first green is the
+    prompt path, not the installer."""
+
+    @staticmethod
+    def _manifest(case: str) -> dict[str, object]:
+        path = _EVALS_DIR / "add-narrative-tracing" / case / "case.json"
+        return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+
+    def test_the_installer_case_runs_this_checkouts_init_and_asks_one_fresh_question(self) -> None:
+        case = _EVALS_DIR / "add-narrative-tracing" / "fresh-session-sees-the-skills"
+
+        manifest = self._manifest("fresh-session-sees-the-skills")
+
+        assert manifest.get("registry") == "narrativetrace-init"
+        assert "turns" not in manifest
+        assert "freshTurns" not in manifest
+        assert (case / "prompt.md").read_text(encoding="utf-8").strip() == (
+            "Is NarrativeTrace wired up correctly in this project? Check the install."
+        )
+
+    def test_the_prompt_case_keeps_the_published_prompt_and_its_fresh_third_turn(self) -> None:
+        manifest = self._manifest("fresh-session-after-the-prompt")
+
+        assert "registry" not in manifest
+        assert manifest["freshTurns"] == [3]
+        assert sorted(manifest["turns"]) == ["2", "3"]  # type: ignore[call-overload]

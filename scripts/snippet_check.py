@@ -30,8 +30,9 @@ marker pair, invisible on GitHub and in the site's doc viewer::
   block showing what a change does to a file already has.
 - `mask=duration` or `mask=duration,traceName` (comma-separated, applied in order) — before
   comparing, both the page's block and the freshly rendered source have each named mask applied:
-  `duration` replaces `— \\d+(\\.\\d+)?ms` with `— Nms`, so a real run's timing never fails the
-  build; `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and,
+  `duration` replaces `— \\d+(\\.\\d+)?ms` with `— Nms` (and a Markdown trace's `duration_ms:` /
+  `**Duration:**` header readings with `N`), so a real run's timing never fails the build;
+  `traceName` (2026-09-13 ruling, item 5) replaces the trace/run three-word phrase — and,
   where adjacent, the 7-hex trace-id fragment — wherever a `trace:`/`run:`/`trace_name:`/
   `runName:` label, a `The trace …:` prose lead-in, or a `## Trace: … —` Markdown title carries
   one, since every one of those is derived from a randomly generated id and would otherwise make
@@ -61,6 +62,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.framework_table_docs import check as check_framework_table
+from scripts.platform_table_docs import check as check_platform_table
 from scripts.translation_check import REPO_ROOT, translated_files
 from scripts.version_literals import check as check_version_literals
 from scripts.version_literals import read_version
@@ -70,6 +72,9 @@ _MARKER_CLOSE = "<!-- /snippet -->"
 _FENCE_OPEN_RE = re.compile(r"^```(\S*)\s*$")
 _FENCE_CLOSE = "```"
 _DURATION_RE = re.compile(r"— \d+(\.\d+)?ms")
+# A Markdown trace artifact's own two header readings: the `duration_ms:` frontmatter field and the
+# `**Duration:**` line (`narrativetrace-pytest`'s `.md`), neither introduced by `— `.
+_HEADER_DURATION_RE = re.compile(r"(duration_ms: |\*\*Duration:\*\* )\d+(\.\d+)?(ms)?")
 
 # A label immediately followed by "adjective noun verb", optionally the "(1234567)" trace-id
 # fragment -- the exact shapes a `trace_name()`-derived phrase appears in across every renderer and
@@ -231,7 +236,7 @@ def _mask_trace_name(text: str) -> str:
 
 
 _MASKS: dict[str, Callable[[str], str]] = {
-    "duration": lambda text: _DURATION_RE.sub("— Nms", text),
+    "duration": lambda text: _HEADER_DURATION_RE.sub(r"\1N", _DURATION_RE.sub("— Nms", text)),
     "traceName": _mask_trace_name,
 }
 
@@ -414,9 +419,11 @@ def sync_repository(repo_root: Path) -> list[str]:
 
 
 def main() -> int:
-    # The framework table renders into the same two pages (`scripts/framework_table_docs.py`); its
-    # drift is this gate's too, since `poe snippet-sync` is the one writer of both.
-    failures = check_framework_table(REPO_ROOT) + check_all(REPO_ROOT)
+    # The framework table renders into two pages (`scripts/framework_table_docs.py`) and the
+    # platform table into a third (`scripts/platform_table_docs.py`); their drift is this gate's
+    # too, since `poe snippet-sync` is the one writer of all three.
+    failures = check_framework_table(REPO_ROOT) + check_platform_table(REPO_ROOT)
+    failures += check_all(REPO_ROOT)
     if failures:
         print("ERROR: snippet-check found pages out of step with the code they ship with:")
         for failure in failures:

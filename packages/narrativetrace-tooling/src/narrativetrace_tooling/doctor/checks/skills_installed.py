@@ -32,6 +32,7 @@ from narrativetrace_tooling.doctor.doc_urls import DOC
 from narrativetrace_tooling.doctor.finding import failed, passed
 from narrativetrace_tooling.doctor.types import DoctorSnapshot, Finding
 from narrativetrace_tooling.init.catalogue import SkillFlavour
+from narrativetrace_tooling.init.pointer_reading import PointerReading, Status
 from narrativetrace_tooling.init.project_state import InstalledSkill, Presence
 
 ID = "config.skills-installed"
@@ -76,7 +77,12 @@ def check_skills_installed(snapshot: DoctorSnapshot) -> Finding:
     if stale:
         return _stale_finding(stale, snapshot.narrativetrace_version)
     missing = _missing(snapshot)
-    return _incomplete(missing) if missing else _up_to_date(ours)
+    if missing:
+        return _incomplete(missing)
+    problems = _pointer_problems(snapshot)
+    if problems:
+        return _pointers_wrong(problems)
+    return _up_to_date(ours, snapshot.pointer_readings)
 
 
 def _found(snapshot: DoctorSnapshot, name: str) -> InstalledSkill | None:
@@ -174,9 +180,51 @@ def _incomplete(missing: tuple[str, ...]) -> Finding:
     )
 
 
-def _up_to_date(ours: tuple[InstalledSkill, ...]) -> Finding:
+def _up_to_date(ours: tuple[InstalledSkill, ...], readings: tuple[PointerReading, ...]) -> Finding:
+    """``; Cursor pointer present and current, …`` is appended when a platform needs a pointer."""
+    pointers = "; " + ", ".join(f"{r.platform_name} pointer present and current" for r in readings)
     return passed(
         ID,
-        f"all {len(ours)} agent skill(s) are installed and current",
+        f"all {len(ours)} agent skill(s) are installed and current{pointers if readings else ''}",
         _DOC_URL,
+    )
+
+
+def _pointers_wrong(problems: tuple[str, ...]) -> Finding:
+    return failed(
+        ID,
+        f"the agent skills are installed, but {'; '.join(problems)}",
+        f"Run `{_INIT_COMMAND}`, read the diff, then run it without the flag. A rule file or"
+        " section that is identical to this release's is adopted as it stands; where replit.md"
+        " exists and has no section of ours, add --write-existing; a rule file that is not ours"
+        " must be moved aside and a link removed by hand.",
+        _DOC_URL,
+    )
+
+
+def _pointer_problems(snapshot: DoctorSnapshot) -> tuple[str, ...]:
+    """One sentence per detected platform whose pointer is missing, foreign, linked or not
+    current."""
+    version = snapshot.narrativetrace_version or ""
+    found = (_pointer_problem(reading, version) for reading in snapshot.pointer_readings)
+    return tuple(problem for problem in found if problem is not None)
+
+
+def _pointer_problem(reading: PointerReading, version: str) -> str | None:
+    where = f"{reading.platform_name} pointer {reading.path}"
+    if reading.status is Status.ABSENT:
+        return f"{where} is missing"
+    if reading.status is Status.LINKED:
+        return f"{where} is behind a symbolic link, and nothing is written through one"
+    if reading.status is Status.FOREIGN:
+        return f"{where} exists but has no NarrativeTrace section of ours"
+    if not reading.coordinate:
+        return (
+            f"{where} carries no stamp, so no release it describes can be named — init will stamp"
+            " it"
+        )
+    if _version_of(reading.coordinate) == version:
+        return None
+    return (
+        f"{where} was written for {reading.coordinate}, project resolves narrativetrace=={version}"
     )

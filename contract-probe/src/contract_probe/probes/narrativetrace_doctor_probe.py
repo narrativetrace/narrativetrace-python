@@ -3,14 +3,16 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """`config-shape-narrativetrace-doctor`: `narrativetrace doctor --json` emits a well-formed report
-(parses, carries exactly the eighteen documented finding ids) -- documentation/agent-skills.md
+(parses, carries exactly the nineteen documented finding ids) -- documentation/agent-skills.md
 `#the-narrativetrace-cli`.
 The id list below IS the documented catalogue, kept here on purpose rather than imported from the
 artifact under test: importing it would compare the artifact with itself. A new doctor finding
 therefore lands in three places in one change -- the check, this list and the contract claim --
 and until it does, this probe reads "malformed" against the next published release, which is the
 gate noticing (2026-10-06: `config.skills-installed` had joined the doctor on 2026-09-26 while this
-probe still counted eleven, and the first contract run against 0.2.0 was red for exactly that).
+probe still counted eleven, and the first contract run against 0.2.0 was red for exactly that;
+2026-10-11: `config.approval-mode` had joined and the list still held eighteen, so the first run
+against PyPI's 0.3.0 was red -- `test_doctor_count_drift.py` now holds the list to this checkout).
 
 The import is deferred into `observe()` rather than sitting at module level: `contract_probe.
 runner` imports every probe module together, and this runner can be pointed at an OLDER published
@@ -50,6 +52,7 @@ DOCUMENTED_FINDING_IDS = (
     "config.structlog-processor",
     "config.flask-integration",
     "config.django-integration",
+    "config.approval-mode",
 )
 
 

@@ -156,7 +156,7 @@ line.
 Wrap the collaborators once and run the code; here is the real output of a three-service order
 flow (`OrderService` calling an `InventoryService` and a `PaymentService`, both also wrapped):
 
-```
+```text
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-42", quantity: 3) → "reserved 3 of prod-42" — 0ms
 ├── PaymentService.charge(customer_id: "cust-1", amount: 30) → "txn-cust-1-30" — 0ms
@@ -165,7 +165,7 @@ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity:
 
 **When something goes wrong**, the trace makes the bug visible:
 
-```
+```text
 OrderService.place_order(customer_id: "cust-broke", product_id: "prod-7", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-7", quantity: 3) → "reserved 3 of prod-7" — 0ms
 ├── PaymentService.charge(customer_id: "cust-broke", amount: 30) !! PaymentDeclinedError: payment declined for customer cust-broke — 0ms
@@ -179,7 +179,7 @@ bug is visible without a debugger.
 [`examples/minecraft`](examples/minecraft), traced twice — once with domain names, once with
 generic ones, both runs real:
 
-```
+```text
 → WorldServer.player_joined(player_name: "Steve")
   → WorldGenerator.generate_chunk(x: 0, z: 0)
   ← WorldGenerator.generate_chunk → Chunk(x=0, z=0, biome="plains")
@@ -192,7 +192,7 @@ generic ones, both runs real:
 ← WorldServer.player_joined → "Steve joined the world"
 ```
 
-```
+```text
 → GameManager.handle(input: "Steve")
   → DataProcessor.process(a: 0, b: 0)
   ← DataProcessor.process → DataResult(a=0, b=0, tag="plains")
@@ -471,6 +471,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 Start here:
 
 - [See a trace in 60 seconds](documentation/sixty-seconds.md) — a plain script, one run, a real trace in your terminal
+- [Recipes](documentation/README.md#recipes) — one page per problem (add logging, debug a bug, read a failed test, review a flow or a refactoring), each with the real output of a run this build performs
 - [Choosing an Integration](documentation/choosing-an-integration.md) — which package you need, as a decision diagram
 - [Installation Guide](documentation/guides/installation.md) — every package, what it adds
 - [Configuration Guide](documentation/guides/configuration.md) — tracing levels, output settings, precedence chain; the tracing level and your logger's level are two separate dials feeding two separate paths — see [Two dials, two paths](documentation/faq.md#two-dials-two-paths) if you've mixed them up

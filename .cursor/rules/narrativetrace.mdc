@@ -1,0 +1,7 @@
+---
+description: Where the NarrativeTrace agent skills live in this project
+alwaysApply: true
+---
+<!-- narrativetrace:start -->
+The NarrativeTrace skills live under `.agents/skills` — read them before changing traced code, and run the NarrativeTrace doctor to check the install.
+<!-- narrativetrace:end -->

@@ -49,6 +49,6 @@ def test_every_agent_skills_page_names_the_skill_in_its_list(skill: Skill, page:
 
 
 def test_llms_txt_counts_the_skills_it_lists() -> None:
-    words = {6: "Six"}
+    words = {7: "Seven"}
     assert _llms_agent_skills_section().count("\n- `") == len(SKILLS)
     assert f"{words[len(SKILLS)]} skills ship with the packages." in _llms_agent_skills_section()

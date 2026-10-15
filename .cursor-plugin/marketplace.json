@@ -1,0 +1,25 @@
+{
+  "name": "narrativetrace-python",
+  "owner": {
+    "name": "NarrativeTrace"
+  },
+  "metadata": {
+    "description": "The NarrativeTrace agent skills for Python."
+  },
+  "plugins": [
+    {
+      "name": "narrativetrace-python",
+      "source": ".",
+      "description": "Install NarrativeTrace in a Python project and reach a first trace, diagnose an install that traces nothing, add a naming-clarity report and gate, report a defect in NarrativeTrace itself, verify a change by reading what the code actually did, debug a wrong result by the span where its value diverged, and explain what an application actually does by reading the trace of one run.",
+      "license": "Apache-2.0",
+      "homepage": "https://narrativetrace.ai",
+      "keywords": [
+        "narrativetrace",
+        "python",
+        "tracing",
+        "observability",
+        "agent-skills"
+      ]
+    }
+  ]
+}

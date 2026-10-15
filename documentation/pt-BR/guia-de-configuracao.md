@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 8bcd95d11346 | translated: 2026-09-18 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob e0ffe5762deb | translated: 2026-09-18 | reviewed: - -->
 
 # Configuração
 
@@ -234,7 +234,7 @@ artefato que possui:
 
 O rodapé da suíte imprime mais uma linha resumindo o status estrutural de cada cenário:
 
-```
+```text
 NarrativeTrace — Suite complete
   run: bold elk soars
   2 scenarios recorded

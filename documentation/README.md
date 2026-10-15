@@ -21,6 +21,21 @@ design notes) are English-only by convention and stay off every language's trans
 | [What to Commit](what-to-commit.md) | Which generated files are CI artifacts, and which (if any) are reviewed baselines |
 | [Structural Trace Format](structural-trace-format.md) | The value-free `.nt` artifact: grammar, per-invocation naming, last-green baseline, approval mode |
 | [Troubleshooting](troubleshooting.md) | Symptom → cause → fix for the failure modes people actually hit |
+| [Agent Skills](agent-skills.md) | The seven agent-loadable skills — setup, diagnosis, clarity, feedback, verify, debug, explain — how they are built, and how to install them in your own project |
+| [Use NarrativeTrace with your agent](use-with-your-agent.md) | Per platform — Cursor, Replit, Antigravity, GitHub Copilot, Claude Code — how the skills get into a project, which pointer file `init` writes, and what the agent finds |
+
+## Recipes
+
+One page per problem, in the words a user would type — each carries its scenario's code and the
+real output of a run this build performs.
+
+| Document | What it covers |
+|---|---|
+| [Add logging to this service](recipes/add-logging-to-this-service.md) | A checkout with no log statement: wrap its collaborators once and every call appears in your own `logging` output |
+| [Help me debug and fix this bug](recipes/help-me-debug-and-fix-this-bug.md) | A declined card leaves the stock reserved: the failing narrative, the fix, and the approved trace that pins it |
+| [Why did this test fail](recipes/why-did-this-test-fail.md) | A red test read span by span against its assertion — here the expectation is what is stale |
+| [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) | One run at `DETAIL` and at `SUMMARY`, the log line beside the value-free `.nt` |
+| [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) | Tests stay green, the approval diff names the dropped call |
 
 ## Integrations
 

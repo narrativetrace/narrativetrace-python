@@ -268,6 +268,21 @@ class TestTheTranscriptReader:
 
         assert transcript.read(path)[0].texts == []
 
+    def test_reads_the_skills_a_turns_init_event_lists(self, tmp_path: Path) -> None:
+        init: dict[str, object] = {"type": "system", "subtype": "init", "skills": ["doctor", "add"]}
+        path = _write(tmp_path, _turn(1, "x", init), _turn(2, "y"))
+
+        first, second = transcript.read(path)
+
+        assert first.available_skills == ["doctor", "add"]
+        assert second.available_skills == []
+        assert first.texts == []
+
+    def test_an_init_event_without_a_skills_list_lists_no_skill(self, tmp_path: Path) -> None:
+        init: dict[str, object] = {"type": "system", "subtype": "init", "skills": "doctor"}
+
+        assert transcript.read(_write(tmp_path, _turn(1, "x", init)))[0].available_skills == []
+
     def test_a_result_for_an_unknown_call_is_ignored(self, tmp_path: Path) -> None:
         orphan: dict[str, object] = {
             "type": "user",

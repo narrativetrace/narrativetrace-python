@@ -30,6 +30,11 @@ from pathlib import Path
 from typing import Final
 
 _FIELD: Final = "turns"
+_FRESH_FIELD: Final = "freshTurns"
+"""The turns that open a NEW session rather than resuming the conversation: ``"freshTurns": [2]``.
+Written for one question -- what does a LATER session find? -- which the install cases could not
+ask: an install that goes green in the session that ran it says nothing about the next session, and
+on 2026-10-10 the next session listed no skill at all (item 166)."""
 _TURN_NUMBER: Final = re.compile(r"\A[0-9]+\Z")
 
 
@@ -62,6 +67,54 @@ def scripted_replies_for(case_dir: Path) -> list[str]:
     replies = [by_turn[turn] for turn in sorted(by_turn)]
     assert len(replies) == len(declared), "every declared reply is driven"
     return replies
+
+
+def fresh_turns_for(case_dir: Path) -> frozenset[int]:
+    """The turn numbers ``case_dir`` declares as fresh sessions; empty when it declares none.
+
+    Each must be a scripted turn (declared in ``turns``) -- a fresh turn with nothing to say cannot
+    be driven -- and never turn 1, which is a fresh session by definition.
+
+    :raises ValueError: naming ``case.json`` and the reason, for any declaration that cannot be
+        driven.
+    """
+    manifest_path = case_dir / "case.json"
+    if not manifest_path.is_file():
+        return frozenset()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict) or _FRESH_FIELD not in manifest:
+        return frozenset()
+    declared = manifest[_FRESH_FIELD]
+    if not isinstance(declared, list):
+        raise ValueError(
+            f'{manifest_path} declares "{_FRESH_FIELD}" as something other than a list'
+        )
+    last_turn = len(scripted_replies_for(case_dir)) + 1
+    fresh: set[int] = set()
+    for entry in declared:
+        turn = _fresh_turn(manifest_path, entry, last_turn)
+        if turn in fresh:
+            raise ValueError(f'{manifest_path} declares turn {turn} twice in "{_FRESH_FIELD}"')
+        fresh.add(turn)
+    return frozenset(fresh)
+
+
+def _fresh_turn(manifest_path: Path, entry: object, last_turn: int) -> int:
+    if isinstance(entry, bool) or not isinstance(entry, int):
+        raise ValueError(
+            f'{manifest_path} lists "{entry}" in "{_FRESH_FIELD}", which is not a turn number'
+        )
+    if entry < 2:
+        raise ValueError(
+            f'{manifest_path} lists turn {entry} in "{_FRESH_FIELD}" -- turn 1 is a fresh session '
+            "already, so the first turn that can be fresh is turn 2"
+        )
+    if entry > last_turn:
+        raise ValueError(
+            f'{manifest_path} declares turn {entry} in "{_FRESH_FIELD}" but scripts no reply for '
+            "it -- a fresh turn with nothing to say cannot be driven"
+        )
+    return entry
 
 
 def _turn_number(manifest_path: Path, key: str) -> int:

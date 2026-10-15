@@ -914,3 +914,64 @@ def test_a_malformed_committed_glossary_skips_harvesting_without_failing_the_sui
 
     result.assert_outcomes(passed=1)
     result.stdout.fnmatch_lines(["*glossary harvest failed, skipped*"])
+
+
+def test_a_failing_checkout_test_gets_its_own_narrative_showing_the_failure(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The recipe's "why did this test fail" shape: the payment charge throws, so the failure
+    narrative (terminal block and the written trace) shows reserve, then the failing charge, and
+    never the order save that was not reached."""
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        import pytest
+        from narrativetrace.trace_object import trace_object
+
+        class Inventory:
+            def reserve(self, sku): return True
+
+        class Payment:
+            def charge(self, amount): raise ValueError("card declined")
+
+        class Orders:
+            def save(self, order_id): return order_id
+
+        class Checkout:
+            def __init__(self, inventory, payment, orders):
+                self.inventory, self.payment, self.orders = inventory, payment, orders
+
+            def place_order(self, sku):
+                self.inventory.reserve(sku)
+                self.payment.charge(10)
+                return self.orders.save("ORD-1")
+
+        def test_checkout_charges_the_card(narrative_trace):
+            checkout = Checkout(
+                trace_object(Inventory(), narrative_trace),
+                trace_object(Payment(), narrative_trace),
+                trace_object(Orders(), narrative_trace),
+            )
+            trace_object(checkout, narrative_trace).place_order("sku-1")
+        """
+    )
+
+    result = pytester.runpytest_subprocess()
+
+    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        ["*Inventory.reserve*", "*Payment.charge*ValueError*card declined*"]
+    )
+    traces = (
+        out_dir
+        / "traces"
+        / "test_a_failing_checkout_test_gets_its_own_narrative_showing_the_failure"
+    )
+    narrative = traces / "test_checkout_charges_the_card.md"
+    text = narrative.read_text(encoding="utf-8")
+    assert "**Result:** FAILED" in text
+    assert "Payment.charge" in text
+    assert "ValueError" in text
+    assert "Orders.save" not in text

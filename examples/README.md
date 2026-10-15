@@ -16,6 +16,7 @@ module docstring carries a guided reading order; start there when drilling into 
 | `minecraft` | `python -m examples.minecraft` | How much naming alone changes trace quality: the same behavior traced twice with five collaborators each, once with domain-rich names, once with generic ones, scored side by side. |
 | `library` | `python -m examples.library` | The value side of tracing: frozen dataclasses that narrate themselves through `@narrative_summary` in a small book-lending domain, with a successful borrow and an unavailable-book failure. |
 | `fastapi_service` | `uvicorn examples.fastapi_service.fastapi_service:app` | A Starlette/FastAPI app traced end-to-end by the ASGI middleware: a fresh context per request, exported with the real status code at the request boundary. Not part of the demo launcher — it needs a server. |
+| `recipes/checkout` | `uv run poe recipe-artifacts` | The one checkout every recipe page (`documentation/recipes/`) runs: plain code, five fixture modules driven as real pytest processes (logging bridge, a failing run, approval mode), and the files each page embeds — written to `build/`, held to the pages by `poe snippet-check`. |
 | `tour.py` | *(shared scaffolding, no entry point)* | `Scenario` (title, wiring note, `run(context)`), the console sections (`--- Trace tree ---`, `--- Prose ---`, `--- Markdown ---`, `--- Mermaid ---`, `--- PlantUML ---`), and `narrated_run`, the live `→ ← !!` stream with its demo and classic formatters. |
 
 ## Running the examples

@@ -170,10 +170,11 @@ def _run_args(**overrides: object) -> run.RunArgs:
     return run.RunArgs(**defaults)  # type: ignore[arg-type]
 
 
-def _quota_markdown(weekly_allowance: int, spend_rows: str = "") -> str:
+def _quota_markdown(weekly_allowance: int, spend_rows: str = "", zero_row: str = "") -> str:
+    zero = f"| {zero_row} | not installed | 0 |\n" if zero_row else ""
     return (
         "# quota\n\n## Allowance\n\n| platform | plan tier | weekly allowance |\n|---|---|---|\n"
-        f"| codex | basic | {weekly_allowance} |\n\n"
+        f"| codex | basic | {weekly_allowance} |\n{zero}\n"
         "## Spend log\n\n| date | platform | skill | case | week |\n|---|---|---|---|---|\n"
         f"{spend_rows}"
     )
@@ -674,6 +675,30 @@ class TestARegistryCase:
         # the pre-step ran before both of them
         assert spy.calls.index(spy.agent_calls[0]) > len(expected) - 1
 
+    def test_the_installer_delivery_runs_the_checkouts_init_in_the_project_before_the_agent(
+        self, synthetic_repo: Path, seeded_login: Path
+    ) -> None:
+        """``narrativetrace-init`` runs this checkout's installer in the scratch project and stages
+        nothing: the one command, in the project, ahead of the agent, with no seeded pages."""
+        _with_rendered_pages(synthetic_repo)
+        _add_case(synthetic_repo, "demo-skill", "fresh-demo", registry="narrativetrace-init")
+        spy = RecordingSpawn()
+
+        run._run_one_trial(
+            _run_args(case_name="fresh-demo"),
+            self._case_dir(case_name="fresh-demo"),
+            "the prompt",
+            1,
+            self._deps(synthetic_repo, spy),
+        )
+
+        assert [tuple(argv) for argv, _ in spy.pre_step_calls] == [
+            ("uv", "run", "--project", str(synthetic_repo), "narrativetrace", "init")
+        ]
+        assert spy.pre_step_calls[0][1] == spy.agent_calls[0][1]
+        assert spy.calls.index(spy.pre_step_calls[0]) < spy.calls.index(spy.agent_calls[0])
+        assert len(spy.grader_calls) == 1
+
     def test_creates_the_staged_trees_directory_before_any_pre_step_command_runs(
         self, synthetic_repo: Path, seeded_login: Path
     ) -> None:
@@ -934,8 +959,10 @@ class TestRunTrials:
             raise RuntimeError("Tier A/A2 are not green")
 
         monkeypatch.setattr(run, "assert_deterministic_tiers_green", _red)
+        quota_path = synthetic_repo / "quota.md"
+        quota_path.write_text(_quota_markdown(4), encoding="utf-8")
         spy = RecordingSpawn()
-        deps = run.RunDeps(spawn=spy, clock=lambda: date(2026, 9, 13))
+        deps = run.RunDeps(spawn=spy, clock=lambda: date(2026, 9, 13), quota_path=quota_path)
 
         with pytest.raises(RuntimeError, match="not green"):
             run.run_trials(_run_args(platform="codex"), deps)
@@ -955,6 +982,60 @@ class TestRunTrials:
         with pytest.raises(RuntimeError, match="no override"):
             run.run_trials(_run_args(platform="codex"), deps)
         assert spy.calls == []
+
+    @pytest.mark.parametrize(("platform", "tool"), [("antigravity", "agy"), ("cursor", "agent")])
+    def test_a_zero_allowance_lane_skips_with_one_line_and_never_fails(
+        self,
+        synthetic_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        platform: str,
+        tool: str,
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "happy-path")
+
+        def _boom(*_a: object, **_k: object) -> None:
+            raise AssertionError("a skipped lane must not run the Tier A/A2 precondition")
+
+        monkeypatch.setattr(run, "assert_deterministic_tiers_green", _boom)
+        quota_path = synthetic_repo / "quota.md"
+        quota_path.write_text(_quota_markdown(4, zero_row=platform), encoding="utf-8")
+        spy = RecordingSpawn()
+        deps = run.RunDeps(
+            spawn=spy,
+            clock=lambda: date(2026, 9, 7),
+            ledger_path=synthetic_repo / "runs.jsonl",
+            quota_path=quota_path,
+        )
+
+        assert run.run_trials(_run_args(platform=platform, trials=3), deps) == 0
+
+        out = capsys.readouterr().out
+        assert out.count("SKIP") == 1
+        assert out.startswith(f"SKIP: the {platform} lane did not run — its `{tool}` CLI")
+        assert spy.calls == []
+        assert not (synthetic_repo / "runs.jsonl").exists()
+        assert "| demo-skill |" not in quota_path.read_text(encoding="utf-8")
+
+    def test_a_lane_with_no_allowance_row_still_refuses_rather_than_skipping(
+        self, synthetic_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "happy-path")
+        monkeypatch.setattr(run, "assert_deterministic_tiers_green", lambda *_a, **_k: None)
+        quota_path = synthetic_repo / "quota.md"
+        quota_path.write_text(_quota_markdown(4), encoding="utf-8")
+        deps = run.RunDeps(spawn=RecordingSpawn(), clock=date.today, quota_path=quota_path)
+
+        with pytest.raises(RuntimeError, match="no allowance row"):
+            run.run_trials(_run_args(platform="cursor"), deps)
+
+    def test_a_skip_still_reports_a_case_that_does_not_exist(self, synthetic_repo: Path) -> None:
+        quota_path = synthetic_repo / "quota.md"
+        quota_path.write_text(_quota_markdown(4, zero_row="cursor"), encoding="utf-8")
+        deps = run.RunDeps(spawn=RecordingSpawn(), clock=date.today, quota_path=quota_path)
+
+        with pytest.raises(FileNotFoundError, match="No case found"):
+            run.run_trials(_run_args(skill="missing-skill", platform="cursor"), deps)
 
     def test_a_sporadic_lane_records_spend_after_a_trial_when_allowance_remains(
         self, synthetic_repo: Path, monkeypatch: pytest.MonkeyPatch
@@ -1253,6 +1334,27 @@ class TestAMultiTurnCase:
         assert argvs[1][-2:] == ["--resume", _SESSION]
         assert argvs[2][-2:] == ["--resume", _SESSION]
         assert len(spy.grader_calls) == 1
+
+    def test_a_declared_fresh_turn_runs_under_a_session_of_its_own(
+        self, synthetic_repo: Path
+    ) -> None:
+        case_dir = self._case(synthetic_repo, {"2": "is it wired up?"})
+        _with_manifest(synthetic_repo, "demo-skill", "approval", freshTurns=[2])
+        spy = RecordingSpawn()
+
+        run._run_one_trial(
+            _run_args(case_name="approval", agent_command=None),
+            case_dir,
+            "install it",
+            1,
+            _trial_deps(synthetic_repo, spy),
+        )
+
+        argvs = [argv for argv, _ in spy.agent_calls]
+        assert argvs[0][-2:] == ["--session-id", _SESSION]
+        assert argvs[1][-2] == "--session-id"
+        assert argvs[1][-1] != _SESSION
+        assert "--resume" not in argvs[1]
 
     def test_writes_the_users_words_before_each_turns_own_output(
         self, synthetic_repo: Path

@@ -1,4 +1,4 @@
-<!-- source: documentation/structural-trace-format.md blob ec2e4dce7fb4 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: documentation/structural-trace-format.md blob ca2f5472e121 | translated: 2026-10-09 | reviewed: - -->
 
 # Formato de trace estrutural (`.nt`)
 
@@ -65,7 +65,7 @@ invocação e cada arquivo que possui. Consulte-o quando souber o cenário e qui
 
 ## Conteúdo
 
-```
+```text
 scenario: Weekend trip settles with three transfers
 
 #1 - TripSettlementService.record_expense(trip_name, expense)

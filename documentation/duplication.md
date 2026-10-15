@@ -130,7 +130,7 @@ exempted — unlike the `_*_data.py` modules, this file also holds real scoring 
 
 The console prints one summary line per run:
 
-```
+```text
 duplication: main 13.0% of lines in 68 clusters (largest 1488 tokens
 packages/narrativetrace-clarity/src/narrativetrace_clarity/_abbreviations_data.py:5 ↔
 packages/narrativetrace-clarity/src/narrativetrace_clarity/_abbreviations_data.py:6) · test 11.0%

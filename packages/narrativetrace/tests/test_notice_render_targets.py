@@ -16,6 +16,9 @@ from narrativetrace_skills import SKILLS
 from scripts.skills_render import (
     _claude_skill_md_path,
     _codex_skill_md_path,
+    _cursor_marketplace_json_path,
+    _cursor_plugin_json_path,
+    _cursor_rule_path,
     _marketplace_json_path,
 )
 from scripts.translation_check import REPO_ROOT
@@ -37,3 +40,12 @@ class TestNoticeNamesEveryRenderTarget:
     def test_names_the_marketplace_file(self) -> None:
         marketplace = _marketplace_json_path()
         assert str(marketplace.relative_to(REPO_ROOT)) in NOTICE_TEXT
+
+    def test_names_the_cursor_plugin_manifests_by_their_directory(self) -> None:
+        manifests = {_cursor_plugin_json_path().parent, _cursor_marketplace_json_path().parent}
+
+        assert len(manifests) == 1
+        assert f"{manifests.pop().relative_to(REPO_ROOT)}/**" in NOTICE_TEXT
+
+    def test_names_the_cursor_rule_file(self) -> None:
+        assert str(_cursor_rule_path().relative_to(REPO_ROOT)) in NOTICE_TEXT

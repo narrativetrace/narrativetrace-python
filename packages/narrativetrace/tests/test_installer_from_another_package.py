@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import shutil
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -163,7 +165,12 @@ class TestUninstalling:
 
 
 _GATED_SKILLS = frozenset(
-    {"narrativetrace-feedback", "narrativetrace-verify", "narrativetrace-debug"}
+    {
+        "narrativetrace-feedback",
+        "narrativetrace-verify",
+        "narrativetrace-debug",
+        "narrativetrace-explain",
+    }
 )
 """The skills that declare no allowed tools: their steps file something public or promote a
 baseline, and the harness must ask before either."""
@@ -194,10 +201,30 @@ class TestWhatAnExistingProjectGetsBack:
         assert payload["exit_code"] == 0
 
 
+def checkout_carrier(workdir: Path) -> Carrier:
+    """The carrier THIS checkout builds: its ``narrativetrace-skills`` payload under the directory
+    name a build gives it, ``narrativetrace_skills-<version>``, the version read from its own
+    ``pyproject.toml``. Never what the environment happens to have installed."""
+    for parent in Path(__file__).resolve().parents:
+        package = parent / "packages" / "narrativetrace-skills"
+        if package.is_dir():
+            break
+    else:
+        raise AssertionError("no packages/narrativetrace-skills above this test")
+    version = tomllib.loads((package / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+    unpacked = workdir / f"narrativetrace_skills-{version}"
+    shutil.copytree(package / "skills", unpacked / "skills")
+    return resolve_carrier(unpacked)
+
+
 class TestTheVersionGuardInItsRealSetting:
     def test_says_nothing_when_the_carrier_matches_the_release_this_project_runs(
-        self, carrier: Carrier
+        self, tmp_path: Path
     ) -> None:
+        carrier = checkout_carrier(tmp_path)
+
         assert version_warning(carrier, project_family_version()) is None
 
 
@@ -240,6 +267,7 @@ class TestARegistryTreeFromOutsideTheLibrary:
             ".agents/skills/add-narrativetrace-clarity/SKILL.md",
             ".agents/skills/narrativetrace-debug/SKILL.md",
             ".agents/skills/narrativetrace-doctor/SKILL.md",
+            ".agents/skills/narrativetrace-explain/SKILL.md",
             ".agents/skills/narrativetrace-feedback/SKILL.md",
             ".agents/skills/narrativetrace-verify/SKILL.md",
             "skills-lock.json",

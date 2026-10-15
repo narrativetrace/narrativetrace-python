@@ -36,6 +36,12 @@
       "description": "Finds the cause of a wrong result in a Python project by reading what the code did with the values, not by stepping through it. Use when a symptom is reported -- a wrong amount, a wrong id, a call in the wrong order, a test that fails with a value nobody expected. Reproduces it with the smallest input and NarrativeTrace on, finds the first span where a value diverges and names it by its span id (the sequence diagram first when threads or tasks are involved), narrows to that span's sub-tree, fixes it there and checks the structural trace shows nothing else moved, pins the reproduction as a regression test and an approval baseline behind your yes, and reports the root cause by span id. Hands a defect in NarrativeTrace itself to narrativetrace-feedback. Say 'debug this with the trace', 'find where this value goes wrong', or 'why is this result wrong' to invoke it.",
       "agents": "agents/narrativetrace-debug/SKILL.md",
       "claude": "claude/narrativetrace-debug/SKILL.md"
+    },
+    {
+      "name": "narrativetrace-explain",
+      "description": "Use when someone asks what an application or a flow actually does, with nothing broken and no change needing verification: 'show me what my application actually does', 'walk me through what happens when a user checks out', 'I inherited this service, how does an order flow', 'what does this endpoint call'. Load it BEFORE reading source files to describe them: it explains a Python application by running one scenario with NarrativeTrace on and reading the trace of what happened \u2014 evidence of the run, not a reading of the code. Decides first whether a trace is worth it: a question ten lines of source answer is answered from the source, with no install and no run. Otherwise it runs one existing test or entry point for that flow \u2014 installing through add-narrative-tracing when the project has none \u2014 reads the value-free structural trace, and explains the run by span id, marking what it inferred and naming the code no span covered. Hands a defect to narrativetrace-debug, a change to narrativetrace-verify.",
+      "agents": "agents/narrativetrace-explain/SKILL.md",
+      "claude": "claude/narrativetrace-explain/SKILL.md"
     }
   ]
 }

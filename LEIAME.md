@@ -1,4 +1,4 @@
-<!-- source: README.md blob 040c9d88c734 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: README.md blob c5f4af18bbd5 | translated: 2026-10-11 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -153,7 +153,7 @@ Envolva os colaboradores uma vez e rode o código; esta é a saída real de um f
 serviços (`OrderService` chamando um `InventoryService` e um `PaymentService`, ambos também
 envolvidos):
 
-```
+```text
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-42", quantity: 3) → "reserved 3 of prod-42" — 0ms
 ├── PaymentService.charge(customer_id: "cust-1", amount: 30) → "txn-cust-1-30" — 0ms
@@ -162,7 +162,7 @@ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity:
 
 **Quando algo dá errado**, o trace torna o bug visível:
 
-```
+```text
 OrderService.place_order(customer_id: "cust-broke", product_id: "prod-7", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-7", quantity: 3) → "reserved 3 of prod-7" — 0ms
 ├── PaymentService.charge(customer_id: "cust-broke", amount: 30) !! PaymentDeclinedError: payment declined for customer cust-broke — 0ms
@@ -176,7 +176,7 @@ trace — o bug é visível sem um depurador.
 [`examples/minecraft`](examples/minecraft), traçado duas vezes — uma com nomes de domínio, outra com
 nomes genéricos, ambas as execuções reais:
 
-```
+```text
 → WorldServer.player_joined(player_name: "Steve")
   → WorldGenerator.generate_chunk(x: 0, z: 0)
   ← WorldGenerator.generate_chunk → Chunk(x=0, z=0, biome="plains")
@@ -189,7 +189,7 @@ nomes genéricos, ambas as execuções reais:
 ← WorldServer.player_joined → "Steve joined the world"
 ```
 
-```
+```text
 → GameManager.handle(input: "Steve")
   → DataProcessor.process(a: 0, b: 0)
   ← DataProcessor.process → DataResult(a=0, b=0, tag="plains")
@@ -487,6 +487,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 Comece aqui:
 
 - [Veja um trace em 60 segundos](documentation/pt-BR/sessenta-segundos.md) — um script simples, uma execução, um trace real no seu terminal
+- [Receitas](documentation/LEIAME.md#receitas) — uma página por problema (adicionar logs, depurar um bug, ler um teste que falhou, revisar um fluxo ou uma refatoração), cada uma com a saída real de uma execução que este build realiza
 - [Escolhendo uma integração](documentation/pt-BR/escolhendo-uma-integracao.md) — qual pacote você precisa, como diagrama de decisão
 - [Guia de instalação](documentation/pt-BR/guia-de-instalacao.md) — cada pacote, o que ele adiciona
 - [Guia de configuração](documentation/pt-BR/guia-de-configuracao.md) — níveis de tracing, configurações de saída, cadeia de precedência; o nível de tracing e o nível do seu logger são dois botões separados alimentando dois caminhos separados — veja [Two dials, two paths](documentation/faq.md#two-dials-two-paths) (em inglês) se você os confundiu

@@ -154,6 +154,54 @@
         "pt-BR": "guia-de-funcionalidades.md",
         "zh-CN": "功能指南.md"
       }
+    },
+    {
+      "source": "documentation/use-with-your-agent.md",
+      "translations": {
+        "es": "usa-narrativetrace-con-tu-agente.md",
+        "pt-BR": "usa-o-narrativetrace-com-seu-agente.md",
+        "zh-CN": "搭配你的智能体使用.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/add-logging-to-this-service.md",
+      "translations": {
+        "es": "anade-registro-a-este-servicio.md",
+        "pt-BR": "adicione-logs-a-este-servico.md",
+        "zh-CN": "给这个服务加日志.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/help-me-debug-and-fix-this-bug.md",
+      "translations": {
+        "es": "ayudame-a-depurar-y-arreglar-este-error.md",
+        "pt-BR": "ajude-me-a-depurar-e-corrigir-este-bug.md",
+        "zh-CN": "帮我调试并修复这个缺陷.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/why-did-this-test-fail.md",
+      "translations": {
+        "es": "por-que-fallo-esta-prueba.md",
+        "pt-BR": "por-que-este-teste-falhou.md",
+        "zh-CN": "这个测试为什么失败了.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/review-a-complex-flow-before-changing-it.md",
+      "translations": {
+        "es": "revisa-un-flujo-complejo-antes-de-cambiarlo.md",
+        "pt-BR": "revise-um-fluxo-complexo-antes-de-altera-lo.md",
+        "zh-CN": "修改复杂流程前先审查它.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/review-a-refactoring-did-behaviour-change.md",
+      "translations": {
+        "es": "revisa-una-refactorizacion-cambio-el-comportamiento.md",
+        "pt-BR": "revise-uma-refatoracao-o-comportamento-mudou.md",
+        "zh-CN": "审查重构行为变了吗.md"
+      }
     }
   ]
 }

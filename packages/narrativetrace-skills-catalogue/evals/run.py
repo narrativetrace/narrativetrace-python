@@ -9,18 +9,21 @@ a scratch directory (a fresh temp copy outside every repo tree), drives the requ
 against the prompt with the catalogue loaded, runs the case's grader, and appends one row to
 ``ledger/runs.jsonl``.
 
-``--platform claude|codex|gemini`` fills ``--agent-command`` with that platform's preset
+``--platform claude|codex|antigravity|cursor`` fills ``--agent-command`` with that platform's preset
 (``platform_presets.py``) — pass ``--agent-command`` explicitly to override it, e.g. a different
 model flag shape::
 
     uv run python evals/run.py --skill narrativetrace-doctor --case happy-path \\
         --platform claude --model <cheapest-available>
 
-Codex and Gemini are the two sporadic lanes: every trial on either platform first refuses to start
-unless narrativetrace-skills' Tier A lints and Tier A2 replay are green at HEAD
-(``tier_precondition.py``), and then unless ``ledger/quota.md`` still has weekly allowance left for
-that platform (``quota.py``) — no override flag either way; fix the tests or edit the ledger.
-Claude is exempt from both: it runs on the harness's own regular cadence, not the sporadic policy.
+Codex, Antigravity and Cursor are the sporadic lanes: a lane whose weekly allowance in
+``ledger/quota.md`` is ZERO — the owner's "its CLI is not installed or signed in yet" — prints
+one ``SKIP`` line naming the tool and exits 0 (``quota.skip_reason``); every other trial first
+refuses to start unless narrativetrace-skills' Tier A lints and Tier A2 replay are green at HEAD
+(``tier_precondition.py``), and then unless the ledger still has weekly allowance left for that
+platform (``quota.py``) — a missing row and a spent allowance stay refusals, and there is no
+override flag either way; fix the tests or edit the ledger. Claude is exempt from all of it: it
+runs on the harness's own regular cadence, not the sporadic policy.
 
 **Every trial** runs behind recording stand-ins for ``gh`` (exit 0) and ``curl`` (exit 6, except
 the published site, served through the real curl) first on ``PATH``, against a throwaway vendor
@@ -82,7 +85,7 @@ _EVIDENCE_ROOT = _EVALS_DIR.parent / "build" / "evals"
 sys.path.insert(0, str(_EVALS_DIR))
 
 from agent_turns import AgentTurns  # noqa: E402
-from case_turns import scripted_replies_for  # noqa: E402
+from case_turns import fresh_turns_for, scripted_replies_for  # noqa: E402
 from isolated_agent_config import (  # noqa: E402
     config_dir,
     real_config_dir,
@@ -99,6 +102,7 @@ from quota import (  # noqa: E402
     check_quota,
     iso_week,
     parse_quota_markdown,
+    skip_reason,
 )
 from registry_delivery import RegistryDelivery, registry_for_case  # noqa: E402
 from tier_precondition import assert_deterministic_tiers_green  # noqa: E402
@@ -212,7 +216,9 @@ def _parse_args(argv: list[str]) -> RunArgs:
     parser.add_argument("--trials", type=int, default=1)
     parsed = parser.parse_args(argv)
     if not is_platform(parsed.platform):
-        parser.error(f"--platform must be one of claude, codex, gemini; got {parsed.platform!r}")
+        parser.error(
+            f"--platform must be one of claude, codex, antigravity, cursor; got {parsed.platform!r}"
+        )
     return RunArgs(
         skill=parsed.skill,
         case_name=parsed.case_name,
@@ -467,6 +473,14 @@ def _assert_quota_available(
         raise RuntimeError(decision.reason)
 
 
+def _skip_line(platform: Platform, quota_path: Path) -> str | None:
+    """The one line a sporadic lane prints instead of running when its allowance is zero — the
+    owner's "the CLI is not installed or signed in yet". ``None`` for every lane that goes on."""
+    if not is_sporadic_platform(platform):
+        return None
+    return skip_reason(platform, parse_quota_markdown(quota_path.read_text(encoding="utf-8")))
+
+
 def _record_sporadic_spend(quota_path: Path, args: RunArgs, today: date) -> QuotaSpendRow:
     row = QuotaSpendRow(
         date=today.isoformat(),
@@ -535,6 +549,7 @@ def _run_one_trial(args: RunArgs, case_dir: Path, prompt: str, trial: int, deps:
         prompt,
         scripted_replies_for(case_dir),
         deps.new_session_id(),
+        fresh_turns_for(case_dir),
     )
     work_dir = Path(tempfile.mkdtemp(prefix="nt-eval-work-"))
     environment = TrialEnvironment.under(work_dir, os.environ.get("PATH", ""))
@@ -601,14 +616,17 @@ def run_trials(args: RunArgs, deps: RunDeps | None = None) -> int:
     """The runner's core flow, independent of ``sys.argv`` — the seam unit tests drive directly
     with a fake spawner, a fixed clock, and temp ledger/quota paths."""
     deps = deps or RunDeps()
-    if is_sporadic_platform(args.platform):
-        assert_deterministic_tiers_green(str(_REPO_ROOT))
-
     case_dir = _EVALS_DIR / args.skill / args.case_name
     prompt_path = case_dir / "prompt.md"
     if not prompt_path.is_file():
         raise FileNotFoundError(f"No case found at {case_dir}")
     prompt = prompt_path.read_text(encoding="utf-8")
+    skipped = _skip_line(args.platform, deps.quota_path)
+    if skipped is not None:
+        print(skipped)
+        return 0
+    if is_sporadic_platform(args.platform):
+        assert_deterministic_tiers_green(str(_REPO_ROOT))
 
     session_spend: list[QuotaSpendRow] = []
     for trial in range(1, args.trials + 1):

@@ -45,6 +45,8 @@ from narrativetrace_tooling.init.options import PERMISSIVE, InitOptions, Scope, 
 from narrativetrace_tooling.init.plan import InitPlan
 from narrativetrace_tooling.init.plan_executor import execute_plan
 from narrativetrace_tooling.init.plan_renderer import render_plan, render_report
+from narrativetrace_tooling.init.pointer_reading import PointerReading
+from narrativetrace_tooling.init.pointer_reading import read_all as read_pointer_readings
 from narrativetrace_tooling.init.project_state import InstalledSkill, Presence, ProjectState
 from narrativetrace_tooling.init.project_state_reader import read_project_state
 from narrativetrace_tooling.init.refresh_planner import is_installed, plan_refresh
@@ -59,6 +61,7 @@ __all__ = [
     "InitOptions",
     "InitPlan",
     "InstalledSkill",
+    "PointerReading",
     "Presence",
     "ProjectState",
     "Scope",
@@ -75,6 +78,7 @@ __all__ = [
     "plan_refresh",
     "plan_uninstall",
     "project_family_version",
+    "read_pointer_readings",
     "read_project_state",
     "render_plan",
     "render_report",

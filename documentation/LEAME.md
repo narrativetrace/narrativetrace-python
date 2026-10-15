@@ -23,7 +23,20 @@ verlos.
 | [Qué commitear](es/que-commitear.md) | Qué archivos generados son artefactos de CI, y cuáles (si los hay) son líneas base revisadas |
 | [Formato de traza estructural](es/formato-de-traza-estructural.md) | El artefacto `.nt` libre de valores: gramática, nombrado por invocación, línea base en verde, modo de aprobación |
 | [Habilidades del agente](es/habilidades-del-agente.md) | `narrativetrace-doctor` y `add-narrative-tracing` — procedimientos cargables por un agente sobre la CLI probada |
+| [Usa NarrativeTrace con tu agente](es/usa-narrativetrace-con-tu-agente.md) | Por plataforma — Cursor, Replit, Antigravity, GitHub Copilot, Claude Code — cómo llegan las habilidades a un proyecto, qué archivo de aviso escribe `init` y qué encuentra el agente |
 | [Solución de problemas](es/solucion-de-problemas.md) | Síntoma → causa → arreglo para los fallos que la gente realmente encuentra |
+
+## Recetas
+
+Una página por problema, con las palabras que escribiría un usuario — cada una incluye el código de su escenario y la salida real de una ejecución que esta build realiza.
+
+| Documento | Qué cubre |
+|---|---|
+| [Añade registro a este servicio](es/anade-registro-a-este-servicio.md) | Un checkout sin ninguna sentencia de log: envuelve sus colaboradores una vez y cada llamada aparece en tu propia salida de `logging` |
+| [Ayúdame a depurar y arreglar este error](es/ayudame-a-depurar-y-arreglar-este-error.md) | Una tarjeta rechazada deja el stock reservado: la narrativa que falla, el arreglo y la traza aprobada que lo fija |
+| [Por qué falló esta prueba](es/por-que-fallo-esta-prueba.md) | Una prueba en rojo leída span por span contra su aserción — aquí lo desactualizado es la expectativa |
+| [Revisa un flujo complejo antes de cambiarlo](es/revisa-un-flujo-complejo-antes-de-cambiarlo.md) | Una ejecución en `DETAIL` y en `SUMMARY`, la línea de log junto al `.nt` libre de valores |
+| [Revisa una refactorización: ¿cambió el comportamiento?](es/revisa-una-refactorizacion-cambio-el-comportamiento.md) | Las pruebas siguen en verde, el diff de aprobación nombra la llamada eliminada |
 
 ## Integraciones
 

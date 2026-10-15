@@ -38,9 +38,10 @@ def _repo_root() -> Path:
 
 
 class TestVocabulary:
-    def test_knows_the_two_documented_registry_ids_and_nothing_else(self) -> None:
+    def test_knows_the_three_delivery_ids_and_nothing_else(self) -> None:
         assert delivery.is_registry("claude-marketplace") is True
         assert delivery.is_registry("npx-skills") is True
+        assert delivery.is_registry("narrativetrace-init") is True
         assert delivery.is_registry("gemini-skills") is False
         assert delivery.is_registry("") is False
 
@@ -48,7 +49,7 @@ class TestVocabulary:
         """A command string in ``case.json`` would be a shell this harness does not have: each id
         owns the exact argv a documented registry line amounts to, so a case replays what a reader
         runs and can name nothing else."""
-        assert delivery.REGISTRIES == ("claude-marketplace", "npx-skills")
+        assert delivery.REGISTRIES == ("claude-marketplace", "npx-skills", "narrativetrace-init")
 
 
 class TestStagingCommands:
@@ -127,6 +128,14 @@ class TestRegistryCommands:
 
         assert commands[:2] == delivery.staging_commands(_REPO, _STAGED)
         assert commands[2:] == (("npx", "--yes", "skills", "add", "/scratch/staged", "-y"),)
+
+    def test_the_init_delivery_runs_this_checkouts_own_installer_and_stages_nothing(self) -> None:
+        """``narrativetrace init`` resolved through the CHECKOUT's workspace (``uv run --project``),
+        never ``uvx`` or PyPI: a published package predates the installer fix and the case would
+        measure the previous release. Nothing is staged -- the installer reads its own carrier."""
+        commands = delivery.commands_for("narrativetrace-init", _REPO, _STAGED)
+
+        assert commands == (("uv", "run", "--project", "/repo", "narrativetrace", "init"),)
 
     def test_no_delivery_ever_asks_for_a_project_scope(self) -> None:
         """User scope only (ruling Q4): a project-scope marketplace writes a settings file INTO the

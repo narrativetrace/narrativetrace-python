@@ -4,9 +4,11 @@
 # Copyright (c) 2026 Empower Agile
 from __future__ import annotations
 
+import pytest
 from platform_presets import (
     PLATFORMS,
     SPORADIC_PLATFORMS,
+    cli_tool,
     is_platform,
     is_read_only_skill,
     is_sporadic_platform,
@@ -17,8 +19,8 @@ from platform_presets import (
 
 
 class TestPlatforms:
-    def test_three_platforms(self) -> None:
-        assert PLATFORMS == ("claude", "codex", "gemini")
+    def test_four_platforms(self) -> None:
+        assert PLATFORMS == ("claude", "codex", "antigravity", "cursor")
 
     def test_is_platform_accepts_known_names(self) -> None:
         assert is_platform("claude") is True
@@ -29,8 +31,11 @@ class TestPlatforms:
 
 
 class TestSporadicPlatforms:
-    def test_codex_and_gemini_are_sporadic(self) -> None:
-        assert SPORADIC_PLATFORMS == frozenset({"codex", "gemini"})
+    def test_codex_antigravity_and_cursor_are_sporadic(self) -> None:
+        assert SPORADIC_PLATFORMS == frozenset({"codex", "antigravity", "cursor"})
+
+    def test_cursor_is_sporadic(self) -> None:
+        assert is_sporadic_platform("cursor") is True
 
     def test_claude_is_not_sporadic(self) -> None:
         assert is_sporadic_platform("claude") is False
@@ -87,13 +92,61 @@ class TestPresetAgentCommand:
         command = preset_agent_command("codex", "mini", "add-narrative-tracing")
         assert "--sandbox workspace-write" in command
 
-    def test_gemini_uses_plan_approval_mode_for_the_doctor_skill(self) -> None:
-        command = preset_agent_command("gemini", "flash", "narrativetrace-doctor")
-        assert "--approval-mode plan" in command
 
-    def test_gemini_uses_auto_edit_approval_mode_for_a_mutating_skill(self) -> None:
-        command = preset_agent_command("gemini", "flash", "add-narrative-tracing")
-        assert "--approval-mode auto_edit" in command
+class TestTheAntigravityPreset:
+    """``agy -p``, verified against ``agy --help`` of CLI 1.3.3 and a real print-mode run on
+    2026-10-10. It has no approval mode and no ``--yolo``: ``--dangerously-skip-permissions`` is the
+    only headless auto-approval, so it rides EVERY skill, exactly like Cursor's ``--force`` -- a
+    doctor trial RUNS a command, and a narrower preset would measure the sandbox."""
+
+    def test_is_the_headless_agy_with_the_ledgers_model_for_every_skill(self) -> None:
+        for skill in ("narrativetrace-doctor", "add-narrative-tracing"):
+            assert preset_agent_command("antigravity", "gemini-3.8-flash-low", skill) == (
+                'agy -p "{prompt}" --model gemini-3.8-flash-low --output-format text '
+                "--dangerously-skip-permissions"
+            )
+
+    def test_the_executable_a_skip_line_names_is_agy(self) -> None:
+        assert cli_tool("antigravity") == "agy"
+
+    def test_has_neither_half_of_a_multi_turn_conversation(self) -> None:
+        """``agy --conversation <id>`` resumes one, but no flag lets the runner choose the id on
+        turn 1 -- the id would have to be read back out of the first turn's output."""
+        assert preset_first_turn_command("antigravity", "m", "s") is None
+        assert preset_resumed_turn_command("antigravity", "m", "s") is None
+
+
+class TestTheCursorPreset:
+    """Phase 8, platform pointers: ``agent -p``, verified against cursor.com/docs/cli/headless on
+    2026-10-10."""
+
+    def test_is_the_headless_agent_with_force_for_every_skill(self) -> None:
+        for skill in ("narrativetrace-doctor", "add-narrative-tracing"):
+            assert preset_agent_command("cursor", "auto", skill) == (
+                'agent -p "{prompt}" --output-format text --force'
+            )
+
+    def test_the_doctor_gets_force_too_because_a_narrower_preset_measures_the_sandbox(
+        self,
+    ) -> None:
+        assert "--force" in preset_agent_command("cursor", "auto", "narrativetrace-doctor")
+
+    def test_the_model_is_a_ledger_label_and_never_reaches_the_cli(self) -> None:
+        command = preset_agent_command("cursor", "not-a-cursor-model", "narrativetrace-doctor")
+
+        assert "not-a-cursor-model" not in command
+        assert "--model" not in command
+
+    def test_the_executable_a_skip_line_names_is_agent_not_cursor(self) -> None:
+        assert cli_tool("cursor") == "agent"
+
+    @pytest.mark.parametrize("platform", ["claude", "codex"])
+    def test_the_other_lanes_executable_is_their_own_name(self, platform: str) -> None:
+        assert cli_tool(platform) == platform  # type: ignore[arg-type]
+
+    def test_has_neither_half_of_a_multi_turn_conversation(self) -> None:
+        assert preset_first_turn_command("cursor", "auto", "s") is None
+        assert preset_resumed_turn_command("cursor", "auto", "s") is None
 
 
 class TestMultiTurnPresets:

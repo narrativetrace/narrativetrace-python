@@ -27,7 +27,6 @@ from narrativetrace_tooling.init import adoption, marked_block, provenance
 from narrativetrace_tooling.init.action import (
     Action,
     AdoptPage,
-    AppendBlock,
     AppendLine,
     CreateFile,
     FileEdit,
@@ -40,12 +39,14 @@ from narrativetrace_tooling.init.carrier import Carrier
 from narrativetrace_tooling.init.catalogue import SkillEntry, SkillFlavour
 from narrativetrace_tooling.init.options import InitOptions, Vendor
 from narrativetrace_tooling.init.plan import InitPlan
+from narrativetrace_tooling.init.pointer_planner import plan_pointers
 from narrativetrace_tooling.init.project_state import (
     PAGE,
     InstalledSkill,
     Presence,
     ProjectState,
 )
+from narrativetrace_tooling.init.section_edit import block_action, managed_home, unfinished_fence
 
 AGENTS_MD: Final = Path("AGENTS.md")
 """The managed home, the one file the section is ever written into."""
@@ -66,6 +67,7 @@ def plan_init(state: ProjectState, carrier: Carrier, options: InitOptions) -> In
         actions += _skill_actions(state, carrier, options)
     if options.scope.includes_agents_md:
         actions += _agents_md_actions(state, carrier, options)
+        actions += plan_pointers(state, carrier, options)
     return InitPlan(carrier.coordinate, options.dry_run, _without_no_ops(actions))
 
 
@@ -92,7 +94,7 @@ def _writable_flavours(
     """
     refusals: list[Action] = []
     writable: list[SkillFlavour] = []
-    for flavour in _flavours(state, options):
+    for flavour in _flavours(options):
         target = state.linked_install_root(flavour)
         if target is None:
             writable.append(flavour)
@@ -110,12 +112,19 @@ def _refuse_linked_root(flavour: SkillFlavour, target: str) -> Refuse:
     )
 
 
-def _flavours(state: ProjectState, options: InitOptions) -> tuple[SkillFlavour, ...]:
-    """Which flavours this project gets: the open standard always, the vendor one where the project
-    looks like that vendor's — or wherever the caller overrode the detection."""
-    detected = state.claude_directory or state.claude_md is not None
-    vendor = {Vendor.ON: True, Vendor.OFF: False, Vendor.AUTO: detected}[options.vendor_claude]
-    return (SkillFlavour.AGENTS, SkillFlavour.CLAUDE) if vendor else (SkillFlavour.AGENTS,)
+def _flavours(options: InitOptions) -> tuple[SkillFlavour, ...]:
+    """Which flavours this project gets: the open standard always, the vendor one too unless the
+    caller turned it off.
+
+    INTENT: Claude Code loads project skills from ``.claude/skills`` only — never from
+    ``.agents/skills`` — so a vendor flavour written only where a ``.claude/`` directory or a
+    ``CLAUDE.md`` already existed left a fresh project's skills invisible to the agent the published
+    prompt runs from, while the doctor reported them installed. Cursor and GitHub Copilot read
+    ``.claude/skills`` too; ``Vendor.OFF`` is the opt-out.
+    """
+    if options.vendor_claude is Vendor.OFF:
+        return (SkillFlavour.AGENTS,)
+    return (SkillFlavour.AGENTS, SkillFlavour.CLAUDE)
 
 
 def _skill_action(
@@ -219,42 +228,14 @@ def _agents_md_actions(state: ProjectState, carrier: Carrier, options: InitOptio
     if claude_md is not None:
         actions.append(claude_md)
     actions += [
-        _block_action(Path(path), text, block, may_write_existing=False)
+        block_action(Path(path), text, block, may_write_existing=False)
         for path, text in state.marked_rule_files.items()
     ]
     return actions
 
 
 def _agents_md_action(state: ProjectState, block: str, options: InitOptions) -> Action:
-    if state.agents_md is None:
-        return CreateFile(AGENTS_MD, marked_block.CREATED_NOTE + "\n" + block)
-    return _block_action(
-        AGENTS_MD, state.agents_md, block, may_write_existing=options.write_existing
-    )
-
-
-def _block_action(path: Path, text: str, block: str, *, may_write_existing: bool) -> Action:
-    """The same decision for any file that may carry the section: our home and the rule files."""
-    scan = marked_block.scan(text)
-    if scan.problems:
-        return Refuse(path, f"{path}: {'; '.join(scan.problems)}")
-    if len(scan.regions) > 1:
-        at = ", ".join(f"line {region.start_line}" for region in scan.regions)
-        return Refuse(
-            path, f"{path} carries two or more NarrativeTrace sections ({at}) — leave exactly one"
-        )
-    matched = marked_block.with_eol(block, marked_block.eol_of(text))
-    if len(scan.regions) == 1:
-        return ReplaceBlock(path, text, marked_block.replace(text, scan.regions[0], matched))
-    if not may_write_existing:
-        return Refuse(
-            path,
-            f"{path} exists and carries no NarrativeTrace section — re-run with --write-existing"
-            " to append one",
-        )
-    if marked_block.ends_inside_fence(text):
-        return Refuse(path, _unfinished_fence(path))
-    return AppendBlock(path, text, matched)
+    return managed_home(AGENTS_MD, state.agents_md, block, options)
 
 
 def _claude_md_action(state: ProjectState, options: InitOptions) -> Action | None:
@@ -269,18 +250,8 @@ def _claude_md_action(state: ProjectState, options: InitOptions) -> Action | Non
             " to add the one-line import",
         )
     if marked_block.ends_inside_fence(text):
-        return Refuse(CLAUDE_MD, _unfinished_fence(CLAUDE_MD))
+        return Refuse(CLAUDE_MD, unfinished_fence(CLAUDE_MD))
     return AppendLine(CLAUDE_MD, text, IMPORT_LINE)
-
-
-def _unfinished_fence(path: Path) -> str:
-    """A file that ends inside an unfinished fenced code block cannot be appended to: whatever is
-    added lands inside that fence, invisible to this installer's own markers and to every Markdown
-    reader, so the next run would add it again."""
-    return (
-        f"{path} ends inside an unfinished fenced code block — close the fence, and anything"
-        " appended after it will be read as text rather than as code"
-    )
 
 
 def _without_no_ops(actions: list[Action]) -> tuple[Action, ...]:

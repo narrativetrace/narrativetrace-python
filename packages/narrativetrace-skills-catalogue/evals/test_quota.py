@@ -15,6 +15,7 @@ from quota import (
     check_quota,
     iso_week,
     parse_quota_markdown,
+    skip_reason,
     spend_count_this_week,
 )
 
@@ -25,7 +26,7 @@ _SAMPLE_MARKDOWN = """# Sporadic eval quota
 | platform | plan tier | weekly allowance |
 |---|---|---|
 | codex | basic | 4 |
-| gemini | not installed | 0 |
+| antigravity | not installed | 0 |
 
 ## Spend log
 
@@ -49,7 +50,7 @@ class TestParseQuotaMarkdown:
         ledger = parse_quota_markdown(_SAMPLE_MARKDOWN)
         assert ledger.allowances == (
             QuotaAllowance(platform="codex", plan_tier="basic", weekly_allowance=4),
-            QuotaAllowance(platform="gemini", plan_tier="not installed", weekly_allowance=0),
+            QuotaAllowance(platform="antigravity", plan_tier="not installed", weekly_allowance=0),
         )
 
     def test_parses_spend_rows(self) -> None:
@@ -102,9 +103,9 @@ class TestCheckQuota:
         assert decision.allowed is False
         assert decision.reason is not None and "no override" in decision.reason
 
-    def test_gemini_at_zero_allowance_always_refuses(self) -> None:
+    def test_antigravity_at_zero_allowance_always_refuses(self) -> None:
         ledger = parse_quota_markdown(_SAMPLE_MARKDOWN)
-        decision = check_quota(ledger, "gemini", now=date(2026, 9, 7))
+        decision = check_quota(ledger, "antigravity", now=date(2026, 9, 7))
         assert decision.allowed is False
 
 
@@ -132,3 +133,47 @@ class TestAppendSpendRow:
         append_spend_row(quota_path, row)
         ledger = parse_quota_markdown(quota_path.read_text(encoding="utf-8"))
         assert row in ledger.spend
+
+
+class TestSkipReason:
+    """A zero allowance row is the owner's own "the CLI is not installed or signed in yet", so the
+    lane skips and the run stays green. A MISSING row, a spent allowance and a non-sporadic lane
+    are not that state."""
+
+    def test_a_zero_allowance_skips_with_one_line_naming_the_tool(self) -> None:
+        ledger = parse_quota_markdown(_SAMPLE_MARKDOWN)
+
+        assert skip_reason("antigravity", ledger) == (
+            "SKIP: the antigravity lane did not run — its `agy` CLI is not installed or signed in"
+            " (weekly allowance 0 in ledger/quota.md); the owner raises the allowance once it is"
+        )
+
+    def test_cursors_skip_line_names_the_agent_executable_not_the_lane(self) -> None:
+        allowance = QuotaAllowance(platform="cursor", plan_tier="not installed", weekly_allowance=0)
+
+        line = skip_reason("cursor", QuotaLedger(allowances=(allowance,), spend=()))
+
+        assert line is not None
+        assert line.startswith("SKIP: the cursor lane did not run — its `agent` CLI")
+
+    def test_the_line_is_one_line(self) -> None:
+        ledger = parse_quota_markdown(_SAMPLE_MARKDOWN)
+
+        assert "\n" not in (skip_reason("antigravity", ledger) or "\n")
+
+    def test_a_lane_with_allowance_left_does_not_skip(self) -> None:
+        assert skip_reason("codex", parse_quota_markdown(_SAMPLE_MARKDOWN)) is None
+
+    def test_a_missing_row_is_a_refusal_and_not_a_skip(self) -> None:
+        assert skip_reason("cursor", QuotaLedger(allowances=(), spend=())) is None
+
+    def test_a_spent_allowance_is_a_refusal_and_not_a_skip(self) -> None:
+        allowance = QuotaAllowance(platform="codex", plan_tier="basic", weekly_allowance=1)
+        spend = (QuotaSpendRow("2026-09-07", "codex", "s", "c", "2026-W37"),)
+
+        assert skip_reason("codex", QuotaLedger(allowances=(allowance,), spend=spend)) is None
+
+    def test_the_claude_lane_is_exempt_even_with_a_zero_row(self) -> None:
+        allowance = QuotaAllowance(platform="claude", plan_tier="n/a", weekly_allowance=0)
+
+        assert skip_reason("claude", QuotaLedger(allowances=(allowance,), spend=())) is None

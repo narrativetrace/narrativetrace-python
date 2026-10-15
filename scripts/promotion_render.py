@@ -25,7 +25,12 @@ _LEDGER_DIR = REPO_ROOT / "packages" / "narrativetrace-skills-catalogue" / "ledg
 _RUNS_PATH = _LEDGER_DIR / "runs.jsonl"
 _PROMOTION_PATH = _LEDGER_DIR / "promotion.md"
 
-_PLATFORM_COLUMNS = (("claude", "Claude"), ("codex", "Codex"), ("gemini", "Gemini"))
+_PLATFORM_COLUMNS = (
+    ("claude", "Claude"),
+    ("codex", "Codex"),
+    ("antigravity", "Antigravity"),
+    ("cursor", "Cursor"),
+)
 
 
 @dataclass(frozen=True, slots=True)

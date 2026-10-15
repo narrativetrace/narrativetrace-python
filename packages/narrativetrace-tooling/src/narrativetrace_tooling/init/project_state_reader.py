@@ -38,6 +38,7 @@ from narrativetrace_tooling.init.project_state import (
     Presence,
     ProjectState,
 )
+from narrativetrace_tooling.platforms import table as platform_table
 
 RULE_FILES: Final = (".cursorrules", ".github/copilot-instructions.md")
 """Vendor rule files whose existing managed block is kept up to date, never created."""
@@ -67,6 +68,7 @@ def read_project_state(
     if not project_directory.is_dir():
         raise ValueError(f"{project_directory} is not a directory")
     linked_roots = _linked_install_roots(project_directory)
+    pointer_files, behind_links = _pointer_files(project_directory)
     return ProjectState(
         agents_md=_text_of(project_directory / "AGENTS.md"),
         claude_md=_text_of(project_directory / "CLAUDE.md"),
@@ -74,6 +76,9 @@ def read_project_state(
         installed_skills=_installed_skills(project_directory, linked_roots, max_skill_directories),
         linked_install_roots=linked_roots,
         marked_rule_files=_marked_rule_files(project_directory),
+        detected_platforms=_detected_platforms(project_directory),
+        pointer_files=pointer_files,
+        pointers_behind_links=behind_links,
         output_directory=_output_directory(project_directory),
         uv_project=_is_uv_project(project_directory),
     )
@@ -204,6 +209,43 @@ def _marked_rule_files(project_directory: Path) -> dict[str, str]:
         if text is not None and _carries_markers(text):
             found[relative] = text
     return found
+
+
+def _detected_platforms(project_directory: Path) -> frozenset[str]:
+    """The platform rows whose marker path exists. Exact paths, looked up WITHOUT following a link:
+    a dangling link named ``.replit`` is still a ``.replit`` the user put there."""
+    return frozenset(
+        row.id
+        for row in platform_table.ROWS
+        if any(os.path.lexists(project_directory / marker) for marker in row.marker_paths)
+    )
+
+
+def _pointer_files(project_directory: Path) -> tuple[dict[str, str], frozenset[str]]:
+    """What each platform pointer file says now, and which pointer paths run through a link.
+
+    Every row with a pointer is read whether or not its platform is detected: an uninstall must find
+    what the installer wrote after the marker is gone. A path with a link anywhere along it is never
+    read, because nothing is ever written through one.
+    """
+    files: dict[str, str] = {}
+    linked: set[str] = set()
+    for pointer in (row.pointer.path for row in platform_table.ROWS if row.pointer.path):
+        if _behind_link(project_directory, pointer):
+            linked.add(pointer)
+        elif (text := _text_of(project_directory / pointer)) is not None:
+            files[pointer] = text
+    return files, frozenset(linked)
+
+
+def _behind_link(project_directory: Path, relative: str) -> bool:
+    """Whether the path, or any directory above it, is a symbolic link."""
+    walked = project_directory
+    for part in Path(relative).parts:
+        walked = walked / part
+        if walked.is_symlink():
+            return True
+    return False
 
 
 def _carries_markers(text: str) -> bool:

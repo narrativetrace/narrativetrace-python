@@ -13,6 +13,7 @@ from collections.abc import Mapping
 import pytest
 
 from narrativetrace_tooling.doctor.types import DoctorSnapshot, PackageInfo
+from narrativetrace_tooling.init.pointer_reading import PointerReading
 from narrativetrace_tooling.init.project_state import InstalledSkill
 
 
@@ -31,6 +32,7 @@ def make_snapshot():
         installed_packages: Mapping[str, PackageInfo] | None = None,
         pytest11_entry_points: Mapping[str, str] | None = None,
         installed_skills: tuple[InstalledSkill, ...] | None = None,
+        pointer_readings: tuple[PointerReading, ...] | None = None,
         catalogue_skill_names: tuple[str, ...] | None = None,
         narrativetrace_version: str | None = None,
     ) -> DoctorSnapshot:
@@ -46,6 +48,7 @@ def make_snapshot():
             installed_packages=installed_packages or {},
             pytest11_entry_points=pytest11_entry_points or {},
             installed_skills=installed_skills or (),
+            pointer_readings=pointer_readings or (),
             catalogue_skill_names=catalogue_skill_names or (),
             narrativetrace_version=narrativetrace_version,
         )

@@ -196,6 +196,28 @@ class TestBuildSnapshotAgentSkills:
         snapshot = build_snapshot(str(tmp_path), {})
         assert snapshot.installed_skills == ()
 
+    def test_a_cursor_project_without_its_rule_reads_the_pointer_as_absent(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / ".cursor").mkdir()
+
+        readings = build_snapshot(str(tmp_path), {}).pointer_readings
+
+        assert [(r.platform_id, r.status.value) for r in readings] == [("cursor", "absent")]
+
+    def test_a_project_on_no_platform_has_no_pointer_readings(self, tmp_path: Path) -> None:
+        assert build_snapshot(str(tmp_path), {}).pointer_readings == ()
+
+    def test_a_broken_project_state_read_leaves_pointer_readings_empty_not_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _raises(*_args: object, **_kwargs: object) -> None:
+            raise ValueError("simulated unreadable project")
+
+        monkeypatch.setattr(environment, "read_project_state", _raises)
+
+        assert build_snapshot(str(tmp_path), {}).pointer_readings == ()
+
     def test_catalogue_skill_names_reflects_the_real_bundled_carrier(self, tmp_path: Path) -> None:
         snapshot = build_snapshot(str(tmp_path), {})
         assert "narrativetrace-doctor" in snapshot.catalogue_skill_names

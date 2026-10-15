@@ -1,0 +1,8 @@
+{
+  "fixture": "packages/narrativetrace-skills-catalogue/evals/fixtures/empty-project",
+  "turns": {
+    "2": "The diff looks right. Run it for real, then finish the steps.",
+    "3": "Is NarrativeTrace wired up correctly in this project? Check the install."
+  },
+  "freshTurns": [3]
+}

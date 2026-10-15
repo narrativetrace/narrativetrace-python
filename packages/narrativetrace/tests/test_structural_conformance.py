@@ -98,9 +98,10 @@ _SPEC = REPO_ROOT / "documentation" / "structural-trace-format.md"
 
 
 def _published_example() -> str:
-    """The first fenced block under the spec's ``## Content`` heading."""
+    """The first fenced block under the spec's ``## Content`` heading (a ``text`` block: every
+    indexed fence carries a language tag, `scripts/context7_check.py`)."""
     content = _SPEC.read_text(encoding="utf-8").split("## Content", 1)[1]
-    return content.split("```\n", 2)[1]
+    return content.split("```text\n", 1)[1].split("```\n", 1)[0]
 
 
 def _weekend_trip() -> TraceTree:

@@ -22,7 +22,20 @@ em inglês por convenção e não fazem parte do conjunto traduzido de nenhum id
 | [O que commitar](pt-BR/o-que-commitar.md) | Quais arquivos gerados são artefatos de CI, e quais (se algum) são baselines revisadas |
 | [Formato de trace estrutural](pt-BR/formato-de-trace-estrutural.md) | O artefato `.nt` livre de valores: gramática, nomeação por invocação, baseline verde, modo de aprovação |
 | [Habilidades do agente](pt-BR/habilidades-do-agente.md) | `narrativetrace-doctor` e `add-narrative-tracing` — procedimentos carregáveis por um agente sobre a CLI testada |
+| [Use o NarrativeTrace com o seu agente](pt-BR/usa-o-narrativetrace-com-seu-agente.md) | Por plataforma — Cursor, Replit, Antigravity, GitHub Copilot, Claude Code — como as habilidades chegam a um projeto, qual arquivo de aviso o `init` escreve e o que o agente encontra |
 | [Solução de problemas](pt-BR/solucao-de-problemas.md) | Sintoma → causa → correção para os modos de falha que as pessoas realmente encontram |
+
+## Receitas
+
+Uma página por problema, com as palavras que um usuário digitaria — cada uma traz o código do seu cenário e a saída real de uma execução que este build realiza.
+
+| Documento | O que cobre |
+|---|---|
+| [Adicione logs a este serviço](pt-BR/adicione-logs-a-este-servico.md) | Um checkout sem nenhum comando de log: envolva seus colaboradores uma vez e cada chamada aparece na sua própria saída de `logging` |
+| [Ajude-me a depurar e corrigir este bug](pt-BR/ajude-me-a-depurar-e-corrigir-este-bug.md) | Um cartão recusado deixa o estoque reservado: a narrativa que falha, a correção e o trace aprovado que a fixa |
+| [Por que este teste falhou](pt-BR/por-que-este-teste-falhou.md) | Um teste vermelho lido span por span contra a sua asserção — aqui o desatualizado é a expectativa |
+| [Revise um fluxo complexo antes de alterá-lo](pt-BR/revise-um-fluxo-complexo-antes-de-altera-lo.md) | Uma execução em `DETAIL` e em `SUMMARY`, a linha de log ao lado do `.nt` sem valores |
+| [Revise uma refatoração: o comportamento mudou?](pt-BR/revise-uma-refatoracao-o-comportamento-mudou.md) | Os testes continuam verdes, o diff de aprovação nomeia a chamada removida |
 
 ## Integrações
 

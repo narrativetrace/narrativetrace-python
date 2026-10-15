@@ -101,6 +101,18 @@ def test_deny_listed_parameter_is_redacted(narrative_trace):
 
 Run: `uv run pytest`. Expected: `1 passed`.
 
+## Runtime support
+
+- **Python ≥ 3.12** — every package in the family declares `requires-python = ">=3.12"`. CI builds and tests on Python 3.12 only; newer interpreters are expected to work but nothing here runs them.
+- **The core (`narrativetrace`) has no third-party dependency.** It is pure Python on the standard library (`contextvars`, `threading`, `asyncio`, `logging`, `tomllib`), so it needs a CPython-compatible interpreter with those modules. It is not built or tested for browser, WebAssembly or other restricted runtimes.
+- **ASGI middleware** (`narrativetrace-asgi`) is for ASGI apps — Starlette and FastAPI. Its tests drive Starlette (≥ 0.37) and FastAPI (≥ 0.110) through Starlette's test client and `httpx`; no ASGI server is started by the test suite or CI (`examples/fastapi_service` documents running under uvicorn), so running under one is expected to work, not tested. It traces `http` requests only; any other scope type passes through untouched. Neither Starlette nor FastAPI is a dependency of the package — you bring your own.
+- **Not for:** Flask, Django or any WSGI app — no integration ships for them (the doctor lists both as "no integration shipped").
+- **Server-safe vs test-only:** `narrativetrace`, `narrativetrace-asgi`, `narrativetrace-otel` (needs `opentelemetry-api` ≥ 1.20), `narrativetrace-structlog` (pulls in `structlog` ≥ 24) and `narrativetrace-diagrams` import nothing test-only. `narrativetrace-pytest` imports `pytest` (≥ 8) and belongs in dev dependencies, never in a deployed image — `uv add --dev pytest narrativetrace-pytest`. `narrativetrace-clarity` and `narrativetrace-glossary` are build-time analysis tools (the clarity gate, the glossary scan), not request-path code.
+
+## Packaging: one version for every package
+
+The family's packages declare each other by bare name, with no version constraint — `narrativetrace-asgi` depends on `narrativetrace`, `narrativetrace-pytest` on `narrativetrace`, `narrativetrace-diagrams`, `narrativetrace-clarity` and `narrativetrace-glossary` — and they are released together at one version. So nothing in the metadata stops a resolver pairing a newer package with an older sibling that a lockfile or another dependency holds back. Install every `narrativetrace-*` package at one version (pin them to the same one if your lockfile would otherwise drift); `uv run narrativetrace doctor` fails when the installed ones disagree.
+
 ## Before you start
 
 - One `LoggingTraceConsumer` per event stream: each instance counts its own depth, so a second one on the same events still reports correctly — it is simply needless (add `logging.Handler`s instead).
@@ -115,9 +127,57 @@ Run: `uv run pytest`. Expected: `1 passed`.
 - The run has a name: one id per pytest session, its three-word phrase in the suite footer, `manifest.json`'s top-level `run` object, every trace document's frontmatter, and the logging bridge's `runName` key — never in the structural `.nt` text (see [Configuration Guide § The run has a name](guides/configuration.md#the-run-has-a-name)).
 - Importing `not_traced` or `narrated` protects nothing by itself — apply each to a real parameter/field/method and prove it with `assert "[REDACTED]" in rendered`; `uv run narrativetrace doctor` catches the unapplied-marker shape of this (`trap.silent-sink`, `trap.redaction-proof`) — see [Privacy and Redaction § You imported this — apply it like this](privacy-and-redaction.md#you-imported-this--apply-it-like-this).
 
+## Privacy and redaction
+
+Redaction is on by default and needs no configuration; the full contract is [Privacy and Redaction](privacy-and-redaction.md).
+
+- **By name:** a case- and accent-insensitive deny-list over parameter and field names, multilingual — English, Spanish, Portuguese, French, German and Chinese, including `rut`, `dni` and `cpf` — with no locale to select. `pan`, `iban` and a few short non-English words match whole identifier tokens only, so `companyName` is not swept in.
+- **By value shape:** a JWT, a `Set-Cookie` string, a card-number-shaped digit run, or a national identity number that passes its own checksum (Chilean RUT, Brazilian CPF/CNPJ, Spanish DNI/NIE, French NIR, Chinese resident id, US SSN) is redacted under any parameter name.
+- **By marker:** `@not_traced("param")`, `not_traced_field(...)` or `__nt_not_traced__` always redacts, and wins over the deny-list and over `@narrated` templates. Importing the marker protects nothing — apply it to the real parameter or field and assert `[REDACTED]` in a test.
+- **No off switch in the integrations:** the pytest plugin, the ASGI middleware, the OpenTelemetry bridge, the structlog processor and the logging bridge expose no flag, environment variable or setting that disables redaction. The only way to switch it off is application code that builds its own `ValueRenderer` with `RedactionPolicy.DISABLED`.
+
+## Tracing a request in production
+
+The test-centric path above stays; this is the server path, with `narrativetrace-asgi` (`uv add narrativetrace-asgi`; module `narrativetrace_asgi`) on a Starlette or FastAPI app.
+
+- **Per-request context:** build one `ContextVarNarrativeContext()` at start-up and hand it to `app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=...)`. The context keeps its stack in a `contextvars.ContextVar`, so concurrent requests and the tasks and threads they start never see each other's spans. Inside a request, `get_narrative_context()` returns that context — and `None` outside one, so guard for it in code that also runs outside a request.
+- **Where the trace is captured:** at the request boundary. The middleware calls `context.reset()` before the app runs, stamps the method, route, client address and any identity your `user_resolver` returns, adopts an inbound W3C `traceparent` (switch off with `adopt_traceparent=False`), runs the app, then in a `finally` calls `context.capture_trace()` and passes the tree and the real status code and duration to your exporter. A handler that raises still exports, with status 500, and its exception propagates unchanged.
+- **Reset and cleanup:** the middleware resets the context again after the export, even when the exporter or the capture raised. Your code never calls `reset()` for a request; an empty tree is not exported, and `excluded_paths` (health checks, say) skip tracing entirely.
+- **Never fails the request:** a throwing exporter, user resolver or context is swallowed — observability cannot change the response.
+- **Exporters:** an exporter is any object with `export(tree, request_context)`. For logs, call `export_to_logger(tree)` (core `narrativetrace`, stdlib `logging`) inside it; for structlog add `narrative_context_processor` from `narrativetrace_structlog` (`narrativetrace-structlog`). For OpenTelemetry (`narrativetrace-otel`, module `narrativetrace_otel`), call `TraceSpanExporter(tracer).export(tree.roots)` from the exporter to publish the finished tree as nested spans, or attach `OtelTraceEventListener(tracer)` for a span per event as it happens. Wiring snippet, tested with FastAPI:
+
+<!-- snippet: packages/narrativetrace-asgi/tests/asgi_wiring.py region=wiring -->
+```python
+from fastapi import FastAPI
+from narrativetrace_asgi import NarrativeTraceMiddleware, RequestContext
+
+from narrativetrace import ContextVarNarrativeContext, IndentedTextRenderer, TraceTree, trace_object
+
+
+class PrintingExporter:
+    """Receives each request's trace at the request boundary; swap in your own sink."""
+
+    def export(self, tree: TraceTree, request_context: RequestContext) -> None:
+        print(IndentedTextRenderer().render(tree), flush=True)
+
+
+context = ContextVarNarrativeContext()
+app = FastAPI()
+app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=PrintingExporter())
+
+
+@app.get("/orders/{customer_id}")
+def place_order(customer_id: str) -> dict[str, str]:
+    service = trace_object(OrderService(), context)
+    return {"order": service.place_order(customer_id, "prod-42")}
+```
+<!-- /snippet -->
+
+Guides: [FastAPI / ASGI](guides/fastapi-asgi.md), [Logging, structlog & Loguru](guides/logging.md), [OpenTelemetry](guides/opentelemetry.md).
+
 ## Agent skills
 
-Six skills ship with the packages. `uv run narrativetrace init --dry-run` installs them (see "The doctor" below and [Agent Skills](agent-skills.md)); copying the rendered pages by hand into `.claude/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug}/` or `.agents/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug}/` (Codex CLI) still works, and the always-on `AGENTS.md` pointer names them either way.
+Seven skills ship with the packages. `uv run narrativetrace init --dry-run` installs them into `.agents/skills/` and `.claude/skills/` (the directory Claude Code loads; see "The doctor" below and [Agent Skills](agent-skills.md)); copying the rendered pages by hand into `.claude/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug,narrativetrace-explain}/` or `.agents/skills/{add-narrative-tracing,narrativetrace-doctor,narrativetrace-feedback,add-narrativetrace-clarity,narrativetrace-verify,narrativetrace-debug,narrativetrace-explain}/` (Codex CLI) still works, and the always-on `AGENTS.md` pointer names them either way. Each platform's install path (Cursor, Replit, Antigravity, GitHub Copilot, Claude Code), what its agent finds, and the small pointer file `init` writes for it are in [Use NarrativeTrace with your agent](use-with-your-agent.md).
 
 They are also reachable from two registries, each landing the same pages `init` then adopts. The Claude Code plugin marketplace carries them too: `/plugin marketplace add narrativetrace/narrativetrace-python`, then `/plugin install narrativetrace-python@narrativetrace-python` — then run `uv run narrativetrace init --dry-run`, read the diff, and run it without the flag so `AGENTS.md` points at them. `npx skills add narrativetrace/narrativetrace-python` installs the open-standard pages directly into the project — then run `uv run narrativetrace init --dry-run`, read the diff, and run it without the flag so `AGENTS.md` points at them.
 
@@ -127,6 +187,7 @@ They are also reachable from two registries, each landing the same pages `init` 
 - `add-narrativetrace-clarity` — Adds or verifies NarrativeTrace Clarity in a Python project. Use when you want a first naming report, per-element suggestions, or an explicit clarity quality gate. Installs narrativetrace-clarity with uv add --dev, runs the real scan over your packages, checks the report is fresh and scored at least one class, renames what it flags, and re-runs until the gate is clean, preserving any thresholds you already have. Tracing itself being broken goes to narrativetrace-doctor.
 - `narrativetrace-verify` — Verifies a change by reading what the code actually did before saying it is done: decides first whether the change is worth tracing (and says so when it is not), writes the intent down before the run, runs the smallest real path, reads the value-free structural trace (`.nt`) against the intent, opens values only on the span that looks wrong, fixes and re-reads, pins the flow as an `.approved.nt` baseline behind your yes, and reports what the trace showed citing span ids (`#2.1`). Say 'verify this change with the trace' or 'check what the code actually did'.
 - `narrativetrace-debug` — Finds the cause of a wrong result by reading what the code did with the values: reproduces the symptom with the smallest input and tracing on (the sequence diagram first across threads or tasks), names by span id the first span whose inputs are right and whose result is wrong before changing any code, narrows to that span's sub-tree, fixes it there and checks the structural trace shows nothing else moved, keeps the reproduction as a regression test pinned as an `.approved.nt` behind your yes, and reports the root cause by span id — handing a defect in NarrativeTrace itself to `narrativetrace-feedback`. Say 'debug this with the trace' or 'find where this value goes wrong'.
+- `narrativetrace-explain` — Explains what an application actually does by running one scenario and reading its trace, when nothing is broken and no change is pending: decides first whether the source already answers it (a pure function or a path ten lines settle is answered from the source, with no install and no run), otherwise chooses one existing test or entry point for the flow (installing through `add-narrative-tracing` when the project has none), runs it as found, reads the value-free structural trace in the order it ran, opens values only where the question needs one, and explains the run citing span ids (`#1.2`), marking every inference and naming the code no span covered — handing a defect to `narrativetrace-debug` and a change to `narrativetrace-verify`. Say 'show me what my application actually does' or 'what does this endpoint call'.
 
 ## The doctor
 
@@ -184,6 +245,17 @@ We asked AI agents to build a claims service with NarrativeTrace and write up th
 - [OpenTelemetry](guides/opentelemetry.md)
 - [Clarity](guides/clarity.md)
 - [Agent Skills](agent-skills.md) — see [Agent skills](#agent-skills) above
+- [Use NarrativeTrace with your agent](use-with-your-agent.md) — per-platform install paths and pointer files, see [Agent skills](#agent-skills) above
+
+## Recipes
+
+One page per problem, in the words a user would type. Each page carries its scenario's code and the real output of a run this build performs — nothing on a recipe page is typed by hand.
+
+- [Add logging to this service](recipes/add-logging-to-this-service.md) — a checkout with no log statement: wrap its collaborators once and every call, with its parameter names and its result, appears in the project's own `logging` output.
+- [Help me debug and fix this bug](recipes/help-me-debug-and-fix-this-bug.md) — a declined card leaves the stock reserved: the failing run's narrative shows `reserve`, then `charge` raising, then nothing, and the fix and the approved trace that pins it.
+- [Why did this test fail](recipes/why-did-this-test-fail.md) — a red checkout test read span by span against the assertion, where every span agrees with every other and the expectation is what is stale.
+- [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) — one run at `DETAIL` and at `SUMMARY`, with the log line that carries values beside the value-free `.nt` an agent reads.
+- [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) — the tests stay green, the approval diff names the dropped call, and `uv run poe approve` is how you say yes.
 
 ## Examples
 

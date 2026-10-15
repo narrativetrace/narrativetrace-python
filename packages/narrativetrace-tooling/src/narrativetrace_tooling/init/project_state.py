@@ -21,6 +21,7 @@ and all. The planners' edits are expressed against exactly these bytes.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from pathlib import Path
@@ -28,6 +29,7 @@ from types import MappingProxyType
 from typing import Final
 
 from narrativetrace_tooling.init.catalogue import SkillFlavour
+from narrativetrace_tooling.platforms import table as platform_table
 
 DEFAULT_OUTPUT_DIRECTORY: Final = "narrative-traces"
 """Where rendered traces land when a project says nothing else — the runtime's own default."""
@@ -154,6 +156,13 @@ class ProjectState:
         present or not, would land wherever the link goes
     :param marked_rule_files: vendor rule files that ALREADY carry our markers, by project-relative
         path. The installer never creates one of these; it keeps an existing block up to date.
+    :param detected_platforms: the ids of the platform-table rows whose marker the project carries
+        (``.cursor/``, ``replit.md``, …), read by exact path — a near miss such as ``.cursorx/``
+        proves nothing
+    :param pointer_files: an existing platform pointer file, byte for byte, by project-relative
+        path; a path behind a symbolic link is never here
+    :param pointers_behind_links: the pointer paths that run through a symbolic link, at the file or
+        at a directory above it — nothing is read or written through one
     :param output_directory: where this project's rendered traces land, detected or
         :data:`DEFAULT_OUTPUT_DIRECTORY`
     :param uv_project: whether commands should be spelled ``uv run narrativetrace …``
@@ -165,6 +174,9 @@ class ProjectState:
     installed_skills: tuple[InstalledSkill, ...] = ()
     linked_install_roots: Mapping[SkillFlavour, str] = field(default_factory=dict)
     marked_rule_files: Mapping[str, str] = field(default_factory=dict)
+    detected_platforms: AbstractSet[str] = frozenset()
+    pointer_files: Mapping[str, str] = field(default_factory=dict)
+    pointers_behind_links: AbstractSet[str] = frozenset()
     output_directory: str = DEFAULT_OUTPUT_DIRECTORY
     uv_project: bool = False
 
@@ -176,6 +188,7 @@ class ProjectState:
         object.__setattr__(
             self, "marked_rule_files", MappingProxyType(dict(self.marked_rule_files))
         )
+        _freeze_platform_facts(self)
         if not isinstance(self.output_directory, str) or not self.output_directory.strip():
             raise ValueError("a project state names where traces land, even if only by default")
         assert _invariant(self), "a project state must describe one path once"
@@ -194,6 +207,21 @@ class ProjectState:
     def linked_install_root(self, flavour: SkillFlavour) -> str | None:
         """What this flavour's install root points at when the root is a link, else ``None``."""
         return self.linked_install_roots.get(flavour)
+
+
+def _freeze_platform_facts(state: ProjectState) -> None:
+    """Immutable copies of the platform facts, refusing what no row could have produced."""
+    unknown = sorted(set(state.detected_platforms) - {r.id for r in platform_table.ROWS})
+    if unknown:
+        raise ValueError(f"detected platforms must be rows of the platform table, got {unknown}")
+    if not all(isinstance(text, str) for text in state.pointer_files.values()):
+        raise TypeError("a pointer file's text is a string; absence is a missing key")
+    both = sorted(set(state.pointer_files) & set(state.pointers_behind_links))
+    if both:
+        raise ValueError(f"{both} is read and behind a link at once — nothing is read through one")
+    object.__setattr__(state, "detected_platforms", frozenset(state.detected_platforms))
+    object.__setattr__(state, "pointer_files", MappingProxyType(dict(state.pointer_files)))
+    object.__setattr__(state, "pointers_behind_links", frozenset(state.pointers_behind_links))
 
 
 def _invariant(state: ProjectState) -> bool:

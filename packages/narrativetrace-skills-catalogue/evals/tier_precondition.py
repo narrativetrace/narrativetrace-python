@@ -36,7 +36,7 @@ def assert_deterministic_tiers_green(repo_root: str, run: RunCommand = run_comma
     except Exception as error:
         raise RuntimeError(
             "Tier A lints / Tier A2 replay are not green at HEAD for "
-            "narrativetrace-skills-catalogue -- a sporadic-lane (codex/gemini) trial refuses to "
-            "start on top of a known defect. Fix packages/narrativetrace-skills-catalogue's own "
-            "tests before spending quota here."
+            "narrativetrace-skills-catalogue -- a sporadic-lane (codex/antigravity/cursor) trial "
+            "refuses to start on top of a known defect. Fix "
+            "packages/narrativetrace-skills-catalogue's own tests before spending quota here."
         ) from error

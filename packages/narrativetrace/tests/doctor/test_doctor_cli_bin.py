@@ -136,6 +136,31 @@ class TestRunCliDoctor:
         deps, _, _ = _deps(_snapshot(python_version="3.9.0"))
         assert run_cli(["doctor"], deps) == 1
 
+    def test_a_clean_report_exits_zero_in_both_renderings(self) -> None:
+        """ "Doctor green" is exit 0 everywhere (item 165): the verb's code is the verdict, never
+        only the JSON report's."""
+        source = {"tests/test_x.py": "assert '[REDACTED]' in out"}
+        for arguments in (["doctor"], ["doctor", "--json"]):
+            deps, logs, _ = _deps(_snapshot(source_files=source))
+
+            assert run_cli(arguments, deps) == 0
+            assert len(logs) == 1
+
+    def test_a_failing_finding_exits_one_after_the_report_is_written(self) -> None:
+        """A script reading the exit code as green on a failing finding was the 2026-10-10 defect:
+        the report goes out first, then the code says it failed -- in both renderings."""
+        human, human_logs, _ = _deps()
+        machine, machine_logs, _ = _deps()
+
+        assert run_cli(["doctor"], human) == 1
+        assert run_cli(["doctor", "--json"], machine) == 1
+
+        assert "trap.redaction-proof" in human_logs[0]
+        payload = json.loads(machine_logs[0])
+        assert payload["exit_code"] == 1
+        failing = [f["id"] for f in payload["findings"] if f["status"] == "fail"]
+        assert failing == ["trap.redaction-proof"]
+
 
 class TestMain:
     def test_main_runs_against_the_real_process_environment(self) -> None:

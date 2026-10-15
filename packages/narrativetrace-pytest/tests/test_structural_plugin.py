@@ -181,3 +181,68 @@ def test_approval_mode_rejects_a_changed_structure_with_a_readable_diff(
     changed.assert_outcomes(passed=1, errors=1)
     changed.stdout.fnmatch_lines(["*Structure changed against the approved trace*"])
     assert next(approved_dir.rglob("*.received.nt")).is_file()
+
+
+_CHECKOUT_COMMON = """
+from narrativetrace.trace_object import trace_object
+
+class Inventory:
+    def reserve(self, sku):
+        return True
+
+class Payment:
+    def charge(self, amount):
+        return "paid"
+
+class Orders:
+    def save(self, order_id):
+        return order_id
+
+class Checkout:
+    def __init__(self, inventory, payment, orders):
+        self.inventory, self.payment, self.orders = inventory, payment, orders
+
+    def place_order(self, sku):
+        self.inventory.reserve(sku)
+%s
+        return self.orders.save("ORD-1")
+
+def test_arithmetic_is_unaffected():
+    assert 1 + 1 == 2
+
+def test_place_order(narrative_trace):
+    checkout = Checkout(
+        trace_object(Inventory(), narrative_trace),
+        trace_object(Payment(), narrative_trace),
+        trace_object(Orders(), narrative_trace),
+    )
+    trace_object(checkout, narrative_trace).place_order("sku-1")
+"""
+_CHECKOUT_BASELINE_SOURCE = _CHECKOUT_COMMON % "        self.payment.charge(10)"
+_CHECKOUT_DROPPED_CHARGE_SOURCE = _CHECKOUT_COMMON % "        pass"
+
+
+def test_approval_mode_names_a_dropped_call_while_the_ordinary_tests_stay_green(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The recipe's refactoring-review shape: checkout reserves inventory, charges payment and
+    saves the order; a change drops the payment charge and the run must fail naming it."""
+    approved_dir = pytester.path / "approved"
+    monkeypatch.setenv("NARRATIVETRACE_APPROVAL", "true")
+    monkeypatch.setenv("NARRATIVETRACE_APPROVED_DIR", str(approved_dir))
+    pytester.makepyfile(_CHECKOUT_BASELINE_SOURCE)
+    pytester.runpytest_subprocess("-s").assert_outcomes(passed=2, errors=1)
+    received = next(approved_dir.rglob("*.received.nt"))
+    received.replace(received.with_name(received.name.replace(".received.nt", ".approved.nt")))
+    pytester.runpytest_subprocess("-s").assert_outcomes(passed=2)
+
+    pytester.makepyfile(_CHECKOUT_DROPPED_CHARGE_SOURCE)
+    dropped = pytester.runpytest_subprocess("-s")
+
+    dropped.assert_outcomes(passed=2, errors=1)
+    dropped.stdout.fnmatch_lines(
+        [
+            "*Structure changed against the approved trace (-1 call Payment.charge):*",
+            "*-  #1.2 - Payment.charge(amount) *",
+        ]
+    )

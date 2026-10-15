@@ -28,13 +28,8 @@ _EXTENSIONS = {
 
 _PATH_UNSAFE_SEPARATORS = frozenset("/\\")
 
-_PATH_UNSAFE_NONCHARACTERS = frozenset({0xFFFE, 0xFFFF})
-"""The two BMP noncharacters legal UTF-8 encodes but a real filesystem this library ships to can
-still refuse: macOS/APFS raises ``OSError: Illegal byte sequence`` from `mkdir`/`open` on a name
-carrying either one -- found running this port's own corpus locally, on the platform the shared
-Java spec repo's dev container never touches (release-retrospective rule 1: verification does not
-transfer across environments). The same two code points frontmatter's ``yaml_safe`` already
-escapes for the same reason, one layer up."""
+_NONCHARACTER_BLOCK = range(0xFDD0, 0xFDF0)
+"""The BMP block U+FDD0..U+FDEF: 32 of Unicode's 66 permanently unassigned code points."""
 
 _MAX_COMPONENT_BYTES = 255
 """The longest a single path element may be, in *bytes*: what ext4, XFS, APFS and NTFS all
@@ -61,6 +56,20 @@ never collide with an invocation's, and a reader (or a manifest consumer) can sp
 into method, index and label."""
 
 
+def _is_noncharacter(codepoint: int) -> bool:
+    """Unicode's 66 permanently unassigned code points: the last two of every plane (U+nFFFE,
+    U+nFFFF) and the BMP block U+FDD0..U+FDEF.
+
+    **@edgeCase** Legal UTF-8, so a byte-level check passes them; ext4 writes them and macOS/APFS
+    raises ``OSError: Illegal byte sequence`` from ``mkdir``/``open`` -- found running this port's
+    own corpus locally, on the platform the shared Java spec repo's dev container never touches
+    (release-retrospective rule 1: verification does not transfer across environments). The same
+    two BMP code points frontmatter's ``yaml_safe`` already escapes for the same reason, one layer
+    up. A supplementary one is ONE code point here, so it folds to ONE placeholder.
+    """
+    return (codepoint & 0xFFFE) == 0xFFFE or codepoint in _NONCHARACTER_BLOCK
+
+
 def _is_path_safe(char: str) -> bool:
     """A lone surrogate is refused for the same reason a control character is: it encodes to no
     well-formed UTF-8 bytes, so a filesystem call can raise or mis-encode before the file is ever
@@ -72,7 +81,7 @@ def _is_path_safe(char: str) -> bool:
     return (
         not is_control
         and not is_surrogate
-        and codepoint not in _PATH_UNSAFE_NONCHARACTERS
+        and not _is_noncharacter(codepoint)
         and char not in _PATH_UNSAFE_SEPARATORS
     )
 

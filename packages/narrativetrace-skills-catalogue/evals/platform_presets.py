@@ -2,7 +2,7 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Tier B platform presets: fills ``run.py``'s ``--agent-command`` seam for each of the three
+"""Tier B platform presets: fills ``run.py``'s ``--agent-command`` seam for each of the four
 supported CLIs so a trial can be started with just ``--platform`` — never invented for a platform
 the seam doesn't name, and always overridable by passing ``--agent-command`` explicitly (the
 preset is a default, not a lock-in).
@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-Platform = Literal["claude", "codex", "gemini"]
-PLATFORMS: tuple[Platform, ...] = ("claude", "codex", "gemini")
+Platform = Literal["claude", "codex", "antigravity", "cursor"]
+PLATFORMS: tuple[Platform, ...] = ("claude", "codex", "antigravity", "cursor")
 
-# Codex and Gemini sit on cheaper plans and run under the sporadic policy (never scheduled,
-# promotion points only, quota-guarded, Tier A/A2-green precondition). Claude runs on the
-# harness's own regular cadence and is exempt from all three.
-SPORADIC_PLATFORMS: frozenset[Platform] = frozenset({"codex", "gemini"})
+# Codex, Antigravity and Cursor sit on cheaper plans and run under the sporadic policy (never
+# scheduled, promotion points only, quota-guarded, Tier A/A2-green precondition). Claude runs on
+# the harness's own regular cadence and is exempt from all three.
+SPORADIC_PLATFORMS: frozenset[Platform] = frozenset({"codex", "antigravity", "cursor"})
 
 
 def is_platform(value: str) -> bool:
@@ -27,6 +27,12 @@ def is_platform(value: str) -> bool:
 
 def is_sporadic_platform(platform: Platform) -> bool:
     return platform in SPORADIC_PLATFORMS
+
+
+def cli_tool(platform: Platform) -> str:
+    """The executable a trial on ``platform`` starts — what a skip line names when the lane cannot
+    run. Cursor's headless CLI is ``agent``, not ``cursor``; Antigravity's is ``agy``."""
+    return {"cursor": "agent", "antigravity": "agy"}.get(platform, platform)
 
 
 def is_read_only_skill(skill: str) -> bool:
@@ -70,14 +76,27 @@ SESSION_PLACEHOLDER = "{session}"
 """What a multi-turn template carries where the trial's own session id goes."""
 
 
+CURSOR_COMMAND = 'agent -p "{prompt}" --output-format text --force'
+"""Cursor's headless CLI (``agent -p``, verified against cursor.com/docs/cli/headless 2026-10-10).
+``--force`` applies edits and runs commands without a confirmation nobody is there to give, for
+EVERY skill — the doctor included, which diagnoses by running a command, and a preset narrower than
+the prompt measures the sandbox. No ``--model``: the runner's model argument is a ledger label, and
+one that is not a Cursor model name would fail the trial before the agent starts."""
+
+
 def _codex_command(model: str, skill: str) -> str:
     sandbox = "read-only" if is_read_only_skill(skill) else "workspace-write"
     return f'codex exec --sandbox {sandbox} --model {model} "{{prompt}}"'
 
 
-def _gemini_command(model: str, skill: str) -> str:
-    approval_mode = "plan" if is_read_only_skill(skill) else "auto_edit"
-    return f'gemini -p "{{prompt}}" --model {model} --approval-mode {approval_mode}'
+ANTIGRAVITY_FLAGS = "--output-format text --dangerously-skip-permissions"
+"""Antigravity's headless CLI (``agy -p``, verified against ``agy --help`` of CLI 1.3.3 and a real
+print-mode run on 2026-10-10). ``--dangerously-skip-permissions`` is the only headless
+auto-approval the CLI has -- no ``--yolo``, no approval mode; ``--mode plan`` exists but a doctor
+trial RUNS a command, so plan mode would measure the sandbox -- and it therefore rides every skill,
+exactly like Cursor's ``--force``. ``--model`` IS passed: the ledger's model is one of ``agy
+models``' slugs (``gemini-3.8-flash-low`` is the cheapest), so the Cursor lane's reason for omitting
+it does not apply."""
 
 
 def preset_agent_command(platform: Platform, model: str, skill: str) -> str:
@@ -91,7 +110,9 @@ def preset_agent_command(platform: Platform, model: str, skill: str) -> str:
         )
     if platform == "codex":
         return _codex_command(model, skill)
-    return _gemini_command(model, skill)
+    if platform == "cursor":
+        return CURSOR_COMMAND
+    return f'agy -p "{{prompt}}" --model {model} {ANTIGRAVITY_FLAGS}'
 
 
 def preset_first_turn_command(platform: Platform, model: str, skill: str) -> str | None:
@@ -110,7 +131,10 @@ def _multi_turn(platform: Platform, model: str, skill: str, session_flag: str) -
     """The single-turn preset plus one session flag and nothing else, so a multi-turn trial is the
     same sandbox, tools and transcript format as a single-turn one.
 
-    **@llmNote** ``None`` for every platform but Claude, and for BOTH halves. A platform that could
+    **@llmNote** ``None`` for every platform but Claude, and for BOTH halves. Antigravity is the
+    near miss: ``agy --conversation <id>`` resumes one, but no flag lets the runner choose the id on
+    turn 1 -- the id would have to be read back out of the first turn's output, which has not been
+    verified in the container. A platform that could
     open a conversation but not resume it would run its "second turn" as a FRESH session with no
     memory of the draft, where "nothing was filed" is true for a reason unrelated to the gate.
     Claude's pair was verified by hand in this container (2026-10-08, ``claude-haiku-5-5``): the

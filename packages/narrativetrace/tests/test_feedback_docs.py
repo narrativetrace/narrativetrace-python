@@ -36,6 +36,7 @@ def _repo_root() -> Path:
 _DOCUMENTATION = _repo_root() / "documentation"
 LLMS_TXT = _DOCUMENTATION / "llms.txt"
 AGENT_SKILLS = _DOCUMENTATION / "agent-skills.md"
+USE_WITH_YOUR_AGENT = _DOCUMENTATION / "use-with-your-agent.md"
 """THE declared inputs of this module: two named files, each read as a whole."""
 
 
@@ -68,12 +69,25 @@ class TestEverySkillIsListed:
         )
         assert sorted(listed) == sorted(skill.canonical_name for skill in SKILLS)
 
-    def test_agent_skills_links_every_skills_rendered_pages_once_per_platform(self) -> None:
+    def test_agent_skills_links_every_skills_claude_page_once(self) -> None:
+        """The open-standard pages are linked from the per-platform page (Phase 8, platform
+        pointers, folded the Codex paragraph out of this one), so what stays here is the vendor
+        flavour, once each."""
         text = AGENT_SKILLS.read_text(encoding="utf-8")
         for skill in SKILLS:
-            assert text.count(f"/skills/{skill.canonical_name}/SKILL.md)") == 2, (
-                skill.canonical_name
-            )
+            link = f"(../.claude/skills/{skill.canonical_name}/SKILL.md)"
+            assert text.count(link) == 1, skill.canonical_name
+
+    def test_agent_skills_hands_every_other_platform_to_the_per_platform_page(self) -> None:
+        text = AGENT_SKILLS.read_text(encoding="utf-8")
+
+        assert "(use-with-your-agent.md)" in text
+        assert "](../.agents/skills/" not in text
+
+    def test_the_per_platform_page_links_the_open_standard_pages(self) -> None:
+        text = USE_WITH_YOUR_AGENT.read_text(encoding="utf-8")
+
+        assert "(../.agents/skills/narrativetrace-doctor/SKILL.md)" in text
 
 
 class TestAgentSkillsNamesTheSameRepository:

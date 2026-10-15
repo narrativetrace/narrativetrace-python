@@ -223,7 +223,7 @@ test, its invocation number when the method ran more than once, and every artifa
 
 The suite footer prints one more line summarizing every scenario's structural status:
 
-```
+```text
 NarrativeTrace — Suite complete
   run: bold elk soars
   2 scenarios recorded

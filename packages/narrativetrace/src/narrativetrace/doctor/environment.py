@@ -28,7 +28,10 @@ from narrativetrace_tooling.doctor.types import DoctorSnapshot, Env, PackageInfo
 from narrativetrace_tooling.frameworks.manifests import is_manifest
 from narrativetrace_tooling.init import (
     InstalledSkill,
+    PointerReading,
+    ProjectState,
     project_family_version,
+    read_pointer_readings,
     read_project_state,
     resolve_carrier,
 )
@@ -99,14 +102,24 @@ def _resolve_pytest11_entry_points() -> dict[str, str]:
     return {entry_point.name: entry_point.value for entry_point in entry_points}
 
 
-def _resolve_installed_skills(root: Path) -> tuple[InstalledSkill, ...]:
-    """The project's own skill directories, read through the installer's own reader — never a
-    second parser (D9). Best-effort: a project that reader cannot read yields none, not a crash,
-    matching every other read in this walker."""
+def _read_project_state(root: Path) -> ProjectState | None:
+    """The project through the installer's own reader — never a second parser (D9). Best-effort: a
+    project that reader cannot read yields ``None``, not a crash, matching every other read in this
+    walker."""
     try:
-        return read_project_state(root).installed_skills
+        return read_project_state(root)
     except (TypeError, ValueError, OSError):
-        return ()
+        return None
+
+
+def _resolve_installed_skills(state: ProjectState | None) -> tuple[InstalledSkill, ...]:
+    """The project's own skill directories, as the installer read them."""
+    return () if state is None else state.installed_skills
+
+
+def _resolve_pointer_readings(state: ProjectState | None) -> tuple[PointerReading, ...]:
+    """Each detected platform's pointer file, as the installer reads it."""
+    return () if state is None else read_pointer_readings(state)
 
 
 def _resolve_catalogue_skill_names() -> tuple[str, ...]:
@@ -219,6 +232,7 @@ def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
     approved_dir_name = str(config.get("approved_dir") or "test-narratives")
     walker = _Walker(root, output_dir_name, approved_dir_name)
     walker.walk()
+    project = _read_project_state(root)
     return DoctorSnapshot(
         cwd=str(root),
         python_version=".".join(str(part) for part in sys.version_info[:3]),
@@ -230,7 +244,8 @@ def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
         approved_dir_files=walker.approved_dir_files,
         installed_packages=_resolve_installed_packages(),
         pytest11_entry_points=_resolve_pytest11_entry_points(),
-        installed_skills=_resolve_installed_skills(root),
+        installed_skills=_resolve_installed_skills(project),
+        pointer_readings=_resolve_pointer_readings(project),
         catalogue_skill_names=_resolve_catalogue_skill_names(),
         narrativetrace_version=project_family_version(),
     )

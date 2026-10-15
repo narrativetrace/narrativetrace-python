@@ -282,6 +282,23 @@ class TestPathSafety:
         d = trace_directory(Path("/base"), "name￾￿here")
         assert d == Path("/base/traces/name__here")
 
+    @pytest.mark.parametrize("noncharacter", ["\ufdd0", "\ufdef", "\U0001fffe", "\U0010ffff"])
+    def test_every_other_noncharacter_folds_to_one_placeholder_too(self, noncharacter: str) -> None:
+        """APFS refuses all 66 of them, not just U+FFFE/U+FFFF: the BMP block U+FDD0..U+FDEF and the
+        last two code points of every plane. A supplementary one is ONE code point, so it folds to
+        ONE placeholder (as the Java reference does)."""
+        d = trace_directory(Path("/base"), f"name{noncharacter}here")
+        assert d == Path("/base/traces/name_here")
+
+    @pytest.mark.parametrize(
+        "neighbour", ["\ufdcf", "\ufdf0", "\ufffd", "\U0001fffd", "\U00020000"]
+    )
+    def test_a_code_point_beside_a_noncharacter_keeps_its_own_spelling(
+        self, neighbour: str
+    ) -> None:
+        d = trace_directory(Path("/base"), f"name{neighbour}here")
+        assert d == Path(f"/base/traces/name{neighbour}here")
+
     def test_a_dots_only_name_resolves_to_a_placeholder_not_the_parent_directory(self) -> None:
         d = trace_directory(Path("/base"), "...")
         assert d == Path("/base/traces/unnamed")

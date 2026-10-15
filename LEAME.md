@@ -1,4 +1,4 @@
-<!-- source: README.md blob 040c9d88c734 | translated: 2026-10-09 | reviewed: - -->
+<!-- source: README.md blob c5f4af18bbd5 | translated: 2026-10-11 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -153,7 +153,7 @@ Envuelve los colaboradores una vez y ejecuta el código; esta es la salida real 
 pedido con tres servicios (`OrderService` llamando a un `InventoryService` y a un `PaymentService`,
 ambos también envueltos):
 
-```
+```text
 OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-42", quantity: 3) → "reserved 3 of prod-42" — 0ms
 ├── PaymentService.charge(customer_id: "cust-1", amount: 30) → "txn-cust-1-30" — 0ms
@@ -162,7 +162,7 @@ OrderService.place_order(customer_id: "cust-1", product_id: "prod-42", quantity:
 
 **Cuando algo sale mal**, la traza hace visible el bug:
 
-```
+```text
 OrderService.place_order(customer_id: "cust-broke", product_id: "prod-7", quantity: 3)
 ├── InventoryService.reserve(product_id: "prod-7", quantity: 3) → "reserved 3 of prod-7" — 0ms
 ├── PaymentService.charge(customer_id: "cust-broke", amount: 30) !! PaymentDeclinedError: payment declined for customer cust-broke — 0ms
@@ -176,7 +176,7 @@ de la traza — el bug está a la vista sin necesidad de un depurador.
 [`examples/minecraft`](examples/minecraft), trazado dos veces — una con nombres de dominio, otra
 con nombres genéricos, ambas ejecuciones reales:
 
-```
+```text
 → WorldServer.player_joined(player_name: "Steve")
   → WorldGenerator.generate_chunk(x: 0, z: 0)
   ← WorldGenerator.generate_chunk → Chunk(x=0, z=0, biome="plains")
@@ -189,7 +189,7 @@ con nombres genéricos, ambas ejecuciones reales:
 ← WorldServer.player_joined → "Steve joined the world"
 ```
 
-```
+```text
 → GameManager.handle(input: "Steve")
   → DataProcessor.process(a: 0, b: 0)
   ← DataProcessor.process → DataResult(a=0, b=0, tag="plains")
@@ -491,6 +491,7 @@ uv run poe check          # format-check + lint + typecheck + lint-imports + cov
 Empieza aquí:
 
 - [Ve una traza en 60 segundos](documentation/es/sesenta-segundos.md) — un script sencillo, una ejecución, una traza real en tu terminal
+- [Recetas](documentation/LEAME.md#recetas) — una página por problema (añadir logging, depurar un error, leer una prueba fallida, revisar un flujo o una refactorización), cada una con la salida real de una ejecución que esta build realiza
 - [Eligiendo una integración](documentation/es/eligiendo-una-integracion.md) — qué paquete necesitas, como diagrama de decisión
 - [Guía de instalación](documentation/es/guia-de-instalacion.md) — todos los paquetes, qué añade cada uno
 - [Guía de configuración](documentation/es/guia-de-configuracion.md) — niveles de tracing, configuración de la salida, cadena de precedencia; el nivel de tracing y el nivel de tu logger son dos diales distintos que alimentan dos rutas distintas — consulta [Two dials, two paths](documentation/faq.md#two-dials-two-paths) (en inglés) si los has confundido

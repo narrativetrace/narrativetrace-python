@@ -50,7 +50,7 @@ python -m scripts.contract_check --dry-run
 
 A failure names all four facts in one line, so a skim is enough:
 
-```
+```text
 documentation/contract.yaml: probed-pytest-artifacts-default documented default "true"
 but narrativetrace-pytest <version> (published) reads "false"
 ```

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "NarrativeTrace for Python",
+  "description": "NarrativeTrace for Python records each traced call, its parameters and its result as log lines through the standard logging bridge, and writes a value-free structural trace per test. Install from PyPI: narrativetrace (core) and narrativetrace-pytest (pytest plugin).",
+  "folders": [
+    "documentation"
+  ],
+  "excludeFolders": [
+    "documentation/es",
+    "documentation/pt-BR",
+    "documentation/zh-CN",
+    "documentation/i18n"
+  ],
+  "excludeFiles": [
+    "LEAME.md",
+    "LEIAME.md",
+    "自述文件.md",
+    "contract.yaml",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md"
+  ],
+  "rules": [
+    "Install with `uv add narrativetrace` and `uv add --dev pytest narrativetrace-pytest`; `uv run narrativetrace init --dry-run` previews the agent skills it would write to .agents/skills and .claude/skills.",
+    "Pick the integration with documentation/choosing-an-integration.md; every path records through one capture model, trace_object(obj, context) being the core primitive.",
+    "Values matching the redaction rules are replaced with [REDACTED] before any output; keep secrets out of traced parameters and apply not_traced to the real parameter.",
+    "Prove redaction with a test that asserts \"[REDACTED]\" in the rendered trace; importing not_traced or narrated protects nothing by itself.",
+    "Only wrapped or intercepted code appears in a trace; read the run's actual trace output before describing what the application did.",
+    "documentation/llms.txt is the curated reference; documentation/recipes/ holds complete worked examples by problem."
+  ],
+  "previousVersions": [
+    {
+      "tag": "v0.3.0"
+    },
+    {
+      "tag": "v0.2.0"
+    },
+    {
+      "tag": "v0.1.2"
+    },
+    {
+      "tag": "v0.1.1"
+    },
+    {
+      "tag": "v0.1.0"
+    }
+  ]
+}

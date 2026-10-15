@@ -11,7 +11,8 @@ did not create lives between ``<!-- narrativetrace:start … -->`` and
 exactly that region — the property that makes both operations safe on a file somebody else owns.
 
 **@llmNote** The marker rule is narrow on purpose: a marker counts only when its line STARTS with
-the marker text (column 0, no indentation) and the line is OUTSIDE a fenced code block. A document
+the marker text (column 0, no indentation; the opening marker is followed by a space, as the
+installer writes it) and the line is OUTSIDE a fenced code block. A document
 that shows the markers in an example fence therefore keeps its own meaning, and this repository's
 own ``narrativetrace:skills:*`` markers are not consumer markers — the prefix differs.
 
@@ -47,7 +48,8 @@ _FENCES: Final = ("```", "~~~")
 class Region:
     """One managed region inside a file.
 
-    :param start: offset of the first character of the opening marker's line
+    :param start: offset of the first character of the opening marker's line, after a byte-order
+        mark on line 1
     :param end: offset just past the closing marker's line, its terminator included
     :param start_line: 1-based line of the opening marker, so a refusal can name it
     :param coordinate: the stamp on the opening marker, ``""`` when it carries none
@@ -64,7 +66,8 @@ class Line:
     """One line of a file, with everything a marker decision needs.
 
     :param number: 1-based line number
-    :param start: offset of the line's first character
+    :param start: offset of the line's first character, after a byte-order mark on line 1 — an edit
+        of a line or region there leaves the mark where it was
     :param end: offset just past the line's terminator
     :param content: the line without its terminator, and without a leading byte-order mark
     :param in_fence: whether the line sits inside a fenced code block
@@ -117,7 +120,8 @@ def lines(text: str) -> tuple[Line, ...]:
     for number, raw in enumerate(split_keeping_terminators(text), start=1):
         content = _content_for_matching(raw, number)
         fence_line = _is_fence(content)
-        out.append(Line(number, offset, offset + len(raw), content, in_fence or fence_line))
+        bom = 1 if number == 1 and raw.startswith(_BOM) else 0
+        out.append(Line(number, offset + bom, offset + len(raw), content, in_fence or fence_line))
         in_fence = not in_fence if fence_line else in_fence
         offset += len(raw)
     return tuple(out)
@@ -194,6 +198,13 @@ def eol_of(text: str) -> str:
     return "\r\n" if newline > 0 and text[newline - 1] == "\r" else "\n"
 
 
+def without_byte_order_mark(text: str) -> str:
+    """The text without a leading byte-order mark. A caller asking "is anything left?" strips it,
+    because a mark alone is not content."""
+    require_text(text)
+    return text[1:] if text.startswith(_BOM) else text
+
+
 def with_eol(text: str, eol: str) -> str:
     """The same text with every line ending rewritten to ``eol``."""
     require_text(text)
@@ -212,7 +223,7 @@ class _Scanner:
         self._open_coordinate = ""
 
     def accept(self, line: Line) -> None:
-        if line.content.startswith(START):
+        if _is_opening_marker(line.content):
             self._open(line)
         elif line.content.startswith(END):
             self._close(line)
@@ -246,6 +257,12 @@ class _Scanner:
             Region(self._open_offset, line.end, self._open_line, self._open_coordinate)
         )
         self._open_offset = -1
+
+
+def _is_opening_marker(content: str) -> bool:
+    """The marker text, then a space: the shape the installer writes (``START``, a space, the stamp,
+    ``-->``). A sibling that merely shares the prefix — ``narrativetrace:startx`` — is not ours."""
+    return content.startswith(f"{START} ")
 
 
 def _coordinate_in(content: str) -> str:

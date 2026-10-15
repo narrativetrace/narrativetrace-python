@@ -46,4 +46,4 @@ also_copy = [
 # behaviour those files pin is also pinned by the copied files above.
 # Same reason as packages/narrativetrace/pyproject.toml's identical line: the pytest plugin
 # distribution imports narrativetrace at plugin-load time, before the mutated copy is on sys.path.
-pytest_add_cli_args = ["-p", "no:narrativetrace", "--ignore=test_adversarial_clarity.py", "--ignore=test_adversarial_trials.py", "--ignore=test_clarity_graders.py", "--ignore=test_debug_graders.py", "--ignore=test_fastapi_grader.py", "--ignore=test_feedback_graders.py", "--ignore=test_verify_graders.py"]
+pytest_add_cli_args = ["-p", "no:narrativetrace", "--ignore=test_fresh_session_grader_under_mutation_cwd.py", "--ignore=test_adversarial_clarity.py", "--ignore=test_adversarial_trials.py", "--ignore=test_clarity_graders.py", "--ignore=test_debug_graders.py", "--ignore=test_fastapi_grader.py", "--ignore=test_feedback_graders.py", "--ignore=test_verify_graders.py"]

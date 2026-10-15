@@ -9,6 +9,7 @@
 # init-prompt cases; run with cwd set to the scaffolded fixture copy, from a case's
 # graders/verify.sh.
 set -e
+. "$(dirname "$0")/bounded.sh"
 
 if ! grep -rlE '\[REDACTED\]' --include="test_*.py" --include="*_test.py" . 2>/dev/null \
   | grep -v '/\.venv/' | grep -q .; then
@@ -22,7 +23,7 @@ log="$work/pytest-output.txt"
 
 # Bounded, always: a cold run resolves and downloads the packages, and a suite that hangs has to
 # fail this case rather than the whole harness (mirrors run_the_program.sh's own bound).
-if ! timeout 900 uv run pytest -q >"$log" 2>&1; then
+if ! bounded 900 uv run pytest -q >"$log" 2>&1; then
   echo "the redaction test must actually pass -- the prompt says to add and prove it, not just assert it exists" >&2
   cat "$log" >&2
   exit 1

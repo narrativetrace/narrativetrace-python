@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from narrativetrace_skills.catalogue import debug_commands, verify_commands
+from narrativetrace_skills.catalogue import debug_commands, explain_commands, verify_commands
 from narrativetrace_skills.catalogue.add_narrative_tracing import ADD_NARRATIVE_TRACING
 from narrativetrace_skills.catalogue.add_narrativetrace_clarity import (
     ADD_NARRATIVETRACE_CLARITY,
@@ -28,6 +28,7 @@ from narrativetrace_skills.catalogue.add_narrativetrace_clarity import (
 from narrativetrace_skills.catalogue.clarity_commands import INSTALL_GATE
 from narrativetrace_skills.catalogue.narrativetrace_debug import NARRATIVETRACE_DEBUG
 from narrativetrace_skills.catalogue.narrativetrace_doctor import NARRATIVETRACE_DOCTOR
+from narrativetrace_skills.catalogue.narrativetrace_explain import NARRATIVETRACE_EXPLAIN
 from narrativetrace_skills.catalogue.narrativetrace_feedback import NARRATIVETRACE_FEEDBACK
 from narrativetrace_skills.catalogue.narrativetrace_verify import NARRATIVETRACE_VERIFY
 from narrativetrace_skills.replay import replay_skill, run_replay_command
@@ -130,6 +131,7 @@ def _trace_skill_replay(out: Path, approved: Path) -> Callable[[str, str], None]
     equivalents = {
         verify_commands.RUN_THE_PATH: flow,
         debug_commands.REPRODUCE: flow,
+        explain_commands.RUN_THE_SCENARIO: flow,
         verify_commands.RUN_THE_SUITE_FOR_REVIEW: f"NARRATIVETRACE_APPROVAL=true {flow} || true",
         verify_commands.RUN_THE_SUITE: f"NARRATIVETRACE_APPROVAL=true {flow}",
         verify_commands.APPROVAL_MODE_IS_ON: (
@@ -163,3 +165,20 @@ def test_a_trace_reading_skill_replays_its_loop_and_its_pin_end_to_end(
     pinned = approved / "test_place_order_flow" / "test_customer_places_an_order.approved.nt"
     assert pinned.read_text(encoding="utf-8") == structural.read_text(encoding="utf-8")
     assert list(approved.rglob("*.received.nt")) == []
+
+
+def test_the_explain_skill_replays_its_run_and_its_two_listings_and_pins_nothing(
+    tmp_path: Path,
+) -> None:
+    out, approved = tmp_path / "narrative-traces", tmp_path / "test-narratives"
+    fixture_dir = _REPO_ROOT / NARRATIVETRACE_EXPLAIN.fixture
+
+    results = replay_skill(
+        NARRATIVETRACE_EXPLAIN, str(fixture_dir), _trace_skill_replay(out, approved)
+    )
+
+    assert [r for r in results if not r.ok] == []
+    assert sum(1 for r in results if r.ran) == 3
+    structural = out / "structural" / "test_place_order_flow" / "test_customer_places_an_order.nt"
+    assert structural.is_file()
+    assert not approved.exists() or list(approved.rglob("*.nt")) == []

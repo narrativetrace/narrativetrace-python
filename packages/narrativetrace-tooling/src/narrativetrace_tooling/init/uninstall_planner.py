@@ -29,10 +29,12 @@ from narrativetrace_tooling.init.action import (
     Refuse,
     ReplaceBlock,
 )
+from narrativetrace_tooling.init.cursor_rule import FRONTMATTER
 from narrativetrace_tooling.init.init_planner import AGENTS_MD, CLAUDE_MD, IMPORT_LINE
 from narrativetrace_tooling.init.options import InitOptions
 from narrativetrace_tooling.init.plan import InitPlan
 from narrativetrace_tooling.init.project_state import Presence, ProjectState
+from narrativetrace_tooling.platforms.table import ROWS, Rule
 
 UNKNOWN_CARRIER: Final = "narrativetrace-skills==unknown"
 """What an uninstall reports as its carrier when the project carries no stamp at all."""
@@ -68,18 +70,52 @@ def _section_actions(state: ProjectState) -> list[Action]:
     for path, text in state.marked_rule_files.items():
         # A rule file is never deleted: the installer never created one.
         actions += _remove_section(Path(path), text, may_delete=False)
+    return actions + _pointer_actions(state)
+
+
+def _pointer_actions(state: ProjectState) -> list[Action]:
+    """Every platform pointer the table names, whether or not the platform's marker is still there:
+    what the installer wrote is removed even after the project stopped looking like that platform.
+    A pointer behind a link was never written by us and is not in the snapshot."""
+    actions: list[Action] = []
+    for row in ROWS:
+        text = state.pointer_files.get(row.pointer.path)
+        if text is None:
+            continue
+        path = Path(row.pointer.path)
+        if isinstance(row.pointer, Rule):
+            actions += _remove_rule(path, text)
+        else:
+            actions += _remove_section(path, text, may_delete=True)
     return actions
+
+
+def _remove_rule(path: Path, text: str) -> list[Action]:
+    """A rule file is deleted when nothing but its frontmatter is left once our section is gone —
+    the installer made it — and otherwise loses only the section, so a rule the user added below
+    ours survives."""
+    scan = marked_block.scan(text)
+    if scan.problems or len(scan.regions) > 1:
+        return [_refuse_by_hand(path)]
+    if not scan.regions:
+        return []
+    remainder = marked_block.remove(text, scan.regions[0])
+    bare = marked_block.with_eol(marked_block.without_byte_order_mark(remainder), "\n")
+    if bare == FRONTMATTER:
+        return [DeleteFile(path, text)]
+    return [ReplaceBlock(path, text, remainder)]
+
+
+def _refuse_by_hand(path: Path) -> Refuse:
+    return Refuse(
+        path, f"{path} does not carry exactly one NarrativeTrace section — remove it by hand"
+    )
 
 
 def _remove_section(path: Path, text: str, *, may_delete: bool) -> list[Action]:
     scan = marked_block.scan(text)
     if scan.problems or len(scan.regions) > 1:
-        return [
-            Refuse(
-                path,
-                f"{path} does not carry exactly one NarrativeTrace section — remove it by hand",
-            )
-        ]
+        return [_refuse_by_hand(path)]
     if not scan.regions:
         return []
     without_section = marked_block.remove(text, scan.regions[0])
@@ -87,7 +123,11 @@ def _remove_section(path: Path, text: str, *, may_delete: bool) -> list[Action]:
     remainder = (
         marked_block.remove(without_section, created) if created is not None else without_section
     )
-    if may_delete and created is not None and not remainder.strip():
+    if (
+        may_delete
+        and created is not None
+        and not marked_block.without_byte_order_mark(remainder).strip()
+    ):
         return [DeleteFile(path, text)]
     return [ReplaceBlock(path, text, remainder)]
 

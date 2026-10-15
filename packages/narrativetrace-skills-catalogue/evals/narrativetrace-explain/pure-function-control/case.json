@@ -1,0 +1,4 @@
+{
+  "fixture": "packages/narrativetrace-skills-catalogue/evals/fixtures/existing-service-checkout",
+  "install": "checkout"
+}

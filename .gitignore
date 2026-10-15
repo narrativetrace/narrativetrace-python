@@ -28,3 +28,8 @@ build/
 # narrativetrace-pytest's default per-test artifact directory -- on by default, opt out with
 # NARRATIVETRACE_OUTPUT=false (see documentation/what-to-commit.md)
 narrative-traces/
+
+# The recipe scenario's approved baselines are source; the files an approval run writes beside them
+# are not (documentation/what-to-commit.md)
+examples/recipes/checkout/test-narratives/**/*.received.nt
+examples/recipes/checkout/test-narratives/**/*.incomplete.nt

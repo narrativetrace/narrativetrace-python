@@ -12,6 +12,7 @@ from narrativetrace_skills.catalogue.add_narrativetrace_clarity import (
 )
 from narrativetrace_skills.catalogue.narrativetrace_debug import NARRATIVETRACE_DEBUG
 from narrativetrace_skills.catalogue.narrativetrace_doctor import NARRATIVETRACE_DOCTOR
+from narrativetrace_skills.catalogue.narrativetrace_explain import NARRATIVETRACE_EXPLAIN
 from narrativetrace_skills.catalogue.narrativetrace_feedback import NARRATIVETRACE_FEEDBACK
 from narrativetrace_skills.catalogue.narrativetrace_verify import NARRATIVETRACE_VERIFY
 from narrativetrace_skills.catalogue.pro_listings import PRO_LISTINGS
@@ -26,6 +27,7 @@ SKILLS: tuple[Skill, ...] = (
     ADD_NARRATIVETRACE_CLARITY,
     NARRATIVETRACE_VERIFY,
     NARRATIVETRACE_DEBUG,
+    NARRATIVETRACE_EXPLAIN,
 )
 
 # How this repository presents SKILLS to a Claude Code plugin marketplace. One listing, whose
@@ -40,8 +42,9 @@ MARKETPLACE: MarketplaceListing = MarketplaceListing(
     plugin_description=(
         "Install NarrativeTrace in a Python project and reach a first trace, diagnose an "
         "install that traces nothing, add a naming-clarity report and gate, report a defect in "
-        "NarrativeTrace itself, verify a change by reading what the code actually did, and debug "
-        "a wrong result by the span where its value diverged."
+        "NarrativeTrace itself, verify a change by reading what the code actually did, debug "
+        "a wrong result by the span where its value diverged, and explain what an application "
+        "actually does by reading the trace of one run."
     ),
     plugin_source="./.claude",
     license="Apache-2.0",

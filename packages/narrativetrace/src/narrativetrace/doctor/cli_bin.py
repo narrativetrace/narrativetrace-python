@@ -130,7 +130,7 @@ _SHARED_OPTIONS = """\
 _INIT_ONLY_OPTIONS = """\
   --write-existing  Permission to touch an AGENTS.md or CLAUDE.md that is already there.
   --force           Permission to overwrite a skill directory somebody else owns.
-  --vendor <vendor> claude | none. Detected from the project by default.
+  --vendor <vendor> claude | none. claude by default: Claude Code loads .claude/skills only.
   --from <carrier>  A directory in the carrier's own layout, or a built wheel. By default the
                     narrativetrace-skills distribution this project resolves, and the copy the
                     narrativetrace distribution bundles when that one is not installed. Never
@@ -142,8 +142,9 @@ Exit 0 = applied, or previewed; 1 = something was refused, or the project could 
 
 _INIT_USAGE = f"""narrativetrace init [options]
 
-Copies the NarrativeTrace agent skills into .agents/skills/ (and .claude/skills/ where the project
-is one of that vendor's) and writes one marked section into AGENTS.md. Zero network.
+Copies the NarrativeTrace agent skills into .agents/skills/ and .claude/skills/ (the only directory
+Claude Code loads; --vendor none leaves it out) and writes one marked section into AGENTS.md. Zero
+network.
 
 Nothing refreshes the installed pages on a build — this runtime has no build hook at the right
 altitude, and a test run that rewrote committed files would be a surprise diff. Re-run this verb

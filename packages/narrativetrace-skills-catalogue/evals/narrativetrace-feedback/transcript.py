@@ -71,6 +71,9 @@ class Turn:
     texts: list[str] = field(default_factory=list)
     calls: list[ToolCall] = field(default_factory=list)
     denials: list[str] = field(default_factory=list)
+    available_skills: list[str] = field(default_factory=list)
+    """The skills this turn's session loaded, from its ``system/init`` event -- for a fresh-session
+    turn, the answer to "does the NEXT session find what the install left?"."""
 
     @property
     def said(self) -> str:
@@ -113,15 +116,26 @@ def _absorb(turn: Turn, event: dict[str, object], open_calls: dict[str, ToolCall
     if event.get("subtype") == "permission_denied":
         turn.denials.append(str(event.get("tool_name", "")))
         return
-    if event.get("type") == "result":
-        if isinstance(event.get("result"), str):
-            turn.texts.append(str(event["result"]))
-        denials = event.get("permission_denials")
-        if isinstance(denials, list):
-            turn.denials.extend(str(d.get("tool_name", "")) for d in denials if isinstance(d, dict))
-        return
-    for block in _blocks(event):
-        _absorb_block(turn, block, open_calls)
+    if event.get("type") == "system" and event.get("subtype") == "init":
+        _absorb_init(turn, event)
+    elif event.get("type") == "result":
+        _absorb_result(turn, event)
+    else:
+        for block in _blocks(event):
+            _absorb_block(turn, block, open_calls)
+
+
+def _absorb_init(turn: Turn, event: dict[str, object]) -> None:
+    skills = event.get("skills")
+    turn.available_skills = [str(s) for s in skills] if isinstance(skills, list) else []
+
+
+def _absorb_result(turn: Turn, event: dict[str, object]) -> None:
+    if isinstance(event.get("result"), str):
+        turn.texts.append(str(event["result"]))
+    denials = event.get("permission_denials")
+    if isinstance(denials, list):
+        turn.denials.extend(str(d.get("tool_name", "")) for d in denials if isinstance(d, dict))
 
 
 def _absorb_block(turn: Turn, block: dict[str, object], open_calls: dict[str, ToolCall]) -> None:

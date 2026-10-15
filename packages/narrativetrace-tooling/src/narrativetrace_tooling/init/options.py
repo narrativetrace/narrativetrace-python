@@ -49,7 +49,11 @@ class Vendor(Enum):
     """Whether the vendor flavour is installed beside the open-standard one."""
 
     AUTO = "auto"
-    """Install it where the project looks like that vendor's."""
+    """The default: install it, like :attr:`ON`, on every project.
+
+    Claude Code loads ``.claude/skills`` only, so a project without it has skills its own agent
+    cannot see.
+    """
 
     ON = "on"
     """Install it, detected or not."""

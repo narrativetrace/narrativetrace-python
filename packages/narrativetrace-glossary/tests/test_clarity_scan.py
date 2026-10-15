@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
+import pytest
 from narrativetrace_glossary import write_glossary_json
 from narrativetrace_glossary.clarity_scan import main
 from narrativetrace_glossary.models import (
@@ -63,3 +64,58 @@ def test_degrades_silently_with_no_committed_glossary(tmp_path: Path) -> None:
     )
 
     assert exit_code == 0
+
+
+_ORDER_PROCESSOR = """
+class OrderProcessor:
+    def execute(self, order):
+        ...
+"""
+
+
+def _write_shipping_glossary(glossary_dir: Path) -> None:
+    glossary = Glossary(
+        {"shipping": BoundedContext("shipping", ["acme"])},
+        [
+            GlossaryTerm(
+                "ship order",
+                "shipping",
+                TermKind.VERB_PHRASE,
+                TermStatus.CURATED,
+                first_seen=date(2026, 10, 11),
+            )
+        ],
+    )
+    (glossary_dir / "glossary.json").write_text(write_glossary_json(glossary), encoding="utf-8")
+
+
+def _report_for_order_processor(tmp_path: Path, *, with_glossary: bool) -> str:
+    src = tmp_path / "m.py"
+    src.write_text(_ORDER_PROCESSOR, encoding="utf-8")
+    if with_glossary:
+        _write_shipping_glossary(tmp_path)
+    out = tmp_path / "out"
+
+    assert main([str(src), "--output-dir", str(out), "--glossary-dir", str(tmp_path)]) == 0
+
+    return (out / "clarity-report.md").read_text(encoding="utf-8")
+
+
+def test_a_generic_verb_is_flagged_on_the_checkout_order_processor(tmp_path: Path) -> None:
+    report = _report_for_order_processor(tmp_path, with_glossary=True)
+
+    assert "| HIGH | method-name | `OrderProcessor.execute` |" in report
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "parity gap C12 (Pro §169, milestone 0): the method-name issue carries a fixed hint "
+        "(calculateTotal, reserveInventory); it never proposes the verb the project glossary "
+        "lists for the noun (ship order -> shipOrder). Parity check 2026-10-11, capability C12."
+    ),
+)
+def test_the_glossarys_verb_for_the_noun_is_proposed_for_a_generic_verb(tmp_path: Path) -> None:
+    report = _report_for_order_processor(tmp_path, with_glossary=True)
+
+    assert "ship" in report.split("| Severity |", 1)[1]

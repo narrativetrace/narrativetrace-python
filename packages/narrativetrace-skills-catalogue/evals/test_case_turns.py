@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 import pytest
-from case_turns import scripted_replies_for
+from case_turns import fresh_turns_for, scripted_replies_for
 
 
 def _case(tmp_path: Path, manifest: object) -> Path:
@@ -90,3 +90,36 @@ def test_refuses_two_spellings_of_one_turn(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match=r"declares turn 2 twice\Z"):
         scripted_replies_for(case)
+
+
+# --- fresh turns: a scripted turn that opens a NEW session instead of resuming (item 166) ---------
+
+
+def test_reads_which_scripted_turns_open_a_fresh_session(tmp_path: Path) -> None:
+    case = _case(tmp_path, {"turns": {"2": "check my setup", "3": "thanks"}, "freshTurns": [3]})
+
+    assert fresh_turns_for(case) == frozenset({3})
+
+
+def test_a_case_that_declares_no_fresh_turns_resumes_every_turn(tmp_path: Path) -> None:
+    assert fresh_turns_for(_case(tmp_path, {"turns": {"2": "yes, file it"}})) == frozenset()
+    assert fresh_turns_for(tmp_path / "no-such-case") == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("fresh", "reason"),
+    [
+        ([3], r"declares turn 3 in \"freshTurns\" but scripts no reply for it"),
+        ([1], r"turn 1"),
+        (["two"], r"not a turn number"),
+        ("2", r"\"freshTurns\" as something other than a list"),
+        ([2, 2], r"declares turn 2 twice"),
+    ],
+)
+def test_refuses_every_fresh_declaration_that_cannot_be_driven(
+    tmp_path: Path, fresh: object, reason: str
+) -> None:
+    case = _case(tmp_path, {"turns": {"2": "check my setup"}, "freshTurns": fresh})
+
+    with pytest.raises(ValueError, match=reason):
+        fresh_turns_for(case)

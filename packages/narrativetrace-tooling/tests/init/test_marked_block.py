@@ -128,6 +128,52 @@ class TestWhatIsNotAMarker:
 
         assert len(scan.regions) == 1
 
+    @pytest.mark.parametrize(
+        "near_miss",
+        [
+            "<!-- narrativetrace:startx -->",
+            "<!-- narrativetrace:starting here -->",
+            "<!-- narrativetrace:start-->",
+            "<!-- narrativetrace:starts -->",
+        ],
+    )
+    def test_a_near_miss_opening_marker_is_not_a_marker(self, near_miss: str) -> None:
+        """The installer always writes the marker, a space, then the stamp: only that shape is
+        ours. A sibling that merely shares the prefix is somebody's comment, not a region."""
+        scan = marked_block.scan(f"{near_miss}\nbody\n{END}\n")
+
+        assert scan.regions == ()
+        assert len(scan.problems) == 1, "the stray end marker is reported, not silently paired"
+
+    def test_a_marker_whose_stamp_follows_a_space_is_still_ours(self) -> None:
+        assert len(marked_block.scan(f"{START} x==1 -->\nb\n{END}\n").regions) == 1
+        assert len(marked_block.scan(f"{START} -->\nb\n{END}\n").regions) == 1
+
+    def test_a_region_on_line_one_starts_after_the_byte_order_mark(self) -> None:
+        text = BOM + BLOCK
+
+        region = marked_block.scan(text).regions[0]
+
+        assert (region.start, text[region.start : region.end]) == (1, BLOCK)
+
+    def test_replacing_a_region_on_line_one_keeps_the_byte_order_mark(self) -> None:
+        text = BOM + BLOCK + "tail\n"
+        region = marked_block.scan(text).regions[0]
+
+        assert marked_block.replace(text, region, "NEW\n") == BOM + "NEW\ntail\n"
+
+    def test_removing_a_region_on_line_one_keeps_the_byte_order_mark(self) -> None:
+        text = BOM + BLOCK + "tail\n"
+        region = marked_block.scan(text).regions[0]
+
+        assert marked_block.remove(text, region) == BOM + "tail\n"
+
+    def test_a_line_on_line_one_starts_after_the_byte_order_mark(self) -> None:
+        line = marked_block.line_is(BOM + "@AGENTS.md\n", "@AGENTS.md")
+
+        assert line is not None
+        assert line.start == 1
+
     def test_ignores_a_byte_order_mark_that_is_not_on_the_first_line(self) -> None:
         """A BOM only means "this file starts here" on line 1. Anywhere else it is a character in
         the line, so a marker behind one is not at column 0."""
