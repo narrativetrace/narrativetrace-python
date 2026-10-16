@@ -127,14 +127,49 @@ def _git_repo_with_tags(root: Path, tags: list[str]) -> None:
         subprocess.run([*git, "tag", "-a", tag, "-m", tag], cwd=root, check=True)  # nosec B603
 
 
+def _write_version(root: Path, version: str) -> None:
+    (root / "pyproject.toml").write_text(f'[project]\nname = "x"\nversion = "{version}"\n')
+
+
 class TestPreviousVersions:
+    def test_the_builds_own_version_is_listed_before_its_tag_exists(self, tmp_path: Path) -> None:
+        # B-82: the release tag is minted on a tree that must already list it.
+        _git_repo_with_tags(tmp_path, ["v0.1.0", "v0.2.0"])
+        _write_version(tmp_path, "0.3.0")
+        config = {"previousVersions": [{"tag": "v0.3.0"}, {"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}
+        assert check_previous_versions(tmp_path, config) == []
+
+    def test_a_file_that_omits_the_builds_own_version_is_reported(self, tmp_path: Path) -> None:
+        _git_repo_with_tags(tmp_path, ["v0.1.0", "v0.2.0"])
+        _write_version(tmp_path, "0.3.0")
+        config = {"previousVersions": [{"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}
+        (problem,) = check_previous_versions(tmp_path, config)
+        assert "v0.3.0" in problem
+
+    def test_the_release_tags_own_checkout_is_clean_when_the_file_lists_it(
+        self, tmp_path: Path
+    ) -> None:
+        _git_repo_with_tags(tmp_path, ["v0.1.0", "v0.2.0"])
+        _write_version(tmp_path, "0.2.0")
+        config = {"previousVersions": [{"tag": "v0.2.0"}, {"tag": "v0.1.0"}]}
+        assert check_previous_versions(tmp_path, config) == []
+
+    def test_a_tagged_checkout_without_the_version_source_is_a_misconfigured_gate_not_a_skip(
+        self, tmp_path: Path
+    ) -> None:
+        _git_repo_with_tags(tmp_path, ["v0.1.0"])
+        with pytest.raises(ValueError, match="version"):
+            check_previous_versions(tmp_path, {"previousVersions": [{"tag": "v0.1.0"}]})
+
     def test_the_list_equal_to_the_tags_newest_first_is_clean(self, tmp_path: Path) -> None:
         _git_repo_with_tags(tmp_path, ["v0.9.0", "v0.10.0"])
+        _write_version(tmp_path, "0.10.0")
         config = {"previousVersions": [{"tag": "v0.10.0"}, {"tag": "v0.9.0"}]}
         assert check_previous_versions(tmp_path, config) == []
 
     def test_a_release_that_forgot_the_file_fails(self, tmp_path: Path) -> None:
         _git_repo_with_tags(tmp_path, ["v1.0.0", "v1.1.0"])
+        _write_version(tmp_path, "1.1.0")
         (problem,) = check_previous_versions(tmp_path, {"previousVersions": [{"tag": "v1.0.0"}]})
         assert "v1.1.0" in problem
 
@@ -144,6 +179,7 @@ class TestPreviousVersions:
 
     def test_a_non_release_tag_is_not_a_version(self, tmp_path: Path) -> None:
         _git_repo_with_tags(tmp_path, ["v1.0.0", "nightly"])
+        _write_version(tmp_path, "1.0.0")
         assert check_previous_versions(tmp_path, {"previousVersions": [{"tag": "v1.0.0"}]}) == []
 
     def test_a_tree_that_is_not_a_git_checkout_has_no_tags_to_compare(self, tmp_path: Path) -> None:

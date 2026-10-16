@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob c8c3f7ec8446 | translated: 2026-10-15 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob b35f5df69d27 | translated: 2026-10-16 | reviewed: - -->
 
 # Habilidades do agente
 
@@ -385,7 +385,7 @@ carris esporádicos (Codex/Antigravity/Cursor) e a matriz de promoção.
 
 ## Context7
 
-O Context7 indexa as páginas Markdown, `.txt` e `.rst` deste repositório (o `README.md` da raiz e `documentation/`, sem as traduções) e entrega seus blocos de código aos agentes de programação; a análise é configurada por `context7.json` na raiz do repositório, cujos campos e tipos de arquivo indexados foram conferidos em 2026-10-12 em https://context7.com/docs/library-owners e https://context7.com/schema/context7.json. `poe context7-check` (dentro de `poe check`) valida esse arquivo contra a cópia do esquema em `config/context7/`, mantém `previousVersions` igual às tags `v*` e exige um rótulo de linguagem em cada bloco de código indexado; atualizar a cópia do esquema é um passo manual: baixar a URL acima para `config/context7/context7.schema.json` e atualizar a data em `config/context7/SCHEMA-FETCHED.txt`.
+O Context7 indexa as páginas Markdown, `.txt` e `.rst` deste repositório (o `README.md` da raiz e `documentation/`, sem as traduções) e entrega seus blocos de código aos agentes de programação; a análise é configurada por `context7.json` na raiz do repositório, cujos campos e tipos de arquivo indexados foram conferidos em 2026-10-12 em https://context7.com/docs/library-owners e https://context7.com/schema/context7.json. `poe context7-check` (dentro de `poe check`) valida esse arquivo contra a cópia do esquema em `config/context7/`, mantém `previousVersions` igual às tags `v*` mais a versão desta build, e exige um rótulo de linguagem em cada bloco de código indexado; atualizar a cópia do esquema é um passo manual: baixar a URL acima para `config/context7/context7.schema.json` e atualizar a data em `config/context7/SCHEMA-FETCHED.txt`.
 
 ## Veja também
 

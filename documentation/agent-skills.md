@@ -368,7 +368,7 @@ for the sporadic-lane policy (Codex/Antigravity/Cursor) and the promotion matrix
 
 ## Context7
 
-Context7 indexes this repository's Markdown, `.txt` and `.rst` pages (the root `README.md` and `documentation/`, without the translated mirrors) and serves their code blocks to coding agents; its parsing is configured by `context7.json` at the repository root, whose fields and indexed file types were checked on 2026-10-12 against https://context7.com/docs/library-owners and https://context7.com/schema/context7.json. `poe context7-check` (inside `poe check`) validates that file against the committed schema copy in `config/context7/`, keeps `previousVersions` equal to the `v*` tags, and requires a language tag on every indexed code fence; refreshing the schema copy is a manual step: fetch the URL above into `config/context7/context7.schema.json` and update the date in `config/context7/SCHEMA-FETCHED.txt`.
+Context7 indexes this repository's Markdown, `.txt` and `.rst` pages (the root `README.md` and `documentation/`, without the translated mirrors) and serves their code blocks to coding agents; its parsing is configured by `context7.json` at the repository root, whose fields and indexed file types were checked on 2026-10-12 against https://context7.com/docs/library-owners and https://context7.com/schema/context7.json. `poe context7-check` (inside `poe check`) validates that file against the committed schema copy in `config/context7/`, keeps `previousVersions` equal to the `v*` tags plus this build's version, and requires a language tag on every indexed code fence; refreshing the schema copy is a manual step: fetch the URL above into `config/context7/context7.schema.json` and update the date in `config/context7/SCHEMA-FETCHED.txt`.
 
 ## See also
 

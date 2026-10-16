@@ -88,6 +88,8 @@ jobs:
           esac
 
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0  # the full tag list: the context7 gate compares previousVersions against every v* tag
 
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
@@ -162,3 +164,20 @@ jobs:
           packages-dir: dist
           attestations: true
           skip-existing: true
+
+      - name: Refresh the Context7 listing
+        # Context7 indexes the repository's docs on its own schedule only; this call asks for a
+        # re-index right after a release so the listing carries the published coordinate. A
+        # trigger with no logic; it never fails the release (a missing key or a failed call warns).
+        env:
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+        run: |
+          if [ -z "$CONTEXT7_API_KEY" ]; then
+            echo "::warning::CONTEXT7_API_KEY is not set — the Context7 listing was not refreshed"
+            exit 0
+          fi
+          curl -fsS -X POST https://context7.com/api/v1/refresh \
+            -H "Authorization: Bearer $CONTEXT7_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"libraryName\": \"/${{ github.repository }}\"}" \
+            || echo "::warning::the Context7 refresh call failed; refresh by hand"

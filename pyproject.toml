@@ -453,7 +453,7 @@ help = "Regenerates packages/narrativetrace-skills-catalogue/ledger/promotion.md
 [tool.poe.tasks.context7-check]
 cmd = "python scripts/context7_check.py"
 help = """Context7 gate (scripts/context7_check.py): context7.json validates against the committed \
-copy of Context7's schema (config/context7/), previousVersions equal the v* tags newest first, and \
+copy of Context7's schema (config/context7/), previousVersions equal the v* tags plus this build's version newest first, and \
 every code fence in a file Context7 indexes carries a language tag -- no network, reads files and \
 git tags only"""
 

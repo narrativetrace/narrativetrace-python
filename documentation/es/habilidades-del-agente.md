@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob c8c3f7ec8446 | translated: 2026-10-15 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob b35f5df69d27 | translated: 2026-10-16 | reviewed: - -->
 
 # Habilidades del agente
 
@@ -389,7 +389,7 @@ carriles esporádicos (Codex/Antigravity/Cursor) y la matriz de promoción.
 
 ## Context7
 
-Context7 indexa las páginas Markdown, `.txt` y `.rst` de este repositorio (el `README.md` raíz y `documentation/`, sin las traducciones) y sirve sus bloques de código a los agentes de programación; su análisis se configura con `context7.json` en la raíz del repositorio, cuyos campos y tipos de archivo indexados se comprobaron el 2026-10-12 en https://context7.com/docs/library-owners y https://context7.com/schema/context7.json. `poe context7-check` (dentro de `poe check`) valida ese archivo contra la copia del esquema incluida en `config/context7/`, mantiene `previousVersions` igual a las etiquetas `v*` y exige una etiqueta de lenguaje en cada bloque de código indexado; actualizar la copia del esquema es un paso manual: descargar la URL anterior en `config/context7/context7.schema.json` y actualizar la fecha en `config/context7/SCHEMA-FETCHED.txt`.
+Context7 indexa las páginas Markdown, `.txt` y `.rst` de este repositorio (el `README.md` raíz y `documentation/`, sin las traducciones) y sirve sus bloques de código a los agentes de programación; su análisis se configura con `context7.json` en la raíz del repositorio, cuyos campos y tipos de archivo indexados se comprobaron el 2026-10-12 en https://context7.com/docs/library-owners y https://context7.com/schema/context7.json. `poe context7-check` (dentro de `poe check`) valida ese archivo contra la copia del esquema incluida en `config/context7/`, mantiene `previousVersions` igual a las etiquetas `v*` más la versión de esta compilación, y exige una etiqueta de lenguaje en cada bloque de código indexado; actualizar la copia del esquema es un paso manual: descargar la URL anterior en `config/context7/context7.schema.json` y actualizar la fecha en `config/context7/SCHEMA-FETCHED.txt`.
 
 ## Ver también
 

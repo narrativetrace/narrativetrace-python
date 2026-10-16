@@ -25,6 +25,8 @@ jobs:
     container: ghcr.io/astral-sh/uv:python3.12-bookworm
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0  # the full tag list: the context7 gate compares previousVersions against every v* tag
       # this container job's checkout is owned by a different uid than the one running these
       # steps, so git refuses every command in it ("dubious ownership") until told this workspace
       # is trusted -- without this, poe mutate-gate's tree-writes guard runs in its weaker

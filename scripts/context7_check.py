@@ -9,8 +9,8 @@ things must stay true for that to work, and each is checked here, offline, from 
 
 1. `context7.json` validates against the committed copy of Context7's schema
    (`config/context7/context7.schema.json`, fetch date in `SCHEMA-FETCHED.txt`);
-2. its `previousVersions` equal this repository's `v*` tags, newest first -- derived, never typed,
-   so a release that forgets to update the file fails the build;
+2. its `previousVersions` equal this repository's `v*` tags plus this build's own version, newest
+   first -- derived, never typed, so a release that forgets to update the file fails the build;
 3. every opening code fence in a file Context7 will index carries a language tag -- an untagged
    block indexes as prose.
 
@@ -167,22 +167,53 @@ def release_tags(repo_root: Path) -> list[str]:
     return done.stdout.split()
 
 
-def check_previous_versions(repo_root: Path, config: dict[str, Any]) -> list[str]:
-    """`previousVersions` must be exactly the `v*` tags, newest first, as `{"tag": ...}` objects.
+def build_version(repo_root: Path) -> str:
+    """The build's version from the root `pyproject.toml` `version = "..."` line -- the single
+    version source, read the way `scripts/publish-public.sh` `detect_version` reads it. Absent is a
+    misconfigured gate and raises, never a skip."""
+    pyproject = repo_root / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8") if pyproject.is_file() else ""
+    match = re.search(r'^version = "(.*)"', text, re.MULTILINE)
+    if match is None:
+        raise ValueError(
+            f'{CONFIG_NAME}: {pyproject} carries no `version = "..."` -- the previousVersions '
+            f"rule needs the build's version"
+        )
+    return match.group(1)
 
-    Outside a git checkout (the staged public snapshot) there are no tags to derive from, so the
-    rule passes: the checkout the snapshot was staged from has already run it.
+
+def check_previous_versions(repo_root: Path, config: dict[str, Any]) -> list[str]:
+    """`previousVersions` must be the `v*` tags plus this build's own version, newest first, as
+    `{"tag": ...}` objects.
+
+    The build's version (`v<version>`) is listed before its tag exists -- the release tag is minted
+    on a tree that must already name it -- and the rule stays exact on the tag's own checkout, where
+    the tag exists too (de-duplicated). Outside a git checkout (the staged public snapshot) or with
+    no tags there is nothing to derive from, so the rule passes; a tagged checkout without the
+    version source raises (see `build_version`).
     """
     if not is_git_checkout(repo_root):
         return []
-    expected = [{"tag": tag} for tag in release_tags(repo_root)]
+    tags = release_tags(repo_root)
+    if not tags:
+        return []
+    own_tag = f"v{build_version(repo_root)}"
+    listed = [own_tag, *tags] if own_tag not in tags else tags
+    expected = [{"tag": tag} for tag in sorted(listed, key=_newest_first)]
     if config.get("previousVersions", []) == expected:
         return []
     return [
-        f"{CONFIG_NAME}: previousVersions must equal the v* tags newest first "
-        f"({[entry['tag'] for entry in expected]}) -- regenerate it from `git tag --list 'v*' "
-        f"--sort=-v:refname`"
+        f"{CONFIG_NAME}: previousVersions must equal the v* tags plus this build's version "
+        f"{own_tag}, newest first ({[entry['tag'] for entry in expected]}) -- regenerate it from "
+        f"`git tag --list 'v*' --sort=-v:refname`"
     ]
+
+
+def _newest_first(tag: str) -> tuple[int, ...]:
+    """Sort key matching `git tag --sort=-v:refname` for `v<major>.<minor>.<patch>`: numeric parts
+    descending (`v0.10.0` before `v0.9.0`)."""
+    numbers = (int(part) if part.isdigit() else 0 for part in tag.removeprefix("v").split("."))
+    return tuple(-number for number in numbers)
 
 
 def check_schema(repo_root: Path, config: dict[str, Any]) -> list[str]:
@@ -216,8 +247,8 @@ def main() -> int:
             print(f"  {problem}")
         return 1
     print(
-        "context7-check: context7.json is valid, previousVersions match the tags, "
-        "every indexed fence is tagged"
+        "context7-check: context7.json is valid, previousVersions matches the v* tags plus this "
+        "build's version, every indexed fence is tagged"
     )
     return 0
 
