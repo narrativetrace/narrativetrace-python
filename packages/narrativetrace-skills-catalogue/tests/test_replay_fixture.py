@@ -4,7 +4,11 @@
 # Copyright (c) 2026 Empower Agile
 """Tier A2: the real oracle replay, against the real fixture, no fakes, no LLM. This is what
 proves H1 — the shipped catalogue's own step data still executes today against the packages
-actually in this workspace. Both mechanical skills share one fixture (``examples/sixty_seconds``).
+actually in this workspace. The mechanical skills here share one fixture
+(``examples/sixty_seconds``):
+the doctor's premise is a project that already has NarrativeTrace. The install skill's premise is a
+project that has nothing, so it replays from a cold copy of the empty project instead
+(``test_replay_cold_install.py``, B-87).
 
 Never invoked by ``poe mutate``'s copied-tree run (``[tool.mutmut] source_paths`` only covers
 ``packages/narrativetrace/``, this distribution has no mutation config yet — see
@@ -21,7 +25,6 @@ from pathlib import Path
 
 import pytest
 from narrativetrace_skills.catalogue import debug_commands, explain_commands, verify_commands
-from narrativetrace_skills.catalogue.add_narrative_tracing import ADD_NARRATIVE_TRACING
 from narrativetrace_skills.catalogue.add_narrativetrace_clarity import (
     ADD_NARRATIVETRACE_CLARITY,
 )
@@ -46,7 +49,6 @@ def _repo_root() -> Path:
 _REPO_ROOT = _repo_root()
 _SKILLS: tuple[Skill, ...] = (
     NARRATIVETRACE_DOCTOR,
-    ADD_NARRATIVE_TRACING,
     NARRATIVETRACE_FEEDBACK,
     ADD_NARRATIVETRACE_CLARITY,
 )

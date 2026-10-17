@@ -22,7 +22,7 @@ from narrativetrace_skills.catalogue.installer_commands import (
     VERIFY_PREVIEW_WROTE_NOTHING,
 )
 from narrativetrace_skills.render.claude import render_claude_skill
-from narrativetrace_skills.skill import CommandStep, command_strings
+from narrativetrace_skills.skill import CommandStep, SkillStep, SnippetStep, command_strings
 
 from narrativetrace_tooling.frameworks.table import rows_with_wiring_checks, wiring_check_ids
 
@@ -251,4 +251,60 @@ class TestHandsOffToVerify:
         assert last.done == (
             "the preview wrote nothing; the next session verifies with narrativetrace-verify — "
             "once a change's tests are green, it reads the trace before it reports"
+        )
+
+
+class TestThePageAddsThePackageItPromises:
+    """B-87: step 1 was ``uv sync --all-packages`` -- a workspace sync that adds nothing -- while
+    the description promised ``uv add``. The page now adds the distribution the first-trace snippet
+    imports, then keeps the clean sync as the check."""
+
+    @staticmethod
+    def _install_step() -> SkillStep:
+        return ADD_NARRATIVE_TRACING.steps[0]
+
+    def test_the_install_step_adds_narrativetrace_then_checks_with_a_clean_sync(self) -> None:
+        step = self._install_step()
+        assert isinstance(step.body, CommandStep)
+        assert step.body.commands == ("uv add narrativetrace", "uv sync")
+
+    def test_the_added_distribution_is_exactly_what_the_snippets_import(self) -> None:
+        added = {
+            word
+            for command in command_strings(ADD_NARRATIVE_TRACING)
+            if command.startswith("uv add ")
+            for word in command.split()[2:]
+        }
+        for step in ADD_NARRATIVE_TRACING.steps:
+            if isinstance(step.body, SnippetStep):
+                source = (_REPO_ROOT / step.body.path).read_text(encoding="utf-8")
+                imported = set(re.findall(r"^(?:from|import) (\w+)", source, re.MULTILINE))
+                assert imported - set(sys.stdlib_module_names) == {"narrativetrace"}, step.title
+        assert added == {"narrativetrace"}
+
+    def test_a_project_on_another_package_manager_is_told_to_add_the_same_distribution(
+        self,
+    ) -> None:
+        fixes = "\n".join(note.fix for note in self._install_step().failure)
+        assert (
+            "a project on pip, poetry or pdm adds the same distribution with its own command"
+            in fixes
+        )
+
+    def test_the_page_claims_no_package_manager_detection_the_doctor_does_not_have(self) -> None:
+        fixes = "\n".join(note.fix for note in self._install_step().failure)
+        assert "detects" not in fixes
+
+    def test_a_directory_with_no_project_is_told_to_init_one_first(self) -> None:
+        fixes = "\n".join(note.fix for note in self._install_step().failure)
+        assert "run `uv init --bare` once, then `uv add narrativetrace` again" in fixes
+
+    def test_the_clean_sync_is_the_installs_check_not_the_install(self) -> None:
+        [rule] = ADD_NARRATIVE_TRACING.always
+        assert rule.rule.startswith("Check the install with a clean `uv sync`")
+        assert "`uv add` installs" in rule.reason
+
+    def test_the_replay_starts_from_the_empty_project(self) -> None:
+        assert ADD_NARRATIVE_TRACING.fixture == (
+            "packages/narrativetrace-skills-catalogue/evals/fixtures/empty-project"
         )

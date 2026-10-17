@@ -10,7 +10,8 @@ allowed-tools: Bash(uv *), Bash(git *)
 ## 1. Install with the real toolchain
 
 ```bash
-uv sync --all-packages
+uv add narrativetrace
+uv sync
 ```
 
 **verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
@@ -20,6 +21,10 @@ if bad:
     print(json.dumps(bad))
 sys.exit(1 if bad else 0)
 '`
+
+**failure:** the project is managed by pip, poetry or pdm rather than uv, or `uv add` just wrote a uv.lock beside another manager's lockfile — this page spells its commands in uv, and the project uses another manager. Fix: remove the uv.lock uv wrote; a project on pip, poetry or pdm adds the same distribution with its own command and checks with its own clean install
+
+**failure:** `uv add` exits 2 with `No pyproject.toml found` — the directory is no Python project yet, and `uv add` does not create one. Fix: run `uv init --bare` once, then `uv add narrativetrace` again
 
 **failure:** a sibling narrativetrace-* package disagrees on version — an installed distribution outside the lockstep version the other narrativetrace-* packages share. Fix: run the narrativetrace-doctor skill's toolchain.package-versions check, then pin every narrativetrace-* dependency to the same version and `uv sync`
 
@@ -171,7 +176,7 @@ sys.exit(0 if result.returncode == 0 and shown and untouched else 1)
 
 ## Always
 
-- Reinstall clean (`uv sync`) rather than trusting whatever is already in the virtual environment. (a mismatched sibling version or a stale lockfile is the single most common install failure, and it only surfaces on a clean install)
+- Check the install with a clean `uv sync` after adding the package, rather than trusting whatever is already in the virtual environment. (`uv add` installs; the clean sync is the check that the lockfile it wrote reproduces -- a mismatched sibling version or a stale lockfile is the single most common install failure, and it only surfaces on a clean install)
 
 ## Never
 

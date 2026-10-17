@@ -8,13 +8,17 @@ skill hands off to it, then ends by previewing the agent-skills install so the n
 them without being told about them (Phase 3 milestone 5, mirrors the Java reference's own last
 step).
 
-Amendment (mirrors the TypeScript reference's own): the install step's ``verify`` must reinstall
-clean, but the fixture (``examples/sixty_seconds``) is a workspace member with no ``pyproject.toml``
-of its own -- ``uv add narrativetrace`` there would mutate this repo's own shared workspace
-lockfile, an unacceptable side effect for a replay. The vocabulary-safe equivalent replayed here is
-``uv sync --all-packages``; a real consumer's own ``uv add narrativetrace`` (shown in the rendered
-step below, matching the docs' own quickstart) is unaffected -- this only changes what the SKILL's
-own replay executes against ITS OWN fixture.
+The install, from zero (B-87): the page ADDS the distribution the first-trace snippet imports --
+``uv add narrativetrace`` -- and keeps ``uv sync``
+as the CHECK that the lockfile it wrote reproduces. It used to say only ``uv sync --all-packages``
+(a workspace sync that adds nothing, and fails outright in a directory with no ``pyproject.toml``)
+because its replay ran in ``examples/sixty_seconds``, a workspace member where ``uv add`` would
+rewrite this repository's own lockfile -- so the one project where a page that installs nothing
+still passes was the only one it was proven in. The logging step imports only the standard
+library, so no step adds a logger dependency. The Tier A2 replay therefore runs COLD: its fixture
+(``evals/fixtures/empty-project``, a bare ``pyproject.toml`` with no dependency) copied outside
+the repository, ``uv add`` resolving to this checkout's built wheels through a find-links source
+(``tests/test_replay_cold_install.py``).
 
 Right after the install, ONE step hands framework wiring to the doctor (Phase 6, D2 as amended):
 run it, apply every ``config.<framework>-*`` fix in order. The page names no framework — the
@@ -43,7 +47,7 @@ from narrativetrace_skills.skill import (
     SnippetStep,
 )
 
-_FIXTURE = "examples/sixty_seconds"
+_FIXTURE = "packages/narrativetrace-skills-catalogue/evals/fixtures/empty-project"
 
 _HAS_AN_ENTRY_POINT = (
     "if the project already has an application entry point — a script or module that starts it, "
@@ -100,9 +104,30 @@ ADD_NARRATIVE_TRACING = Skill(
     steps=(
         SkillStep(
             title="Install with the real toolchain",
-            body=CommandStep(commands=("uv sync --all-packages",)),
+            body=CommandStep(commands=("uv add narrativetrace", "uv sync")),
             verify=TOOLCHAIN_CHECKS_HOLD,
             failure=(
+                FailureNote(
+                    symptom=(
+                        "the project is managed by pip, poetry or pdm rather than uv, or `uv add` "
+                        "just wrote a uv.lock beside another manager's lockfile"
+                    ),
+                    cause=(
+                        "this page spells its commands in uv, and the project uses another manager"
+                    ),
+                    fix=(
+                        "remove the uv.lock uv wrote; a project on pip, poetry or pdm adds the "
+                        "same distribution with its own command and checks with its own clean "
+                        "install"
+                    ),
+                ),
+                FailureNote(
+                    symptom="`uv add` exits 2 with `No pyproject.toml found`",
+                    cause=(
+                        "the directory is no Python project yet, and `uv add` does not create one"
+                    ),
+                    fix="run `uv init --bare` once, then `uv add narrativetrace` again",
+                ),
                 FailureNote(
                     symptom="a sibling narrativetrace-* package disagrees on version",
                     cause=(
@@ -194,12 +219,13 @@ ADD_NARRATIVE_TRACING = Skill(
     always=(
         ReasonedRule(
             rule=(
-                "Reinstall clean (`uv sync`) rather than trusting whatever is already in the "
-                "virtual environment."
+                "Check the install with a clean `uv sync` after adding the package, rather than "
+                "trusting whatever is already in the virtual environment."
             ),
             reason=(
-                "a mismatched sibling version or a stale lockfile is the single most common "
-                "install failure, and it only surfaces on a clean install"
+                "`uv add` installs; the clean sync is the check that the lockfile it wrote "
+                "reproduces -- a mismatched sibling version or a stale lockfile is the single "
+                "most common install failure, and it only surfaces on a clean install"
             ),
         ),
     ),

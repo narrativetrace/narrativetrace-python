@@ -12,9 +12,12 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from narrativetrace_skills.skill import CommandStep, Skill, SkillStep
+from narrativetrace_skills.skill import CommandStep, Skill, SkillStep, SnippetStep
 
 RunReplayCommand = Callable[[str, str], None]
+PlaceSnippet = Callable[[SnippetStep, str], None]
+"""Puts a snippet step's file into the project (``cwd``) before that step's verify runs -- the
+reader's own act of saving the shown file, done for real. Raising fails the step."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,11 +45,15 @@ def run_replay_command(command: str, cwd: str) -> None:
     subprocess.run(command, shell=True, cwd=cwd, capture_output=True, check=True)  # nosec B602 - command always comes from this package's own typed, reviewed catalogue
 
 
-def _replay_step(step: SkillStep, cwd: str, run: RunReplayCommand) -> StepReplayResult:
+def _replay_step(
+    step: SkillStep, cwd: str, run: RunReplayCommand, place: PlaceSnippet | None
+) -> StepReplayResult:
     commands = _commands_of(step)
     if not commands:
         return StepReplayResult(title=step.title, ran=False, ok=True)
     try:
+        if place is not None and isinstance(step.body, SnippetStep):
+            place(step.body, cwd)
         for command in commands:
             run(command, cwd)
         return StepReplayResult(title=step.title, ran=True, ok=True)
@@ -55,8 +62,14 @@ def _replay_step(step: SkillStep, cwd: str, run: RunReplayCommand) -> StepReplay
 
 
 def replay_skill(
-    skill: Skill, cwd: str, run: RunReplayCommand = run_replay_command
+    skill: Skill,
+    cwd: str,
+    run: RunReplayCommand = run_replay_command,
+    place: PlaceSnippet | None = None,
 ) -> tuple[StepReplayResult, ...]:
     """Replays every step of ``skill`` against ``cwd`` (the skill's fixture, checked out for
-    real). ``run`` is injectable so a unit test can fake command execution without a real shell."""
-    return tuple(_replay_step(step, cwd, run) for step in skill.steps)
+    real). ``run`` is injectable so a unit test can fake command execution without a real shell.
+    ``place``, when given, writes each snippet step's file into ``cwd`` before that step's verify --
+    for a fixture that starts without the files (a cold project); omitted, the fixture is assumed
+    to hold them already."""
+    return tuple(_replay_step(step, cwd, run, place) for step in skill.steps)

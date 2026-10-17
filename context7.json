@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/narrativetrace/narrativetrace-python",
+  "public_key": "pk_zCHnG7S67Jp8QHoo0SDw8",
   "projectTitle": "NarrativeTrace for Python",
   "description": "NarrativeTrace for Python records each traced call, its parameters and its result as log lines through the standard logging bridge, and writes a value-free structural trace per test. Install from PyPI: narrativetrace (core) and narrativetrace-pytest (pytest plugin).",
   "folders": [

@@ -86,6 +86,59 @@ class TestReplaySkillUnit:
         assert result.ran is True
         assert calls == ["uv run python x.py"]
 
+    def test_a_snippet_step_hands_its_file_to_the_placer_before_its_verify_runs(self) -> None:
+        calls: list[str] = []
+        skill = _with_steps(
+            SkillStep(
+                title="show it",
+                body=SnippetStep(path="examples/x/main.py", language="python"),
+                verify="uv run python main.py",
+            )
+        )
+        [result] = replay_skill(
+            skill,
+            "/project",
+            run=lambda command, cwd: calls.append(f"run {command} in {cwd}"),
+            place=lambda snippet, cwd: calls.append(f"place {snippet.path} in {cwd}"),
+        )
+        assert result == StepReplayResult(title="show it", ran=True, ok=True, error=None)
+        assert calls == [
+            "place examples/x/main.py in /project",
+            "run uv run python main.py in /project",
+        ]
+
+    def test_a_placer_that_raises_fails_the_snippet_step_and_its_verify_never_runs(self) -> None:
+        run_calls: list[str] = []
+
+        def _missing(snippet: SnippetStep, cwd: str) -> None:
+            raise FileNotFoundError("missing.py")
+
+        skill = _with_steps(
+            SkillStep(
+                title="show it",
+                body=SnippetStep(path="missing.py", language="python"),
+                verify="uv run python missing.py",
+            )
+        )
+        [result] = replay_skill(
+            skill, "/project", run=lambda command, cwd: run_calls.append(command), place=_missing
+        )
+        assert result == StepReplayResult(title="show it", ran=True, ok=False, error="missing.py")
+        assert run_calls == []
+
+    def test_the_placer_is_never_called_for_a_commands_step_or_a_snippet_without_a_verify(
+        self,
+    ) -> None:
+        placed: list[str] = []
+        skill = _with_steps(
+            SkillStep(title="install", body=CommandStep(commands=("uv sync",))),
+            SkillStep(title="show", body=SnippetStep(path="x.py", language="python")),
+        )
+        replay_skill(
+            skill, "/project", run=lambda *_: None, place=lambda snippet, cwd: placed.append("x")
+        )
+        assert placed == []
+
     def test_multiple_steps_each_get_their_own_result(self) -> None:
         skill = _with_steps(
             SkillStep(title="a", body=CommandStep(commands=("uv sync",))),
