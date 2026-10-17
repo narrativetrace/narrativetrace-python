@@ -33,6 +33,10 @@ from narrativetrace_skills.replay import StepReplayResult, replay_skill
 from narrativetrace_skills.skill import SnippetStep
 
 _REPO_ROOT = next(p for p in Path(__file__).resolve().parents if (p / "uv.lock").is_file())
+# Read when this module loads, before any replay runs: the test below compares against these
+# bytes, not against `git status`, so a lockfile already modified in the working tree (a version
+# bump under test) is not mistaken for the replay's doing (B-91).
+_LOCKFILE_BEFORE = (_REPO_ROOT / "uv.lock").read_bytes()
 _EMPTY_PROJECT = (
     _REPO_ROOT / "packages/narrativetrace-skills-catalogue/evals/fixtures/empty-project"
 )
@@ -122,11 +126,4 @@ def test_narrativetrace_came_from_this_checkouts_wheels_not_a_published_release(
 
 
 def test_the_replay_never_touches_this_repositorys_lockfile(cold_replay: _ColdReplay) -> None:
-    status = subprocess.run(  # nosec B603, B607 - fixed git query
-        ["git", "status", "--porcelain", "--", "uv.lock"],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert status.stdout == ""
+    assert (_REPO_ROOT / "uv.lock").read_bytes() == _LOCKFILE_BEFORE
