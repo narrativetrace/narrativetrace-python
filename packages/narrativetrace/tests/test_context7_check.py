@@ -8,6 +8,7 @@ from the tags, and every code fence Context7 will index carries a language tag."
 from __future__ import annotations
 
 import json
+import re
 import subprocess  # nosec B404 - fixed git argv building a throwaway repo
 from pathlib import Path
 from typing import Any
@@ -230,9 +231,10 @@ class TestShippedConfig:
             assert language["directory"] in excluded
         assert "documentation/i18n" in excluded
 
-    @pytest.mark.parametrize("key", ["url", "public_key"])
-    def test_ownership_verification_is_left_to_the_owner(self, key: str) -> None:
-        assert key not in load_config(REPO_ROOT)
+    def test_the_owner_supplied_claim_is_carried(self) -> None:
+        config = load_config(REPO_ROOT)
+        assert config["url"] == "https://context7.com/narrativetrace/narrativetrace-python"
+        assert re.fullmatch(r"pk_[A-Za-z0-9]+", config["public_key"])
 
     def test_every_localised_root_readme_is_excluded_by_name(self) -> None:
         manifest = json.loads((REPO_ROOT / "documentation/i18n/manifest.json").read_text("utf-8"))

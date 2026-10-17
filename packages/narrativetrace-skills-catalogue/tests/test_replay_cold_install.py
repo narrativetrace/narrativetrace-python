@@ -115,7 +115,10 @@ def test_narrativetrace_came_from_this_checkouts_wheels_not_a_published_release(
     project, _ = cold_replay
     lock = tomllib.loads((project / "uv.lock").read_text(encoding="utf-8"))
     [package] = [p for p in lock["package"] if p["name"] == "narrativetrace"]
-    assert package["source"] == {"registry": str(project.parent / "wheels")}
+    # uv writes the find-links registry as an absolute path in one version and relative to the
+    # lockfile in another (CI, 2026-10-17); resolve before comparing so neither form is a failure.
+    [registry] = package["source"].values()
+    assert (project / registry).resolve() == (project.parent / "wheels").resolve()
 
 
 def test_the_replay_never_touches_this_repositorys_lockfile(cold_replay: _ColdReplay) -> None:
