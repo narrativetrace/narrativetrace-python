@@ -42,6 +42,9 @@ class Calc:
         return sum(args)
 ```
 
+Every other traced signature is read by name; `*args` is the one case Python cannot read. A `*args` method with no `@traced` names prints one line on stderr, once per
+process, saying so.
+
 ## `trace_object` wraps it, but calls still aren't traced
 
 **Cause:** you have a reference to the *original*, unwrapped object somewhere — `trace_object`
@@ -51,6 +54,21 @@ reference, or on `self` from inside an untraced method, bypasses the wrapper ent
 **Fix:** make sure every caller holds the object `trace_object(...)` returned, not the one you
 constructed. This usually means wrapping once, at a composition root or a fixture, and passing the
 wrapped reference everywhere downstream.
+
+**Also:** a span is named after the target's class (`type(target).__name__`), so trace an instance
+of a class of your own, or pass `class_name="..."` to `trace_object` for a different name. A bare
+function, a lambda and a `functools.partial` are never traced by `trace_object` — wrap them in a
+class.
+
+## Traces say `unknown_service:python`
+
+**Cause:** nobody named the service, so the platform and OpenTelemetry fall back to
+`unknown_service:python`.
+
+**Fix:** set `NARRATIVETRACE_SERVICE_NAME` (and, if you want them,
+`NARRATIVETRACE_SERVICE_VERSION` and `NARRATIVETRACE_ENVIRONMENT`) in the environment the service
+runs in, or pass `ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))`.
+`narrativetrace doctor` flags it as `config.service-identity`.
 
 ## Cross-thread or cross-task traces are empty, or a forked child shows up as a new root
 

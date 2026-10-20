@@ -115,18 +115,13 @@ class TestReadingTheTrace:
         assert "read whole before any value was looked at" in read.done
         assert "naming every match and every mismatch by its span id (#2.1)" in read.done
 
-    def test_values_and_the_fix_run_only_on_a_mismatch(self) -> None:
-        for title in (
-            "Open values on the span that looks wrong, and only there",
-            "Fix, re-run, read again",
-        ):
-            assert _step(title).condition == (
-                "only when the structural read named a span that does not match the intent; "
-                "otherwise go on to the pin"
-            )
-        assert _step("Open values on the span that looks wrong, and only there").body == (
-            CommandStep(commands=(LIST_NARRATIVES,))
-        )
+    def test_values_and_the_fix_are_conditional_and_fall_through_to_the_pin(self) -> None:
+        values = _step("Open values on the span that looks wrong, and only there")
+        assert values.body == CommandStep(commands=(LIST_NARRATIVES,))
+        for step in (values, _step("Fix, re-run, read again")):
+            assert step.condition is not None
+            assert step.condition.endswith("otherwise go on to the pin")
+        # The exact conditions are pinned in test_skill_wording_one_run_one_path.py.
 
 
 class TestThePin:
@@ -205,11 +200,11 @@ class TestTheGateIsTheFeedbackSkillsOwnWording:
 class TestTheReport:
     def test_every_claim_cites_a_span_id_from_the_nt_that_was_read(self) -> None:
         report = _step("Report what the trace showed")
-        assert report.done == (
-            "two sentences on what the trace showed, every claim citing the span id it rests "
-            "on — a claim without an id is not a claim, and only ids in the .nt that was read "
-            "count — with the .nt attached or quoted; 'tests pass' alone is not the report"
-        )
+        assert report.done is not None
+        assert "every claim citing the span id it rests on" in report.done
+        assert "a claim without an id is not a claim" in report.done
+        assert "only ids in the .nt that was read count" in report.done
+        # The exact sentence is pinned in test_skill_wording_one_run_one_path.py.
 
 
 class TestTheApprovalSwitchFailureNote:

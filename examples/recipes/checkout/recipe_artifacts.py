@@ -32,7 +32,13 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from examples.recipes.checkout.env import LOG_FILE_ENV, REFACTORED_ENV, VERDICTS_ENV
+from examples.recipes.checkout.env import (
+    ARTIFACTS_ENV,
+    CORRELATION_LOG_FILE_ENV,
+    LOG_FILE_ENV,
+    REFACTORED_ENV,
+    VERDICTS_ENV,
+)
 
 HERE = Path(__file__).parent
 REPO_ROOT = HERE.parents[2]
@@ -45,6 +51,11 @@ DEBUG = "help-me-debug-and-fix-this-bug"
 TEST_FAILURE = "why-did-this-test-fail"
 REVIEW_FLOW = "review-a-complex-flow-before-changing-it"
 REFACTORING = "review-a-refactoring-did-behaviour-change"
+ACROSS_SERVICES = "follow-one-request-across-services"
+KEEP_OUT_OF_LOGS = "keep-secrets-out-of-the-logs"
+ACROSS_THREADS = "follow-a-flow-across-threads"
+OBSERVABILITY = "send-traces-to-the-observability-stack-you-already-run"
+COST = "trace-in-production-without-the-cost"
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +171,15 @@ class RecipeRuns:
     review_summary: Run
     refactoring_as_shipped: Run
     refactoring_dropped_the_release: Run
+    across_services: Run
+    secrets: Run
+    across_threads: Run
+    without_handover: Run
+    observability: Run
+    cost_detail: Run
+    cost_errors: Run
+    cost_detail_successful: Run
+    cost_errors_successful: Run
 
 
 @cache
@@ -175,6 +195,11 @@ def write_artifacts() -> RecipeRuns:
         review_detail=_review_flow("detail"),
         review_summary=_review_flow("summary", NARRATIVETRACE_LEVEL="SUMMARY"),
         **_refactoring(),
+        across_services=_across_services(),
+        secrets=_secrets(),
+        **_across_threads(),
+        observability=_observability(),
+        **_cost(),
     )
 
 
@@ -224,6 +249,78 @@ def _refactoring() -> dict[str, Run]:
         rejection.strip() + "\n", encoding="utf-8"
     )
     return {"refactoring_as_shipped": shipped, "refactoring_dropped_the_release": dropped}
+
+
+def _across_services() -> Run:
+    """Two services' lines in one file, and the two narratives the page sets beside them."""
+    log = page_dir(ACROSS_SERVICES) / "checkout.log"
+    artifacts = str(page_dir(ACROSS_SERVICES))
+    return _run_fixture(
+        "across_services",
+        _settings(
+            ACROSS_SERVICES, **{CORRELATION_LOG_FILE_ENV: str(log), ARTIFACTS_ENV: artifacts}
+        ),
+    )
+
+
+def _secrets() -> Run:
+    """One checkout carrying a password and a card; the fixture reads the log back itself."""
+    log = page_dir(KEEP_OUT_OF_LOGS) / "checkout.log"
+    return _run_fixture("secrets", _settings(KEEP_OUT_OF_LOGS, **{LOG_FILE_ENV: str(log)}))
+
+
+def _across_threads() -> dict[str, Run]:
+    """The wrapped run, whose log and structure the page embeds, and the same submit without the
+    handover -- a run of its own, because its trace id is fresh every time."""
+    kept = _threads_settings()
+    lost = _threads_settings("no-handover")
+    return {
+        "across_threads": _run_fixture(
+            "across_threads", kept, "test_the_background_tasks_stay_in_the_customers_trace"
+        ),
+        "without_handover": _run_fixture(
+            "across_threads",
+            lost,
+            "test_a_task_submitted_without_the_handover_starts_a_new_trace",
+        ),
+    }
+
+
+def _threads_settings(subdir: str = "") -> dict[str, str]:
+    base = page_dir(ACROSS_THREADS) / subdir if subdir else page_dir(ACROSS_THREADS)
+    return _settings(
+        ACROSS_THREADS,
+        subdir,
+        **{CORRELATION_LOG_FILE_ENV: str(base / "checkout.log"), ARTIFACTS_ENV: str(base)},
+    )
+
+
+def _observability() -> Run:
+    """The log lines and the exported spans of one run, side by side."""
+    log = page_dir(OBSERVABILITY) / "checkout.log"
+    artifacts = str(page_dir(OBSERVABILITY))
+    return _run_fixture(
+        "observability",
+        _settings(OBSERVABILITY, **{LOG_FILE_ENV: str(log), ARTIFACTS_ENV: artifacts}),
+    )
+
+
+# snippet:begin cost
+def _cost() -> dict[str, Run]:
+    """The declined-payment reproduction at both levels, and a checkout that succeeds at both."""
+    declined = "test_the_stock_is_released_when_the_card_is_declined"
+    return {
+        "cost_detail": _at_level("detail", "declined_payment", declined),
+        "cost_errors": _at_level("errors", "declined_payment", declined, level="ERRORS"),
+        "cost_detail_successful": _at_level("detail-successful", "checkout_review"),
+        "cost_errors_successful": _at_level("errors-successful", "checkout_review", level="ERRORS"),
+    }
+
+
+def _at_level(directory: str, module: str, test: str | None = None, level: str = "DETAIL") -> Run:
+    """One fixture run into its own directory, at ``level`` (the default level is DETAIL)."""
+    return _run_fixture(module, _settings(COST, directory, NARRATIVETRACE_LEVEL=level), test)
+    # snippet:end cost
 
 
 if __name__ == "__main__":

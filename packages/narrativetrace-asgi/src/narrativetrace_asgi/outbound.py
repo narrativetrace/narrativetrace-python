@@ -5,8 +5,9 @@
 """Outbound W3C ``traceparent`` injection for server-to-server calls.
 
 The middleware adopts an inbound ``traceparent``; this closes the loop by stamping the current
-request's trace id onto outgoing ``httpx`` requests, so a NarrativeTrace trace id propagates
-across services (the client half of http-di report §TS-HTTP-5). Java has no counterpart.
+request's trace id and calling span onto outgoing ``httpx`` requests, so a NarrativeTrace trace id
+propagates across services and the callee's root links to the calling span (the client half of
+http-di report §TS-HTTP-5). Java has no counterpart.
 
 Usage::
 
@@ -38,11 +39,16 @@ _HEADER = "traceparent"
 
 
 def traceparent_header() -> str | None:
-    """Builds a ``traceparent`` value for the current request context, or ``None`` outside one."""
+    """Builds a ``traceparent`` value for the current request context, or ``None`` outside one.
+
+    The parent-id field names the span making the call (the context's current span), so the
+    callee's root links to it. Outside any span it carries the remote parent the request itself
+    adopted, and when there is none either, a fresh id: the header cannot omit the field.
+    """
     context = get_narrative_context()
     if context is None:
         return None
-    return format_traceparent(context.trace_id(), SpanId.generate())
+    return format_traceparent(context.trace_id(), context.current_span_id() or SpanId.generate())
 
 
 def attach_traceparent(request: Any) -> None:

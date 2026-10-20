@@ -25,14 +25,14 @@ _CHECK_FINDINGS_WELL_FORMED = """\
 import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 21 else 0)
 """
 
 DOCTOR_REPORT_WELL_FORMED = (
     f"uv run narrativetrace doctor --json | uv run python -c '{_CHECK_FINDINGS_WELL_FORMED}'"
 )
 """Runs ``narrativetrace doctor`` and asserts the report is well-formed (parses, carries all
-nineteen finding ids, held to the doctor's registry by ``tests/test_doctor_count_drift.py``) — the
+twenty-one finding ids, held to the doctor's registry by ``tests/test_doctor_count_drift.py``) — the
 mechanical floor a step can claim just from "doctor ran". It does NOT assert any finding's
 pass/fail VALUE: those are already unit-tested per-check at the CLI layer, and a project's report
 legitimately fails some checks while still being well-formed — that is doctor working correctly,
@@ -75,6 +75,23 @@ TOOLCHAIN_CHECKS_HOLD = (
 )
 """Every ``toolchain.*`` finding holds (status ``pass``) — the install step's own claim, not a
 repeat of the install command itself."""
+
+_CHECK_SERVICE_IS_NAMED = """\
+import json, sys
+report = json.load(sys.stdin)
+by_id = {f["id"]: f for f in report["findings"]}
+finding = by_id.get("config.service-identity")
+if finding is None or finding["status"] != "pass":
+    print(finding["fix"] if finding else "the doctor has no config.service-identity finding")
+sys.exit(0 if finding is not None and finding["status"] == "pass" else 1)
+"""
+
+SERVICE_IS_NAMED = (
+    f"uv run narrativetrace doctor --json | uv run python -c '{_CHECK_SERVICE_IS_NAMED}'"
+)
+"""The ``config.service-identity`` finding passes — the "Name the service" step's own claim: the
+environment or the source names the service, so its traces stop reading ``unknown_service:python``.
+Prints the finding's fix when it does not."""
 
 _CHECK_REDACTION_PROOF_PRESENT = """\
 import json, sys

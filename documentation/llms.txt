@@ -5,6 +5,7 @@
 
 Wrap an object with `trace_object(obj, context)`; call it; render `context.capture_trace()`.
 The narrative is generated from names and values — no logging calls in the business code.
+A target whose class is defined under an excluded module prefix (a shipped default covering test, mocking and APM libraries; set `NARRATIVETRACE_EXCLUDE` or the `exclude` key to replace it) comes back unwrapped; `narrativetrace doctor` prints the effective list.
 
 ## Start here (paste this into your agent)
 
@@ -45,6 +46,7 @@ uv add --dev pytest narrativetrace-pytest
 from narrativetrace import (
     ContextVarNarrativeContext,
     IndentedTextRenderer,
+    ServiceIdentity,
     not_traced,
     trace_object,
 )
@@ -56,7 +58,7 @@ class OrderService:
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
 
-context = ContextVarNarrativeContext()
+context = ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 
@@ -117,6 +119,9 @@ The family's packages declare each other by bare name, with no version constrain
 
 - One `LoggingTraceConsumer` per event stream: each instance counts its own depth, so a second one on the same events still reports correctly — it is simply needless (add `logging.Handler`s instead).
 - Sending a trace to your logger is one call: `export_to_logger(trace)`.
+- **Name the service.** The first trace above sets it through the context: `ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))` (version and environment are optional second and third arguments). Or leave the code alone and set `NARRATIVETRACE_SERVICE_NAME`, `NARRATIVETRACE_SERVICE_VERSION` and `NARRATIVETRACE_ENVIRONMENT` in the environment the service runs in; an identity passed to the context wins over them. Left unset, every trace says `unknown_service:python` on the platform and in OpenTelemetry — `narrativetrace doctor` (`config.service-identity`) flags a context built in non-test source with no name.
+- **Span names come from the class.** A span is named `Class.method` after `type(target).__name__`, so trace an instance of a class of your own; pass `class_name="..."` to `trace_object` to show a different name. A bare function, a lambda or a `functools.partial` is never traced by `trace_object` — wrap it in a class.
+- **Parameter names are read, not passed.** Python reads them from the method signature, so `place_order(customer_id, product_id, quantity)` shows all three by name. The one case it cannot read is a `*args` catch-all, which collapses into a single `args: [...]` value: name them with `@traced("first", "second")`. A `*args` method with no names prints one line on stderr, once per process, saying so.
 - Every package installs from PyPI today (`uv add ...`); a workspace checkout is only for contributing to this repo, never required to use it.
 - `narrativetrace-pytest` artifact-writing defaults **on**; `NARRATIVETRACE_OUTPUT=false` opts out.
 - `narrativetrace-structlog` pulls in `structlog` itself — `uv add narrativetrace-structlog` is all the processor needs.
@@ -195,7 +200,7 @@ They are also reachable from two registries, each landing the same pages `init` 
 uv run narrativetrace doctor
 ```
 
-`uv add narrativetrace` — the install block above — already puts this console script on your path; nothing else to install. `--json` emits the same report as machine-readable JSON. Nineteen checks, `config.skills-installed` and `config.approval-mode` among them: whether the agent skills above are installed under `.agents/skills/` and current with this project's release. Six of them are the framework table's: for each framework your project uses, whether its NarrativeTrace integration is added and wired, with the exact lines to add when it is not.
+`uv add narrativetrace` — the install block above — already puts this console script on your path; nothing else to install. `--json` emits the same report as machine-readable JSON. Twenty-one checks, `config.skills-installed`, `config.approval-mode`, `config.exclude` and `config.service-identity` among them: whether the agent skills above are installed under `.agents/skills/` and current with this project's release. Six of them are the framework table's: for each framework your project uses, whether its NarrativeTrace integration is added and wired, with the exact lines to add when it is not.
 
 <!-- covered-frameworks:begin -->
 Covered frameworks (each row of the doctor's framework table): pytest (`config.pytest-fixture`); FastAPI / Starlette (ASGI) (`config.asgi-middleware`); OpenTelemetry (`config.otel-listener`); structlog (`config.structlog-processor`); stdlib logging (runtime-only); Flask (no integration shipped); Django (no integration shipped).
@@ -256,6 +261,11 @@ One page per problem, in the words a user would type. Each page carries its scen
 - [Why did this test fail](recipes/why-did-this-test-fail.md) — a red checkout test read span by span against the assertion, where every span agrees with every other and the expectation is what is stale.
 - [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) — one run at `DETAIL` and at `SUMMARY`, with the log line that carries values beside the value-free `.nt` an agent reads.
 - [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) — the tests stay green, the approval diff names the dropped call, and `uv run poe approve` is how you say yes.
+- [Follow one request across services (distributed tracing)](recipes/follow-one-request-across-services.md) — the checkout charges through a second traced service over a real socket: `attach_traceparent` carries the W3C `traceparent` with the request, so one trace id is in both services' lines and the payment service's trace adopts the caller's.
+- [Keep secrets out of the logs](recipes/keep-secrets-out-of-the-logs.md) — a password caught by its parameter name and a card number caught by its value, in the log and in the trace file, with the test that reads the log back as the proof.
+- [Follow a flow across threads](recipes/follow-a-flow-across-threads.md) — two tasks handed to a thread pool through a `ForkJoinGroup` keep the customer's trace id and come home under the span that launched them; the same submit without the group starts a trace nobody is searching for.
+- [Send traces to the observability stack you already run](recipes/send-traces-to-the-observability-stack-you-already-run.md) — one run, two consumers: the narrative lines your logger already writes beside the OpenTelemetry spans the same events became, attribute by attribute, redactions included.
+- [Trace in production without the cost](recipes/trace-in-production-without-the-cost.md) — one declined checkout rendered at `DETAIL` and at `ERRORS`, where a run that succeeded writes no artifact at all, and only `OFF` skips interception.
 
 ## Examples
 

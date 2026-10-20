@@ -18,6 +18,8 @@ evals/
 │   │                          # pyproject.toml yet -- add-narrative-tracing's own fixture
 │   ├── existing-service/      # a working project with one real service boundary and no
 │   │                          # narrativetrace: the init prompt's "otherwise" branch
+│   ├── existing-service-pytest/  # the same plus a pytest suite, still no narrativetrace: the
+│   │                          # tests premise of add-narrative-tracing's first-trace step
 │   ├── fastapi-service/       # the same shape as a FastAPI app: the doctor, not the prompt, says
 │   │                          # it needs narrativetrace-asgi (Phase 6 D4)
 │   ├── feedback-false-positive/  # configured correctly; the doctor's redaction-proof finding
@@ -47,6 +49,10 @@ evals/
 │   │   ├── case.json          # points the scaffolder at fixtures/empty-project
 │   │   ├── prompt.md
 │   │   └── graders/verify.sh
+│   ├── existing-service/
+│   │   ├── case.json          # fixtures/existing-service-pytest, "install": "checkout"
+│   │   ├── prompt.md          # a project WITH tests: one existing test's .md and .nt files
+│   │   └── graders/verify.sh  # the grader runs the suite and looks for both files
 │   ├── init-prompt-empty-project/
 │   │   ├── case.json
 │   │   ├── prompt.md          # the PUBLISHED init prompt, verbatim and nothing else

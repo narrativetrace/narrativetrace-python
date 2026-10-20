@@ -45,11 +45,19 @@ from narrativetrace_skills.skill import (
     SnippetStep,
 )
 
-ONLY_ON_A_MISMATCH = (
-    "only when the structural read named a span that does not match the intent; otherwise go on "
-    "to the pin"
+OPEN_VALUES_WHEN = (
+    "when the structural read named a span that does not match the intent, or the shape matches "
+    "but a symptom points at data — an assertion failed on a value, the output is wrong — then "
+    "open the one span the symptom points at; otherwise go on to the pin"
 )
-"""Values, the fix and the re-read happen only when the structural read found a mismatch."""
+"""Values are opened on a shape mismatch, OR a shape match a symptom still points at -- one span,
+chosen by the symptom."""
+
+FIX_AND_RERUN_WHEN = (
+    "only when the structural read named a span that does not match the intent, or the value "
+    "read in step 5 was wrong; otherwise go on to the pin"
+)
+"""The fix and the re-read happen only on a structural mismatch, or a wrong value step 5 found."""
 
 FLOW_TEST = "examples/sixty_seconds/test_place_order_flow.py"
 """The smallest test that drives a real path through its collaborators, traced."""
@@ -117,7 +125,7 @@ _READ = SkillStep(
 _VALUES = SkillStep(
     title="Open values on the span that looks wrong, and only there",
     body=CommandStep(commands=(LIST_NARRATIVES,)),
-    condition=ONLY_ON_A_MISMATCH,
+    condition=OPEN_VALUES_WHEN,
     done=(
         "only the flagged span was read in the .md narrative, found by the id the .nt gave it — "
         "not the whole file; a [REDACTED] value stays redacted"
@@ -127,7 +135,7 @@ _VALUES = SkillStep(
 _FIX = SkillStep(
     title="Fix, re-run, read again",
     body=CommandStep(commands=(RUN_THE_PATH,)),
-    condition=ONLY_ON_A_MISMATCH,
+    condition=FIX_AND_RERUN_WHEN,
     done=(
         "the same test ran again after the fix and its new .nt was read whole: the span that was "
         "wrong now matches the intent, and a fix that changed the shape was read again from the "
@@ -139,9 +147,11 @@ _REPORT = SkillStep(
     title="Report what the trace showed",
     body=CommandStep(commands=()),
     done=(
-        "two sentences on what the trace showed, every claim citing the span id it rests on — a "
-        "claim without an id is not a claim, and only ids in the .nt that was read count — with "
-        "the .nt attached or quoted; 'tests pass' alone is not the report"
+        "two sentences on what the trace showed on the path this run took, every claim citing the "
+        "span id it rests on — a claim without an id is not a claim, and only ids in the .nt that "
+        "was read count — with the .nt attached or quoted; the report names the branches and "
+        "inputs this run did not exercise, because one trace shows one path, not every "
+        "execution; 'tests pass' alone is not the report"
     ),
 )
 

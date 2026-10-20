@@ -97,7 +97,7 @@ from narrativetrace.values import (
     StringVal,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = [
     "NOOP_CONTEXT",

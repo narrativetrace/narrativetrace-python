@@ -15,9 +15,12 @@ collects ``packages`` before ``examples`` (``testpaths`` in ``pyproject.toml``),
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
+import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -28,6 +31,11 @@ WITH_LOGGER_ARTIFACT = "see_a_trace_with_logger.txt"
 WITH_REDACTION_ARTIFACT = "see_a_trace_with_redaction.txt"
 WITH_LOGURU_ARTIFACT = "see_a_trace_with_loguru.txt"
 AGENT_SKILLS_INIT_PREVIEW_ARTIFACT = "agent-skills-init-preview.json"
+SKILLS_PYPROJECT = HERE.parents[1] / "packages" / "narrativetrace-skills" / "pyproject.toml"
+
+
+class StaleInstallError(RuntimeError):
+    """The installed skills distribution is not the tree's version (the venv was synced behind)."""
 
 
 def _run_script(name: str) -> str:
@@ -80,7 +88,39 @@ def write_artifacts() -> tuple[str, str, str, str]:
     return plain, with_logger, with_redaction, with_loguru
 
 
-def write_agent_skills_preview() -> str:
+def tree_skills_version() -> str:
+    """The version declared by the tree's ``packages/narrativetrace-skills/pyproject.toml``."""
+    data = tomllib.loads(SKILLS_PYPROJECT.read_text(encoding="utf-8"))
+    return str(data["project"]["version"])
+
+
+def _run_init_preview() -> str:
+    result = subprocess.run(  # nosec B603, B607 - fixed argv, no shell, no untrusted input
+        ["uv", "run", "narrativetrace", "init", "--dry-run", "--json"],
+        cwd=HERE,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        capture_output=True,
+        encoding="utf-8",
+        check=True,
+    )
+    return result.stdout
+
+
+def _refuse_stale_install(preview_stdout: str, tree_version: str) -> None:
+    """Raises ``StaleInstallError`` when the preview's ``carrier`` (``<dist>==<installed version>``)
+    names a version other than ``tree_version`` -- the one place the two are compared."""
+    carrier = str(json.loads(preview_stdout)["carrier"])
+    installed = carrier.rpartition("==")[2]
+    if installed != tree_version:
+        raise StaleInstallError(
+            f"stale install: {carrier} installed, tree is {tree_version} — sync the workspace"
+        )
+
+
+def write_agent_skills_preview(
+    run_preview: Callable[[], str] = _run_init_preview,
+    tree_version: str | None = None,
+) -> str:
     """Runs the real ``narrativetrace init --dry-run --json`` against this fixture and saves its
     stdout for ``documentation/agent-skills.md`` to embed -- the exact command
     ``add-narrative-tracing``'s own last step replays (see
@@ -94,14 +134,13 @@ def write_agent_skills_preview() -> str:
     here already stamps the true release -- no separate wheel-built venv is needed just for a docs
     snippet. ``--dry-run`` writes nothing, proven the same way ``write_artifacts`` above is safe to
     call from more than one test.
+
+    Raises ``StaleInstallError`` -- and saves nothing -- when the preview's ``carrier`` version
+    differs from ``tree_version`` (default: ``tree_skills_version()``), because a stale
+    environment would otherwise be indistinguishable from a wrong page (B-104). ``run_preview``
+    returns the command's stdout; tests inject it.
     """
-    result = subprocess.run(  # nosec B603, B607 - fixed argv, no shell, no untrusted input
-        ["uv", "run", "narrativetrace", "init", "--dry-run", "--json"],
-        cwd=HERE,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-        capture_output=True,
-        encoding="utf-8",
-        check=True,
-    )
-    _save(AGENT_SKILLS_INIT_PREVIEW_ARTIFACT, result.stdout)
-    return result.stdout
+    stdout = run_preview()
+    _refuse_stale_install(stdout, tree_version or tree_skills_version())
+    _save(AGENT_SKILLS_INIT_PREVIEW_ARTIFACT, stdout)
+    return stdout

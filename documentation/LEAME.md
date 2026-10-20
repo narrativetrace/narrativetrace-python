@@ -37,6 +37,11 @@ Una página por problema, con las palabras que escribiría un usuario — cada u
 | [Por qué falló esta prueba](es/por-que-fallo-esta-prueba.md) | Una prueba en rojo leída span por span contra su aserción — aquí lo desactualizado es la expectativa |
 | [Revisa un flujo complejo antes de cambiarlo](es/revisa-un-flujo-complejo-antes-de-cambiarlo.md) | Una ejecución en `DETAIL` y en `SUMMARY`, la línea de log junto al `.nt` libre de valores |
 | [Revisa una refactorización: ¿cambió el comportamiento?](es/revisa-una-refactorizacion-cambio-el-comportamiento.md) | Las pruebas siguen en verde, el diff de aprobación nombra la llamada eliminada |
+| [Sigue una petición entre servicios (trazado distribuido)](es/sigue-una-peticion-entre-servicios.md) | El checkout cobra a través de un segundo servicio trazado por un socket real: un solo id de traza en las líneas de ambos servicios |
+| [Mantén los secretos fuera de los logs](es/manten-los-secretos-fuera-de-los-logs.md) | Una contraseña atrapada por su nombre y un número de tarjeta por su valor, con la prueba que lee el log de vuelta |
+| [Sigue un flujo entre hilos](es/sigue-un-flujo-entre-hilos.md) | Dos tareas entregadas a un pool de hilos se quedan en la traza del cliente; el mismo submit sin el grupo no |
+| [Envía las trazas al stack de observabilidad que ya tienes](es/envia-las-trazas-al-stack-de-observabilidad-que-ya-tienes.md) | Las líneas de log junto a los spans de OpenTelemetry de una misma ejecución, ocultaciones incluidas |
+| [Traza en producción sin el coste](es/traza-en-produccion-sin-el-coste.md) | Un checkout rechazado en `DETAIL` y en `ERRORS`; una ejecución que tuvo éxito no escribe nada |
 
 ## Integraciones
 

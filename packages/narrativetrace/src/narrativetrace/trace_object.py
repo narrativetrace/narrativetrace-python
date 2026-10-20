@@ -29,14 +29,17 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
-from collections.abc import Awaitable, Callable
+import threading
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from inspect import Parameter, Signature
 from typing import Any
 
 from narrativetrace._boundary import PROPAGATED_EXCEPTIONS
+from narrativetrace._generated import is_generated_member, is_generated_target
 from narrativetrace.context import NarrativeContext
 from narrativetrace.decorators import MethodMetadata, read_method_metadata, resolve_error_context
+from narrativetrace.exclusions import ExcludedModules, _say
 from narrativetrace.ids import SpanId
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
 from narrativetrace.rendering import ValueRenderer, is_rendering
@@ -52,12 +55,25 @@ def trace_object[T](
     *,
     class_name: str | None = None,
     renderer: ValueRenderer | None = None,
+    exclude: ExcludedModules | str | Sequence[str] | None = None,
 ) -> T:
     """Wraps ``target`` so its public method calls are traced into ``context``.
 
     Public callables are intercepted; dunder/private attributes and properties delegate raw.
     Nested wrapping is supported. Returns a proxy that is a drop-in for ``target``.
+
+    A target that is structurally never a business boundary (exclusion list 1, see
+    :mod:`narrativetrace._generated`) is returned unwrapped, as are its members of that kind.
+
+    ``exclude`` is exclusion list 2 (:mod:`narrativetrace.exclusions`): module prefixes, as a
+    ``;``-delimited string, a sequence or an :class:`~narrativetrace.exclusions.ExcludedModules`.
+    A target whose type is defined under one comes back unwrapped, reported once per prefix. Left
+    ``None``, it is read from ``NARRATIVETRACE_EXCLUDE`` / the config file, else the shipped
+    default; giving it replaces that default. Raises ``ValueError`` when a given value is malformed.
     """
+    excluded = ExcludedModules.coerce(exclude)
+    if is_generated_target(target) or excluded.excludes(target):
+        return target
     proxy = _TracedProxy(target, context, class_name, renderer or _DEFAULT_RENDERER)
     return proxy  # type: ignore[return-value]
 
@@ -121,7 +137,7 @@ class _TracedProxy:
     def __getattr__(self, name: str) -> Any:
         target = object.__getattribute__(self, "_nt_target")
         attr = getattr(target, name)
-        if name.startswith("_"):
+        if is_generated_member(name, attr):
             return attr
         static = inspect.getattr_static(type(target), name, None)
         if isinstance(static, property):
@@ -145,6 +161,8 @@ class _TracedProxy:
         except (ValueError, TypeError):
             sig = None
         meta = read_method_metadata(func)
+        if not meta.traced_names and _takes_catch_all(sig):
+            _warn_catch_all_once(class_name, getattr(func, "__name__", "call"))
         return _MethodSpec(
             meta,
             sig,
@@ -210,6 +228,41 @@ def _type_name(annotation: object) -> str | None:
     if isinstance(annotation, type):
         return f"{annotation.__module__}.{annotation.__qualname__}"
     return str(annotation)
+
+
+_catch_all_lock = threading.Lock()
+_catch_all_warned: list[bool] = []
+"""Non-empty once the warning has been said; a list so no ``global`` statement is needed."""
+
+
+def _takes_catch_all(sig: Signature | None) -> bool:
+    """Whether ``sig`` has a ``*args`` parameter -- the one shape whose argument names Python
+    cannot read, because every positional value lands under the single name ``args``."""
+    return sig is not None and any(
+        p.kind is Parameter.VAR_POSITIONAL for p in sig.parameters.values()
+    )
+
+
+def _warn_catch_all_once(class_name: str, method_name: str) -> None:
+    """Says on stderr, once per process, that a ``*args`` method's arguments cannot be named.
+
+    The first such method wins the line; later ones stay quiet so a framework full of them does
+    not flood the log. Names are never guessed from source -- the fix is ``@traced`` names.
+    """
+    with _catch_all_lock:
+        if _catch_all_warned:
+            return
+        _catch_all_warned.append(True)
+    _say(
+        f"narrativetrace: {class_name}.{method_name} takes *args, so its arguments render as one "
+        'args: [...] value; name them with @traced("first", "second", ...)'
+    )
+
+
+def reset_catch_all_warning() -> None:
+    """Re-arms the once-per-process ``*args`` warning (a test seam; no production caller)."""
+    with _catch_all_lock:
+        _catch_all_warned.clear()
 
 
 def _return_type_of(sig: Signature | None) -> str | None:

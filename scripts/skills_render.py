@@ -26,6 +26,7 @@ from pathlib import Path
 
 from narrativetrace_skills import (
     MARKETPLACE,
+    OPENAI_DIRECTORY,
     PRO_LISTINGS,
     SKILLS,
     render_agents_md_snippet,
@@ -35,6 +36,7 @@ from narrativetrace_skills import (
     render_cursor_marketplace_json,
     render_cursor_plugin_json,
     render_marketplace_json,
+    render_openai_plugin_json,
     splice_agents_md_section,
 )
 
@@ -123,6 +125,23 @@ def _rendered_marketplace_json() -> str:
     return render_marketplace_json(MARKETPLACE)
 
 
+# The OpenAI plugin directory's manifest (Phase 4 milestone 8): inside the catalogue package, not
+# the repository root, so the published root never carries a second plugin.json a vendor could
+# discover on its own. The versionless text is committed; the packaged text (with the release
+# version) is `scripts/openai_plugin_pack.py`'s. The two icons beside it are hand-made, never
+# rendered.
+def _openai_plugin_dir(root: Path = REPO_ROOT) -> Path:
+    return root / "packages" / "narrativetrace-skills-catalogue" / "openai-plugin"
+
+
+def _openai_plugin_json_path(root: Path = REPO_ROOT) -> Path:
+    return _openai_plugin_dir(root) / "plugin.json"
+
+
+def _rendered_openai_plugin_json() -> str:
+    return render_openai_plugin_json(OPENAI_DIRECTORY)
+
+
 # Phase 8, platform pointers: the Cursor plugin pair is rendered from the same listing as the
 # Claude file, and the one rule it ships is the platform table's Cursor pointer, UNSTAMPED -- the
 # copy `init` adopts.
@@ -157,6 +176,7 @@ def _rendered_files(root: Path) -> dict[Path, str]:
         **_rendered_skill_files(root),
         **_rendered_carrier_files(root),
         _marketplace_json_path(root): _rendered_marketplace_json(),
+        _openai_plugin_json_path(root): _rendered_openai_plugin_json(),
         _cursor_plugin_json_path(root): render_cursor_plugin_json(MARKETPLACE),
         _cursor_marketplace_json_path(root): render_cursor_marketplace_json(MARKETPLACE),
         _cursor_rule_path(root): _rendered_cursor_rule(),

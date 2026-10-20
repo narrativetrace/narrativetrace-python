@@ -20,6 +20,7 @@ from scripts.skills_render import (
     _cursor_plugin_json_path,
     _cursor_rule_path,
     _marketplace_json_path,
+    _openai_plugin_json_path,
 )
 from scripts.translation_check import REPO_ROOT
 
@@ -49,3 +50,7 @@ class TestNoticeNamesEveryRenderTarget:
 
     def test_names_the_cursor_rule_file(self) -> None:
         assert str(_cursor_rule_path().relative_to(REPO_ROOT)) in NOTICE_TEXT
+
+    def test_names_the_openai_plugin_directorys_package_root(self) -> None:
+        package_root = _openai_plugin_json_path().parent
+        assert f"{package_root.relative_to(REPO_ROOT)}/" in NOTICE_TEXT

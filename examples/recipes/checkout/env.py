@@ -16,3 +16,10 @@ REFACTORED_ENV = "NARRATIVETRACE_RECIPE_REFACTORED"
 
 VERDICTS_ENV = "NARRATIVETRACE_RECIPE_VERDICTS"
 """The file ``verdict_plugin`` appends what the runner reported to."""
+
+CORRELATION_LOG_FILE_ENV = "NARRATIVETRACE_RECIPE_CORRELATION_LOG"
+"""The file the two correlation recipes' handler writes (``correlation_logging.py``)."""
+
+ARTIFACTS_ENV = "NARRATIVETRACE_RECIPE_ARTIFACTS"
+"""The directory a scenario that renders an artifact itself (not through the pytest plugin) writes
+it to -- the page's own directory under ``build/``."""

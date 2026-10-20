@@ -47,15 +47,20 @@ compound (``enclaveId``, ``cartesianProduct``); it cannot protect a codebase's o
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import ClassVar
 
 from narrativetrace.secret_value_shapes import is_secret_shaped
 
 REDACTED_MARKER = "[REDACTED]"
 """Marker emitted in place of a redacted value (matches the ``@not_traced`` marker)."""
+
+ADDITIONAL_PATTERNS_VARIABLE = "NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS"
+"""Environment variable holding comma-separated deny-list additions, appended to every policy
+:meth:`RedactionPolicy.defaults` and :meth:`RedactionPolicy.of_patterns` construct."""
 
 _DEFAULT_PATTERNS = frozenset(
     {
@@ -179,6 +184,28 @@ def _canonical(text: str) -> str:
     )
 
 
+def _parse_additions(raw: str | None) -> frozenset[str]:
+    """Splits one configured value into patterns: comma-separated, each stripped, blanks dropped
+    (an empty pattern is a substring of every field name, so ``"a,,b"`` must never yield ``""``).
+    ``None`` and blank yield no patterns."""
+    if raw is None:
+        return frozenset()
+    return frozenset(pattern for part in raw.split(",") if (pattern := part.strip()))
+
+
+def configured_additions(environ: Mapping[str, str] | None = None) -> frozenset[str]:
+    """The operator-supplied deny-list additions, read from :data:`ADDITIONAL_PATTERNS_VARIABLE`.
+
+    Mirrors Java's ``AdditionalRedactionPatterns``: the point of the knob is that whoever *deploys*
+    the service can widen redaction without rebuilding it, so the only source is the environment --
+    never ``narrativetrace.toml`` or ``pyproject.toml``. ``environ`` defaults to ``os.environ`` and
+    exists so a test can hand the lookup in. Additions are plain substring patterns, matched
+    exactly like the built-in substring vocabulary: a short one (``id``) blanks every identifier.
+    """
+    source = os.environ if environ is None else environ
+    return _parse_additions(source.get(ADDITIONAL_PATTERNS_VARIABLE))
+
+
 def _identifier_tokens(name: str) -> frozenset[str]:
     """Splits ``name`` into its identifier words -- on any non-alphanumeric run, and (within an
     alphanumeric run) on a lower-to-upper or acronym-to-word case transition -- each folded
@@ -206,21 +233,46 @@ class RedactionPolicy:
     DEFAULT: ClassVar[RedactionPolicy]
     DISABLED: ClassVar[RedactionPolicy]
 
-    def __init__(self, patterns: Iterable[str], *, mask_secret_shaped_values: bool = True) -> None:
+    def __init__(
+        self,
+        patterns: Iterable[str],
+        *,
+        mask_secret_shaped_values: bool = True,
+        additional_patterns: Iterable[str] = (),
+    ) -> None:
         self._patterns = frozenset(_canonical(p) for p in patterns)
+        self._additional = frozenset(_canonical(p) for p in additional_patterns)
         self._mask_secret_shaped_values = mask_secret_shaped_values
 
     @property
     def patterns(self) -> frozenset[str]:
-        """The (case- and accent-folded) deny-list patterns."""
-        return self._patterns
+        """The (case- and accent-folded) deny-list patterns, operator additions included."""
+        return self._patterns | self._additional
 
     @classmethod
-    def of_patterns(cls, patterns: Iterable[str]) -> RedactionPolicy:
-        """Creates a policy with a custom pattern set, replacing the defaults entirely (value-shape
-        masking stays on — a custom name list is not an opinion about whether these bytes are a
-        credential)."""
-        return cls(patterns)
+    def defaults(cls, environ: Mapping[str, str] | None = None) -> RedactionPolicy:
+        """The built-in vocabulary plus the operator's :data:`ADDITIONAL_PATTERNS_VARIABLE`
+        additions (see :func:`configured_additions`; ``environ`` defaults to ``os.environ``).
+        :data:`DEFAULT` is this, evaluated once at import."""
+        return cls(
+            _DEFAULT_PATTERNS | _TOKEN_BOUNDARY_PATTERNS,
+            additional_patterns=configured_additions(environ),
+        )
+
+    @classmethod
+    def of_patterns(
+        cls, patterns: Iterable[str], *, environ: Mapping[str, str] | None = None
+    ) -> RedactionPolicy:
+        """Creates a policy with a custom pattern set, replacing the built-in vocabulary
+        (value-shape masking stays on — a custom name list is not an opinion about whether these
+        bytes are a credential).
+
+        The operator's ``NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS`` additions are still appended:
+        replacing the vocabulary is the application's opinion about which of its names are
+        sensitive, not permission to undo a deployment's own widening. Only :data:`DISABLED` turns
+        everything off.
+        """
+        return cls(patterns, additional_patterns=configured_additions(environ))
 
     def should_redact(self, field_name: str | None) -> bool:
         """Whether ``field_name`` matches any deny-list pattern.
@@ -235,6 +287,8 @@ class RedactionPolicy:
             return False
         canonical = _canonical(field_name)
         tokens: frozenset[str] | None = None
+        if any(pattern in canonical for pattern in self._additional):
+            return True
         for pattern in self._patterns:
             if pattern not in _TOKEN_BOUNDARY_PATTERNS:
                 if pattern in canonical:
@@ -266,10 +320,10 @@ class RedactionPolicy:
         return annotated or self.should_redact(member_name)
 
 
-RedactionPolicy.DEFAULT = RedactionPolicy(_DEFAULT_PATTERNS | _TOKEN_BOUNDARY_PATTERNS)
+RedactionPolicy.DEFAULT = RedactionPolicy.defaults()
 """Secure default: redacts values for common sensitive field-name patterns (substring and
 whole-identifier-token alike, multilingual), plus JWT/PAN/``Set-Cookie``-shaped values regardless
-of field name."""
+of field name, plus any operator additions present in the environment at import."""
 
 RedactionPolicy.DISABLED = RedactionPolicy(frozenset(), mask_secret_shaped_values=False)
 """Opt-out policy that redacts nothing by name or by value shape (annotations are still honoured

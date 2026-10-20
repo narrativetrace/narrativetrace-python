@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 136224219d89 | translated: 2026-09-12 | reviewed: - -->
 
 # Solução de problemas
 
@@ -45,6 +45,10 @@ class Calc:
         return sum(args)
 ```
 
+Qualquer outra assinatura traçada é lida por nome; `*args` é o único caso que o Python não consegue
+ler. Um método com `*args` e sem nomes de `@traced` imprime uma linha no stderr, uma vez por
+processo, avisando isso.
+
 ## `trace_object` envolve o objeto, mas as chamadas ainda não são traçadas
 
 **Causa:** você tem uma referência ao objeto *original*, não envolvido, em algum lugar —
@@ -55,6 +59,21 @@ completamente.
 **Correção:** garanta que todo chamador tenha o objeto que `trace_object(...)` retornou, não o que
 você construiu. Normalmente isso significa envolver uma única vez, em uma raiz de composição ou em
 uma fixture, e passar a referência envolvida por todo o fluxo posterior.
+
+**Além disso:** um span recebe o nome da classe do alvo (`type(target).__name__`), então trace uma
+instância de uma classe sua, ou passe `class_name="..."` para `trace_object` para mostrar outro
+nome. `trace_object` nunca traça uma função solta, uma lambda nem um `functools.partial`: envolva-os
+em uma classe.
+
+## Os traces dizem `unknown_service:python`
+
+**Causa:** ninguém nomeou o serviço, então a plataforma e o OpenTelemetry recorrem a
+`unknown_service:python`.
+
+**Correção:** defina `NARRATIVETRACE_SERVICE_NAME` (e, se quiser, `NARRATIVETRACE_SERVICE_VERSION` e
+`NARRATIVETRACE_ENVIRONMENT`) no ambiente em que o serviço roda, ou passe
+`ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))`. O `narrativetrace doctor`
+sinaliza isso como `config.service-identity`.
 
 ## Traces entre threads ou tasks estão vazios, ou um filho bifurcado aparece como uma nova raiz
 

@@ -72,10 +72,10 @@ class TestTheInstallerStepPreviewsOnly:
         rules = [rule.rule for rule in ADD_NARRATIVE_TRACING.never]
         assert any("without showing its diff first" in rule for rule in rules)
 
-    def test_skill_has_exactly_six_steps(self) -> None:
+    def test_skill_has_exactly_seven_steps(self) -> None:
         """Ensures a step wasn't accidentally added or removed, which could go undetected if the
         last step's title check still passes."""
-        assert len(ADD_NARRATIVE_TRACING.steps) == 6
+        assert len(ADD_NARRATIVE_TRACING.steps) == 7
 
     def test_preview_install_constant_is_exact_value(self) -> None:
         """PREVIEW_INSTALL is not tested for its literal value anywhere else; if someone changes
@@ -111,13 +111,14 @@ class TestTheInstallerStepPreviewsOnly:
         assert "--dry-run" in command and "--dry-run" in verify
 
     def test_steps_are_in_logical_order(self) -> None:
-        """The steps should flow logically: install, frameworks, trace, logger, doctor, then
-        installer preview. The order matters for skill usability."""
+        """The steps should flow logically: install, frameworks, trace, service name, logger,
+        doctor, then installer preview. The order matters for skill usability."""
         titles = [step.title for step in ADD_NARRATIVE_TRACING.steps]
         assert titles == [
             "Install with the real toolchain",
             "Wire the frameworks this project already uses",
             "First trace: wrap, call, render, run",
+            "Name the service",
             "Send it to your logger",
             "Run the doctor and resolve its findings",
             "Install the skills for next time",
@@ -203,13 +204,43 @@ class TestAnExistingEntryPointIsKept:
         assert conditional == set(self._DEMO_STEPS)
 
     def test_the_first_trace_step_says_to_run_the_application_as_it_runs(self) -> None:
-        assert self._conditions()["First trace: wrap, call, render, run"] == (
-            "if the project already has an application entry point — a script or module that "
+        assert self._first_trace_condition().split("; if the project already has an application")[
+            1
+        ] == (
+            " entry point — a script or module that "
             "starts it, a web or application framework the doctor reports — do not create a "
             "demo main.py: run the application the way it already runs, exercise one real "
             "boundary, and read that request's trace; the verify below is for the standalone "
             "script, and in an existing application the step is done when that request's trace "
-            "is in the output; otherwise create the smallest script as follows"
+            "is in the output; otherwise create the smallest script as follows; nothing is "
+            "written to disk by this script — the application's log is the record once the "
+            "logging bridge in the later step is wired; this page never adds a test runner or a "
+            "test to a project that has none"
+        )
+
+    def _first_trace_condition(self) -> str:
+        condition = self._conditions()["First trace: wrap, call, render, run"]
+        assert condition is not None
+        return condition
+
+    def test_the_first_trace_step_runs_one_existing_test_when_the_project_has_tests(self) -> None:
+        assert self._first_trace_condition().startswith(
+            "if the project already has tests — a test directory, a runner's table in its "
+            "pyproject.toml or a test runner among its dependencies — and the doctor reports a "
+            "test integration for that runner, do not add a demo script: run one existing test "
+            "through that integration with output on, which writes that test's narrative files, "
+            ".md and .nt, under the integration's output directory — the files "
+            "narrativetrace-doctor, -verify, -debug and -explain read; print the rendered file "
+            "so the trace is also on the console; the step is done when that test's files exist; "
+            "a project whose runner has no integration keeps that runner and takes the console "
+            "path below; "
+        )
+
+    def test_the_console_path_says_nothing_is_written_and_adds_no_test_runner(self) -> None:
+        assert self._first_trace_condition().endswith(
+            "; nothing is written to disk by this script — the application's log is the record "
+            "once the logging bridge in the later step is wired; this page never adds a test "
+            "runner or a test to a project that has none"
         )
 
     def test_the_logger_step_adds_to_the_applications_own_logging(self) -> None:
@@ -225,7 +256,7 @@ class TestAnExistingEntryPointIsKept:
 
     def test_the_rendered_page_puts_each_when_line_between_heading_and_snippet(self) -> None:
         page = _rendered_page()
-        for title, index in zip(self._DEMO_STEPS, (3, 4), strict=True):
+        for title, index in zip(self._DEMO_STEPS, (3, 5), strict=True):
             when = self._conditions()[title]
             assert f"## {index}. {title}\n\n**when:** {when}\n\n<!-- snippet: " in page
 

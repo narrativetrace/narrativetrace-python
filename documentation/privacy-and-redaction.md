@@ -106,6 +106,29 @@ Two independent redaction mechanisms apply to every reflectively-rendered value:
    so the SSA's own never-issued area/group/serial values do that job instead — so a bearer token
    or an id number passed under an unrecognized name is still caught.
 
+### Widening the defaults
+
+Two knobs, and they do different things. `RedactionPolicy.of_patterns({...})` **replaces** the
+built-in list with exactly the words you pass — repeat any default you still want. The
+`NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS` environment variable **appends** to it, so a deployed
+service can hide a field of its own (`betalingskort`) without giving up a single shipped default:
+
+```bash
+export NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS=betalingskort,kontonummer
+```
+
+The value is comma-separated; each entry is trimmed, empty entries are dropped, and each is folded
+like the built-ins (case- and accent-insensitive). The additions are read from the environment
+only — not from `narrativetrace.toml` or `pyproject.toml` — at the moment a policy is constructed
+(for `RedactionPolicy.DEFAULT`, at import), so whoever deploys the service can widen redaction
+without rebuilding it. They compose with `of_patterns`: a policy built that way carries the
+additions too, because replacing the vocabulary is the application's opinion, not permission to undo
+a deployment's widening. Only `RedactionPolicy.DISABLED` ignores them.
+
+> **Additions are plain substring patterns**, matched exactly like the built-in substring words
+> (not on token boundaries, even for a short one). A short addition blanks more than you meant:
+> `pan` redacts `companyName`, and `id` redacts every identifier in the trace.
+
 A `NamedTuple` is introspected by field name rather than rendered as an anonymous positional
 tuple, so a redacted field inside one stays hidden the same way a dataclass field does — redaction
 survives that one container deep. And it wins over a narration template that names it:

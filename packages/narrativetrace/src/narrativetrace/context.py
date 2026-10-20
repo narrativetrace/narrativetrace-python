@@ -223,8 +223,21 @@ class NarrativeContext(ABC):
         """Returns the current trace id, generating one eagerly if absent."""
         return TraceId.generate()
 
-    def adopt_trace_id(self, trace_id: TraceId) -> None:
-        """Adopts an inbound (e.g. W3C ``traceparent``) trace id for the current scope."""
+    def adopt_trace_id(
+        self,
+        trace_id: TraceId,
+        remote_parent_span_id: SpanId | None = None,
+        trace_flags: int = 0,
+    ) -> None:
+        """Adopts an inbound (e.g. W3C ``traceparent``) trace id for the current scope.
+
+        ``remote_parent_span_id`` is the caller's span the inbound request came from (the
+        ``traceparent`` parent-id field). When given, this scope's root spans record it as their
+        ``parent_span_id``, so a consumer that follows parent ids links this service's trace to the
+        caller's; it never appears as a span in this scope's own tree. ``trace_flags`` is the
+        ``traceparent`` flags byte (bit 0 = sampled); every span this scope creates carries it as
+        :attr:`~narrativetrace.span.SpanContext.trace_flags`.
+        """
 
     def story_id(self) -> str | None:
         """Story id derived from the first root-level call, or ``None``."""
@@ -290,6 +303,8 @@ class _TraceStack:
     trace_id: TraceId | None = None
     scoped_parent: SpanId | None = None
     snapshot_parent: SpanId | None = None
+    remote_parent: SpanId | None = None
+    trace_flags: int = 0
     story_id: str | None = None
     chapter_id: str | None = None
     metadata: _RequestMetadata = _EMPTY_METADATA
@@ -490,6 +505,11 @@ class ContextVarNarrativeContext(NarrativeContext):
 
     The stack lives in a :class:`contextvars.ContextVar`, so a fresh thread and a freshly
     created asyncio task each lazily obtain their own isolated stack while sharing one store.
+
+    ``service_identity`` names the service on every span. Left ``None`` it is read from
+    ``NARRATIVETRACE_SERVICE_NAME`` / ``NARRATIVETRACE_SERVICE_VERSION`` /
+    ``NARRATIVETRACE_ENVIRONMENT`` (:meth:`ServiceIdentity.from_environment`); with neither, traces
+    say ``unknown_service:python``.
     """
 
     def __init__(
@@ -499,7 +519,9 @@ class ContextVarNarrativeContext(NarrativeContext):
         store: EventStore | None = None,
     ) -> None:
         self._config = config if config is not None else NarrativeTraceConfig()
-        self._service_identity = service_identity
+        self._service_identity = (
+            service_identity if service_identity is not None else ServiceIdentity.from_environment()
+        )
         self._store = store if store is not None else EventStore()
         self._span_contexts: dict[SpanId, SpanContext] = {}
         self._span_lock = threading.Lock()
@@ -556,7 +578,9 @@ class ContextVarNarrativeContext(NarrativeContext):
         active = stack.peek_active()
         if active is not None:
             return active
-        return stack.snapshot_parent
+        if stack.snapshot_parent is not None:
+            return stack.snapshot_parent
+        return stack.remote_parent
 
     def _create_span_context(
         self, stack: _TraceStack, parent_span_id: SpanId | None
@@ -571,6 +595,7 @@ class ContextVarNarrativeContext(NarrativeContext):
             trace_id=trace_id,
             span_id=SpanId.generate(),
             parent_span_id=parent_span_id,
+            trace_flags=stack.trace_flags,
             http_method=metadata.http_method,
             http_route=metadata.http_route,
             client_ip=metadata.client_ip,
@@ -744,8 +769,16 @@ class ContextVarNarrativeContext(NarrativeContext):
             stack.trace_id = TraceId.generate()
         return stack.trace_id
 
-    def adopt_trace_id(self, trace_id: TraceId) -> None:
-        self._get_stack().trace_id = trace_id
+    def adopt_trace_id(
+        self,
+        trace_id: TraceId,
+        remote_parent_span_id: SpanId | None = None,
+        trace_flags: int = 0,
+    ) -> None:
+        stack = self._get_stack()
+        stack.trace_id = trace_id
+        stack.remote_parent = remote_parent_span_id
+        stack.trace_flags = trace_flags
 
     def story_id(self) -> str | None:
         return self._get_stack().story_id

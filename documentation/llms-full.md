@@ -9,6 +9,8 @@ workspace: a core that carries no third-party dependencies, plus thin integratio
 `TraceEvent`s to the context. `context.capture_trace()` builds an immutable `TraceTree` that
 renderers, exporters, and the clarity analyzer consume. No logging calls appear in business code.
 
+A target whose class is defined under an excluded module prefix comes back from `trace_object` unwrapped: the shipped default covers test, mocking and APM libraries, and `NARRATIVETRACE_EXCLUDE` (or the `exclude` key, or `exclude=`) replaces it; `narrativetrace doctor` prints the effective list.
+
 ```python
 from narrativetrace import ContextVarNarrativeContext, MarkdownRenderer, trace_object
 
@@ -86,11 +88,11 @@ Rendered from the doctor's own framework table. For every row it can observe, `u
 
 | Framework | Detected by | Add | Wiring | Doctor check |
 |---|---|---|---|---|
-| pytest | a pytest dependency | `uv add --dev "narrativetrace-pytest==0.4.1"` | the narrative_trace fixture, requested by a test | `config.pytest-fixture` |
-| FastAPI / Starlette (ASGI) | a fastapi or starlette dependency | `uv add "narrativetrace-asgi==0.4.1"` | NarrativeTraceMiddleware on the ASGI app, with an exporter | `config.asgi-middleware` |
-| OpenTelemetry | an opentelemetry-api or -sdk dependency | `uv add "narrativetrace-otel==0.4.1"` | OtelTraceEventListener on the context's event pipeline | `config.otel-listener` |
-| structlog | a structlog dependency | `uv add "narrativetrace-structlog==0.4.1"` | narrative_context_processor in structlog.configure's processors | `config.structlog-processor` |
-| stdlib logging | the default logger: the program configures no logging handler | `uv add "narrativetrace==0.4.1"` | a stdlib handler carrying NarrativeContextFilter, and export_to_logger(trace) | none — runtime-only — whether a handler exists is decided when the program configures logging, not visible in a manifest |
+| pytest | a pytest dependency | `uv add --dev "narrativetrace-pytest==0.4.2"` | the narrative_trace fixture, requested by a test | `config.pytest-fixture` |
+| FastAPI / Starlette (ASGI) | a fastapi or starlette dependency | `uv add "narrativetrace-asgi==0.4.2"` | NarrativeTraceMiddleware on the ASGI app, with an exporter | `config.asgi-middleware` |
+| OpenTelemetry | an opentelemetry-api or -sdk dependency | `uv add "narrativetrace-otel==0.4.2"` | OtelTraceEventListener on the context's event pipeline | `config.otel-listener` |
+| structlog | a structlog dependency | `uv add "narrativetrace-structlog==0.4.2"` | narrative_context_processor in structlog.configure's processors | `config.structlog-processor` |
+| stdlib logging | the default logger: the program configures no logging handler | `uv add "narrativetrace==0.4.2"` | a stdlib handler carrying NarrativeContextFilter, and export_to_logger(trace) | none — runtime-only — whether a handler exists is decided when the program configures logging, not visible in a manifest |
 | Flask | a flask dependency | — | no integration shipped — trace its services with trace_object | `config.flask-integration` (reports it) |
 | Django | a django dependency | — | no integration shipped — trace its services with trace_object | `config.django-integration` (reports it) |
 

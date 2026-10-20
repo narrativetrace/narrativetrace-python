@@ -14,11 +14,14 @@ from __future__ import annotations
 import pytest
 
 from narrativetrace.canonical import UNKNOWN_SERVICE
+from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.identity import UNKNOWN_CALL, resolve_identity, root_call_name
 from narrativetrace.ids import SpanId, TraceId
+from narrativetrace.metadata import ServiceIdentity
 from narrativetrace.nodes import TraceNode
 from narrativetrace.signature import MethodSignature
 from narrativetrace.span import SpanContext
+from narrativetrace.trace_object import trace_object
 from narrativetrace.tree import TraceTree
 
 TRACE = TraceId("0" * 32)
@@ -142,3 +145,30 @@ class TestGuards:
     def test_rejects_a_missing_tree(self) -> None:
         with pytest.raises(ValueError, match=r"\Atree must not be None\Z"):
             resolve_identity(None)  # type: ignore[arg-type]
+
+
+class OrderServiceForEnv:
+    def place_order(self, sku: str) -> str:
+        return sku
+
+
+class TestContextNamesTheServiceFromTheEnvironment:
+    def _service(self, context: ContextVarNarrativeContext) -> str:
+        service = OrderServiceForEnv()
+        trace_object(service, context).place_order("sku-1")
+        return resolve_identity(context.capture_trace()).service
+
+    def test_the_environment_names_the_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("NARRATIVETRACE_SERVICE_NAME", "orders")
+        assert self._service(ContextVarNarrativeContext()) == "orders"
+
+    def test_an_explicit_identity_wins_over_the_environment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("NARRATIVETRACE_SERVICE_NAME", "orders")
+        context = ContextVarNarrativeContext(service_identity=ServiceIdentity("billing"))
+        assert self._service(context) == "billing"
+
+    def test_nothing_set_still_says_unknown_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NARRATIVETRACE_SERVICE_NAME", raising=False)
+        assert self._service(ContextVarNarrativeContext()) == "unknown_service:python"

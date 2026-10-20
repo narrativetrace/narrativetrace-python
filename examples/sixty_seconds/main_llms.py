@@ -6,6 +6,7 @@
 from narrativetrace import (
     ContextVarNarrativeContext,
     IndentedTextRenderer,
+    ServiceIdentity,
     not_traced,
     trace_object,
 )
@@ -17,7 +18,7 @@ class OrderService:
         return f"ORD-{customer_id}-{product_id}-{quantity}"
 
 
-context = ContextVarNarrativeContext()
+context = ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))
 service = trace_object(OrderService(), context)
 service.place_order("cust-1", "prod-42", 3)
 

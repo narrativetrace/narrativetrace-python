@@ -30,7 +30,7 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 
 ## W3C traceparent
 
-Inbound `traceparent` is adopted onto the request's trace id. For server-to-server calls, inject
+Inbound `traceparent` is adopted onto the request's trace id, and its parent id becomes the parent span of the request's root span; outbound, the header names the calling span. For server-to-server calls, inject
 it outbound on an `httpx` client — an async client needs the async hook, `attach_traceparent_async`
 (`httpx.AsyncClient` `await`s every request hook; the sync hook's `None` return cannot be awaited):
 

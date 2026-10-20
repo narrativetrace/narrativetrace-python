@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from narrativetrace_skills.catalogue_index import (
     MARKETPLACE,
+    OPENAI_DIRECTORY,
     PRO_LISTINGS,
     SKILLS,
     find_pro_listing,
@@ -29,6 +30,7 @@ from narrativetrace_skills.lints import (
     unparseable_commands,
 )
 from narrativetrace_skills.marketplace import MarketplaceListing, MarketplaceOwner
+from narrativetrace_skills.openai_listing import OpenAiListing
 from narrativetrace_skills.pro_listing import ProListing, ProListingStatus
 from narrativetrace_skills.render.agents_md import (
     AGENTS_MD_BEGIN,
@@ -46,6 +48,10 @@ from narrativetrace_skills.render.cursor_plugin import (
     render_cursor_plugin_json,
 )
 from narrativetrace_skills.render.marketplace import render_marketplace_json
+from narrativetrace_skills.render.openai_plugin import (
+    openai_package_entries,
+    render_openai_plugin_json,
+)
 from narrativetrace_skills.replay import StepReplayResult, replay_skill, run_replay_command
 from narrativetrace_skills.skill import (
     COMMAND_VOCABULARY,
@@ -66,7 +72,7 @@ from narrativetrace_skills.skill import (
     vocabulary_violations,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = [
     "AGENTS_MD_BEGIN",
@@ -74,12 +80,14 @@ __all__ = [
     "CATALOGUE_CHAR_BUDGET",
     "COMMAND_VOCABULARY",
     "MARKETPLACE",
+    "OPENAI_DIRECTORY",
     "PRO_LISTINGS",
     "SKILLS",
     "CommandStep",
     "FailureNote",
     "MarketplaceListing",
     "MarketplaceOwner",
+    "OpenAiListing",
     "ProListing",
     "ProListingStatus",
     "ReasonedRule",
@@ -103,6 +111,7 @@ __all__ = [
     "find_skill",
     "first_token",
     "listings_disagreeing_with_feature_guide",
+    "openai_package_entries",
     "promotion_not_pre_approved",
     "publishing_not_pre_approved",
     "render_agents_md_snippet",
@@ -113,6 +122,7 @@ __all__ = [
     "render_cursor_marketplace_json",
     "render_cursor_plugin_json",
     "render_marketplace_json",
+    "render_openai_plugin_json",
     "replay_skill",
     "run_replay_command",
     "splice_agents_md_section",

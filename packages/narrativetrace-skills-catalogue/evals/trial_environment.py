@@ -128,6 +128,12 @@ class TrialEnvironment:
         with self.transcript.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(marker) + "\n")
 
+    def record_delivery(self, name: str) -> None:
+        """Marks in the transcript, before turn 1, how the catalogue reached the project (one JSON
+        line), so a reader of the evidence knows what the agent started from."""
+        with self.transcript.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"nt_delivery": name}) + "\n")
+
     def keep_evidence_under(self, destination: Path) -> Path:
         """Copies whatever evidence this trial produced into ``destination``, and returns it.
 

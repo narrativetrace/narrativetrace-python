@@ -65,7 +65,7 @@ uv run python -c 'import pathlib; print(*sorted(pathlib.Path("narrative-traces/s
 
 ## 5. Open values on the span that looks wrong, and only there
 
-**when:** only when the structural read named a span that does not match the intent; otherwise go on to the pin
+**when:** when the structural read named a span that does not match the intent, or the shape matches but a symptom points at data — an assertion failed on a value, the output is wrong — then open the one span the symptom points at; otherwise go on to the pin
 
 ```bash
 uv run python -c 'import pathlib; print(*sorted(pathlib.Path("narrative-traces/traces").rglob("*.md")), sep="\n")'
@@ -75,7 +75,7 @@ uv run python -c 'import pathlib; print(*sorted(pathlib.Path("narrative-traces/t
 
 ## 6. Fix, re-run, read again
 
-**when:** only when the structural read named a span that does not match the intent; otherwise go on to the pin
+**when:** only when the structural read named a span that does not match the intent, or the value read in step 5 was wrong; otherwise go on to the pin
 
 ```bash
 uv run pytest <the smallest test that drives the real path>
@@ -118,7 +118,7 @@ uv run narrativetrace-approve
 
 ## 11. Report what the trace showed
 
-**done when:** two sentences on what the trace showed, every claim citing the span id it rests on — a claim without an id is not a claim, and only ids in the .nt that was read count — with the .nt attached or quoted; 'tests pass' alone is not the report
+**done when:** two sentences on what the trace showed on the path this run took, every claim citing the span id it rests on — a claim without an id is not a claim, and only ids in the .nt that was read count — with the .nt attached or quoted; the report names the branches and inputs this run did not exercise, because one trace shows one path, not every execution; 'tests pass' alone is not the report
 
 ## Which flavour answers which question
 

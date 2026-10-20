@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob 753ad8c19299 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob fc9fcea7ca8d | translated: 2026-10-20 | reviewed: 2026-09-03 -->
 
 # Eligiendo una integración
 
@@ -57,6 +57,17 @@ No existe ningún mecanismo de conexión sin código a nivel de bytecode (no se 
 hook ni auto-instrumentación mediante `sitecustomize.py`) — cada camino anterior es una llamada
 explícita que hace tu código o un middleware que registras, nunca algo que reescribe las clases a
 medida que se cargan.
+
+## Qué se traza y qué nunca
+
+`trace_object` envuelve exactamente el objeto que le entregas: esa es la inclusión. Después se aplican dos listas de exclusión: una integrada para lo que estructuralmente nunca es un límite de negocio (objetivos de tipo integrado, `functools.partial`, invocables del runtime en C, `<lambda>`), que nada reactiva, y una configurable para elementos internos de bibliotecas con valor predeterminado incluido (bibliotecas de pruebas y de mocks, runtimes APM), que reemplazan `exclude=`, `NARRATIVETRACE_EXCLUDE` o la clave `exclude`. La exclusión gana:
+
+```python
+service = trace_object(OrderService(), context)                        # trazado
+service = trace_object(OrderService(), context, exclude="acme.orders")  # vuelve sin envolver
+```
+
+Ambas listas, textualmente, están en [la guía de configuración](guia-de-configuracion.md).
 
 ## Algo que todos los caminos comparten
 

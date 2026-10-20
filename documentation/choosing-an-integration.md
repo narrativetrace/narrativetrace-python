@@ -53,6 +53,21 @@ There is no zero-code, bytecode-level attachment mechanism (no import hook, no `
 auto-instrumentation shipped here) — every path above is an explicit call your code makes or a
 middleware you register, never something that rewrites classes as they load.
 
+## What gets traced, and what never is
+
+`trace_object` wraps exactly the object you hand it — that is the include. Two exclusion lists then
+apply: a built-in one for what is structurally never a business boundary (builtin-typed targets,
+`functools.partial`, C-runtime callables, `<lambda>`), which nothing re-enables, and a configurable
+one for library internals with a shipped default (test and mocking libraries, APM runtimes), which
+`exclude=`, `NARRATIVETRACE_EXCLUDE` or the `exclude` key replaces. The exclusion wins:
+
+```python
+service = trace_object(OrderService(), context)                        # traced
+service = trace_object(OrderService(), context, exclude="acme.orders")  # comes back unwrapped
+```
+
+Both lists, verbatim, are in [the configuration guide](guides/configuration.md).
+
 ## One thing every path shares
 
 All of the mechanisms above build the same `TraceTree` from the same `TraceEvent` stream —

@@ -36,6 +36,11 @@ Uma página por problema, com as palavras que um usuário digitaria — cada uma
 | [Por que este teste falhou](pt-BR/por-que-este-teste-falhou.md) | Um teste vermelho lido span por span contra a sua asserção — aqui o desatualizado é a expectativa |
 | [Revise um fluxo complexo antes de alterá-lo](pt-BR/revise-um-fluxo-complexo-antes-de-altera-lo.md) | Uma execução em `DETAIL` e em `SUMMARY`, a linha de log ao lado do `.nt` sem valores |
 | [Revise uma refatoração: o comportamento mudou?](pt-BR/revise-uma-refatoracao-o-comportamento-mudou.md) | Os testes continuam verdes, o diff de aprovação nomeia a chamada removida |
+| [Acompanhe uma requisição entre serviços (tracing distribuído)](pt-BR/acompanhe-uma-requisicao-entre-servicos.md) | O checkout cobra por um segundo serviço rastreado através de um socket real: um trace id nas linhas dos dois serviços |
+| [Mantenha os segredos fora dos logs](pt-BR/mantenha-os-segredos-fora-dos-logs.md) | Uma senha pega pelo nome e um número de cartão pelo valor, com o teste que lê o log de volta |
+| [Acompanhe um fluxo entre threads](pt-BR/acompanhe-um-fluxo-entre-threads.md) | Duas tarefas entregues a um pool de threads continuam no trace do cliente; o mesmo submit sem o grupo, não |
+| [Envie os traces para o stack de observabilidade que você já tem](pt-BR/envie-os-traces-para-o-stack-de-observabilidade-que-voce-ja-tem.md) | As linhas de log ao lado dos spans do OpenTelemetry de uma execução, ocultações incluídas |
+| [Trace em produção sem o custo](pt-BR/trace-em-producao-sem-o-custo.md) | Um checkout recusado em `DETAIL` e em `ERRORS`; uma execução que deu certo não grava nada |
 
 ## Integrações
 

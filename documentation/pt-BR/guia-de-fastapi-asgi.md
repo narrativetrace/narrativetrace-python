@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/fastapi-asgi.md blob 1ce7dac68ee1 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
+<!-- source: documentation/guides/fastapi-asgi.md blob bc949a9b93f3 | translated: 2026-10-18 | reviewed: - -->
 
 # FastAPI / ASGI
 
@@ -33,7 +33,7 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 
 ## traceparent W3C
 
-O `traceparent` de entrada é adotado como o id de trace da requisição. Para chamadas
+O `traceparent` de entrada é adotado como o id de trace da requisição, e o seu id pai passa a ser o span pai do span raiz da requisição; na saída, o header nomeia o span que chama. Para chamadas
 servidor a servidor, injete-o na saída em um cliente `httpx` — um cliente assíncrono precisa do
 hook assíncrono, `attach_traceparent_async` (`httpx.AsyncClient` faz `await` em cada hook de
 requisição; o `None` retornado pelo hook síncrono não pode ser aguardado):

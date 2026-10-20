@@ -19,7 +19,8 @@ from narrativetrace_asgi.outbound import (
 from narrativetrace_asgi.traceparent import parse_traceparent
 
 from narrativetrace.context import ContextVarNarrativeContext
-from narrativetrace.ids import TraceId
+from narrativetrace.ids import SpanId, TraceId
+from narrativetrace.signature import MethodSignature
 
 
 def _request() -> httpx.Request:
@@ -39,6 +40,37 @@ class TestTraceparentHeader:
             parsed = parse_traceparent(header)
             assert parsed is not None
             assert parsed.trace_id == context.trace_id()
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_names_the_current_span_as_the_parent(self) -> None:
+        context = ContextVarNarrativeContext()
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            span_id = context.enter_method(MethodSignature("PaymentService", "charge", []))
+            parsed = parse_traceparent(traceparent_header())
+            assert parsed is not None
+            assert parsed.span_id == span_id
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_outside_any_span_names_the_adopted_remote_parent(self) -> None:
+        context = ContextVarNarrativeContext()
+        remote_parent = SpanId.generate()
+        context.adopt_trace_id(TraceId.generate(), remote_parent)
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            parsed = parse_traceparent(traceparent_header())
+            assert parsed is not None
+            assert parsed.span_id == remote_parent
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_outside_any_span_without_a_remote_parent_still_yields_a_valid_header(self) -> None:
+        context = ContextVarNarrativeContext()
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            assert parse_traceparent(traceparent_header()) is not None
         finally:
             _CURRENT_CONTEXT.reset(token)
 

@@ -16,6 +16,7 @@ import pytest
 
 from narrativetrace.doctor import environment
 from narrativetrace.doctor.environment import _resolve_package_info, build_snapshot
+from narrativetrace.exclusions import DEFAULT_EXCLUDE
 from narrativetrace_tooling.init import provenance
 from narrativetrace_tooling.init.project_state import Presence
 
@@ -43,6 +44,41 @@ class TestBuildSnapshot:
     def test_python_version_has_three_dotted_parts(self, tmp_path: Path) -> None:
         snapshot = build_snapshot(str(tmp_path), {})
         assert len(snapshot.python_version.split(".")) == 3
+
+    def test_effective_exclude_is_the_shipped_default_when_the_key_is_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("NARRATIVETRACE_EXCLUDE", raising=False)
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.effective_exclude == DEFAULT_EXCLUDE
+        assert snapshot.exclude_source == "default"
+        assert snapshot.exclude_error is None
+
+    def test_effective_exclude_reads_the_config_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("NARRATIVETRACE_EXCLUDE", raising=False)
+        _write(tmp_path / "narrativetrace.toml", 'exclude = "acme.mocks"\n')
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.effective_exclude == ("acme.mocks",)
+        assert snapshot.exclude_source == "configured"
+
+    def test_effective_exclude_reads_the_environment_the_snapshot_was_given(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("NARRATIVETRACE_EXCLUDE", "acme.fakes")
+        snapshot = build_snapshot(str(tmp_path), {"NARRATIVETRACE_EXCLUDE": "acme.fakes"})
+        assert snapshot.effective_exclude == ("acme.fakes",)
+        assert snapshot.exclude_source == "configured"
+
+    def test_a_malformed_exclude_is_carried_as_an_error_not_raised(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("NARRATIVETRACE_EXCLUDE", raising=False)
+        _write(tmp_path / "narrativetrace.toml", 'exclude = "not a module"\n')
+        snapshot = build_snapshot(str(tmp_path), {})
+        assert snapshot.effective_exclude is None
+        assert snapshot.exclude_error == "exclude entry 'not a module' is not a dotted module name"
 
     def test_env_passes_through(self, tmp_path: Path) -> None:
         snapshot = build_snapshot(str(tmp_path), {"NARRATIVETRACE_OUTPUT": "true"})

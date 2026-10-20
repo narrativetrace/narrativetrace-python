@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 57580c72e321 | translated: 2026-09-13 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob 1b743a9e56fa | translated: 2026-10-19 | reviewed: - -->
 
 # Privacidade e ocultação
 
@@ -107,6 +107,30 @@ Dois mecanismos de ocultação independentes se aplicam a todo valor renderizado
    valores de área/grupo/série nunca emitidos pela SSA fazem esse trabalho em seu lugar — então
    um token bearer ou um número de identidade passado sob um nome não reconhecido ainda assim é
    pego.
+
+### Ampliar os padrões
+
+Dois botões, e eles fazem coisas diferentes. `RedactionPolicy.of_patterns({...})` **substitui** a
+lista embutida exatamente pelas palavras que você passa — repita qualquer padrão que ainda queira. A
+variável de ambiente `NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS` **acrescenta** a essa lista, de modo que
+um serviço implantado pode ocultar um campo próprio (`betalingskort`) sem abrir mão de nenhum padrão
+fornecido:
+
+```bash
+export NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS=betalingskort,kontonummer
+```
+
+O valor é separado por vírgulas; cada entrada é aparada, entradas vazias são descartadas e cada uma é
+normalizada como as embutidas (sem distinguir maiúsculas nem acentos). As adições são lidas somente do
+ambiente — não de `narrativetrace.toml` nem de `pyproject.toml` — no momento em que uma política é
+construída (para `RedactionPolicy.DEFAULT`, na importação), de modo que quem implanta o serviço pode
+ampliar a ocultação sem reconstruí-lo. Elas se combinam com `of_patterns`: uma política construída
+assim também carrega as adições, porque substituir o vocabulário é a opinião da aplicação, não
+permissão para desfazer a ampliação de uma implantação. Somente `RedactionPolicy.DISABLED` as ignora.
+
+> **As adições são padrões de substring simples**, comparados exatamente como as palavras de substring
+> embutidas (não por limites de token, nem mesmo as curtas). Uma adição curta oculta mais do que o
+> pretendido: `pan` oculta `companyName`, e `id` oculta todos os identificadores do trace.
 
 Um `NamedTuple` é introspectado pelo nome do campo em vez de renderizado como uma tupla posicional
 anônima, então um campo oculto dentro de um permanece oculto da mesma forma que um campo de

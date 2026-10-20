@@ -9,6 +9,7 @@ rather than touching the real filesystem or installed-package metadata."""
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Literal
 
 import pytest
 
@@ -35,6 +36,9 @@ def make_snapshot():
         pointer_readings: tuple[PointerReading, ...] | None = None,
         catalogue_skill_names: tuple[str, ...] | None = None,
         narrativetrace_version: str | None = None,
+        effective_exclude: tuple[str, ...] | None = None,
+        exclude_source: Literal["default", "configured"] = "default",
+        exclude_error: str | None = None,
     ) -> DoctorSnapshot:
         return DoctorSnapshot(
             cwd=cwd,
@@ -51,6 +55,9 @@ def make_snapshot():
             pointer_readings=pointer_readings or (),
             catalogue_skill_names=catalogue_skill_names or (),
             narrativetrace_version=narrativetrace_version,
+            effective_exclude=effective_exclude,
+            exclude_source=exclude_source,
+            exclude_error=exclude_error,
         )
 
     return _make

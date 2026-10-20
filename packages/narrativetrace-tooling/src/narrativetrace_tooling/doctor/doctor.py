@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from narrativetrace_tooling.doctor.checks.approval_mode import check_approval_mode
 from narrativetrace_tooling.doctor.checks.approval_traces import check_approval_traces
+from narrativetrace_tooling.doctor.checks.exclude import check_exclude
 from narrativetrace_tooling.doctor.checks.framework_wiring import framework_wiring_check
 from narrativetrace_tooling.doctor.checks.llms_before_you_start import check_llms_before_you_start
 from narrativetrace_tooling.doctor.checks.not_traced_unused import check_not_traced_unused
@@ -23,6 +24,7 @@ from narrativetrace_tooling.doctor.checks.pytest_plugin_registered import (
 from narrativetrace_tooling.doctor.checks.pytest_version import check_pytest_version
 from narrativetrace_tooling.doctor.checks.python_version import check_python_version
 from narrativetrace_tooling.doctor.checks.redaction_proof import check_redaction_proof
+from narrativetrace_tooling.doctor.checks.service_identity import check_service_identity
 from narrativetrace_tooling.doctor.checks.skills_installed import check_skills_installed
 from narrativetrace_tooling.doctor.checks.unknown_config_keys import check_unknown_config_keys
 from narrativetrace_tooling.doctor.types import DoctorCheck, DoctorReport, DoctorSnapshot
@@ -42,6 +44,8 @@ DOCTOR_CHECKS: tuple[DoctorCheck, ...] = (
     check_approval_traces,
     check_llms_before_you_start,
     check_approval_mode,
+    check_exclude,
+    check_service_identity,
     *(framework_wiring_check(row) for row in rows_with_wiring_checks()),
 )
 

@@ -44,6 +44,8 @@ _BY_ID: Final[dict[str, str]] = {
     "config.pytest-plugin-registered": ADD_NARRATIVE_TRACING,
     "config.output-env": NARRATIVETRACE_DOCTOR,
     "config.unknown-keys": NARRATIVETRACE_DOCTOR,
+    "config.exclude": NARRATIVETRACE_DOCTOR,
+    "config.service-identity": ADD_NARRATIVE_TRACING,
     "config.approval-mode": NARRATIVETRACE_VERIFY,
     "trap.parameter-names": ADD_NARRATIVE_TRACING,
     "trap.silent-sink": NARRATIVETRACE_DOCTOR,

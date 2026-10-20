@@ -58,7 +58,7 @@ uv run python -c 'import pathlib; print(*sorted(pathlib.Path("narrative-traces/t
 
 ## 8. Explain the run by span id, and mark what you inferred
 
-**done when:** the explanation is in the user's own words and in the trace's own order: the calls the flow made, each claim citing the span id it rests on — a claim without an id is not a claim, and only ids in the .nt or .md read in this session count — the branch it took, and where the time went when that was the question. Every sentence that goes beyond what the trace shows is marked as an inference, and the last part names what was NOT observed: the code no span covers, because only wrapped or intercepted code has one
+**done when:** the explanation is in the user's own words and in the trace's own order: the calls the flow made, each claim citing the span id it rests on — a claim without an id is not a claim, and only ids in the .nt or .md read in this session count — the branch it took, and where the time went when that was the question. Every sentence that goes beyond what the trace shows is marked as an inference, and the last part names what was NOT observed: the code no span covers, because only wrapped or intercepted code has one, and the branches this run did not take
 
 ## Which flavour answers which question
 

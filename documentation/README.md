@@ -36,6 +36,11 @@ real output of a run this build performs.
 | [Why did this test fail](recipes/why-did-this-test-fail.md) | A red test read span by span against its assertion — here the expectation is what is stale |
 | [Review a complex flow before changing it](recipes/review-a-complex-flow-before-changing-it.md) | One run at `DETAIL` and at `SUMMARY`, the log line beside the value-free `.nt` |
 | [Review a refactoring: did behaviour change](recipes/review-a-refactoring-did-behaviour-change.md) | Tests stay green, the approval diff names the dropped call |
+| [Follow one request across services (distributed tracing)](recipes/follow-one-request-across-services.md) | The checkout charges through a second traced service over a real socket: one trace id in both services' lines |
+| [Keep secrets out of the logs](recipes/keep-secrets-out-of-the-logs.md) | A password caught by its name and a card number by its value, with the test that reads the log back |
+| [Follow a flow across threads](recipes/follow-a-flow-across-threads.md) | Two tasks handed to a thread pool stay in the customer's trace; the same submit without the group does not |
+| [Send traces to the observability stack you already run](recipes/send-traces-to-the-observability-stack-you-already-run.md) | The log lines beside the OpenTelemetry spans of one run, redactions included |
+| [Trace in production without the cost](recipes/trace-in-production-without-the-cost.md) | One declined checkout at `DETAIL` and at `ERRORS`; a run that succeeded writes nothing |
 
 ## Integrations
 

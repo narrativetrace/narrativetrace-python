@@ -32,6 +32,7 @@ from narrativetrace_skills.catalogue.doctor_commands import (
     DOCTOR_REPORT_WELL_FORMED,
     FRAMEWORK_FIXES_APPLIED,
     RUN_DOCTOR,
+    SERVICE_IS_NAMED,
     TOOLCHAIN_CHECKS_HOLD,
 )
 from narrativetrace_skills.catalogue.installer_commands import (
@@ -67,6 +68,35 @@ ENTRY_POINT_RUNS_ITSELF = (
 """Step 3's condition: in a project that already starts itself the first trace is one real
 boundary's, read from the application the way it already runs — never a demo script written over
 the project's own entry point."""
+
+FIRST_TRACE_HAS_TESTS = (
+    "if the project already has tests — a test directory, a runner's table in its pyproject.toml "
+    "or a test runner among its dependencies — and the doctor reports a test integration for "
+    "that runner, do not add a demo script: run one existing test through that integration with "
+    "output on, which writes that test's narrative files, .md and .nt, under the integration's "
+    "output directory — the files narrativetrace-doctor, -verify, -debug and -explain read; "
+    "print the rendered file so the trace is also on the console; the step is done when that "
+    "test's files exist; a project whose runner has no integration keeps that runner and takes "
+    "the console path below; "
+)
+"""Step 3's first branch (B-92): a project with tests gets its first trace from one of them, through
+the test integration, so the files the other skills read exist. A runner with no integration is
+never swapped for one that has it. Names no runner or framework."""
+
+FIRST_TRACE_WRITES_NOTHING_WITHOUT_TESTS = (
+    "; nothing is written to disk by this script — the application's log is the record once the "
+    "logging bridge in the later step is wired; this page never adds a test runner or a test to "
+    "a project that has none"
+)
+"""Appended to step 3's console branch (B-92): says plainly that the standalone script leaves no
+file, and that the page does not create a test runner to get one."""
+
+NAME_THE_SERVICE_DONE = (
+    "the service has its own real name — set once, where the context is built or in the "
+    "environment the service runs in (NARRATIVETRACE_SERVICE_NAME), never a placeholder; in an "
+    "existing application the line that builds the context changes, no second context is added"
+)
+"""The service-name step's done-condition: the name is the project's own, not a copied example."""
 
 ENTRY_POINT_KEEPS_ITS_LOGGING = (
     _HAS_AN_ENTRY_POINT
@@ -174,8 +204,60 @@ ADD_NARRATIVE_TRACING = Skill(
                     ),
                     fix='supply explicit names: @traced("first", "second", ...) above the method',
                 ),
+                FailureNote(
+                    symptom=(
+                        "a bare function, a lambda or a functools.partial gives no spans at all, "
+                        "or a span carries the wrong class name"
+                    ),
+                    cause=(
+                        "a span is named after type(target).__name__, and trace_object never "
+                        "traces a function, lambda or partial"
+                    ),
+                    fix=(
+                        "trace an instance of a class of your own, or pass "
+                        'class_name="..." to trace_object to show a different name'
+                    ),
+                ),
+                FailureNote(
+                    symptom=(
+                        "trace_object returns the object unwrapped and stderr says it cannot "
+                        "trace it (excluded module ...)"
+                    ),
+                    cause=(
+                        "the class is defined under a module prefix on the exclude list, whose "
+                        "shipped default covers test and mocking libraries and APM runtimes"
+                    ),
+                    fix=(
+                        "wrap a class of your own, or set NARRATIVETRACE_EXCLUDE (or the "
+                        "exclude key) to the full list you want, which replaces the default"
+                    ),
+                ),
             ),
-            condition=ENTRY_POINT_RUNS_ITSELF,
+            condition=(
+                FIRST_TRACE_HAS_TESTS
+                + ENTRY_POINT_RUNS_ITSELF
+                + FIRST_TRACE_WRITES_NOTHING_WITHOUT_TESTS
+            ),
+        ),
+        SkillStep(
+            title="Name the service",
+            body=SnippetStep(
+                path="examples/sixty_seconds/main_named_service.py", language="python"
+            ),
+            verify=SERVICE_IS_NAMED,
+            done=NAME_THE_SERVICE_DONE,
+            failure=(
+                FailureNote(
+                    symptom=("traces say unknown_service:python on the platform"),
+                    cause="nobody named the service, so the fallback name is all there is",
+                    fix=(
+                        'pass service_identity=ServiceIdentity("orders") to the '
+                        "ContextVarNarrativeContext, or set NARRATIVETRACE_SERVICE_NAME (and "
+                        "NARRATIVETRACE_SERVICE_VERSION, NARRATIVETRACE_ENVIRONMENT) in the "
+                        "environment the service runs in"
+                    ),
+                ),
+            ),
         ),
         SkillStep(
             title="Send it to your logger",

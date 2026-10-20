@@ -143,7 +143,7 @@ class NarrativeTraceMiddleware:
             return
         parsed = parse_traceparent(_header(scope, b"traceparent"))
         if parsed is not None:
-            self._context.adopt_trace_id(parsed.trace_id)
+            self._context.adopt_trace_id(parsed.trace_id, parsed.span_id, parsed.flags)
 
     def _stamp_request(self, scope: Scope) -> None:
         route = HttpRoute.of(scope["path"]) if scope.get("path") else None

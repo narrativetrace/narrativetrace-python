@@ -29,16 +29,19 @@ NARRATIVETRACE_DOCTOR = Skill(
         "NarrativeTrace is wired up correctly. Checks the interpreter and pytest versions, that "
         "all eight narrativetrace-* packages agree on one version, NARRATIVETRACE_OUTPUT, that "
         "the pytest plugin is registered and not disabled, whether the NarrativeTrace agent "
-        "skills are installed and current, unrecognized narrativetrace.toml keys, an "
-        "imported-but-unused not_traced_field/__nt_not_traced__ marker, whether redaction is "
-        "proven in a test, stale approval-trace diffs, and approved baselines nothing compares "
-        "because approval mode is off. Read-only -- makes no changes. Say "
+        "skills are installed in this project and current, unrecognized narrativetrace.toml "
+        "keys, an imported-but-unused not_traced_field/__nt_not_traced__ marker, whether "
+        "redaction is proven in a test, stale approval-trace diffs, and approved baselines "
+        "nothing compares because approval mode is off. Read-only -- makes no changes. Say "
         "'check my narrativetrace setup', 'is narrativetrace broken', or 'why isn't anything "
         "being traced' to invoke it."
     ),
     when_to_use=(
         "A project already has NarrativeTrace installed and something about it is not working, "
-        "or an agent wants a pre-flight check before wiring it into new code."
+        "or an agent wants a pre-flight check before wiring it into new code. Also when a user "
+        "installed these skills as a personal plugin in their agent rather than in this project: "
+        "a plugin install is invisible to this check by design, and only a project install "
+        "reaches teammates and other agents."
     ),
     fixture=_FIXTURE,
     allowed_tools=("uv", "git"),

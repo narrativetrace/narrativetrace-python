@@ -47,6 +47,13 @@ Which licence applies to what
       a Claude Code or Cursor plugin marketplace — receives Apache-licensed
       pages, and the marketplace listing says so.
 
+  the OpenAI plugin directory's package root:
+  packages/narrativetrace-skills-catalogue/openai-plugin/
+      Apache License, Version 2.0.
+      The versionless plugin.json committed there, and the packaged
+      plugin.json a release ZIP carries, are build output of the same
+      catalogue — same licence as every other rendered listing above.
+
   documentation/ (prose)
       Creative Commons Attribution 4.0 International (CC BY 4.0).
       https://creativecommons.org/licenses/by/4.0/

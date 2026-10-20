@@ -21,6 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from narrativetrace_skills import SKILLS
 from scripts.translation_check import REPO_ROOT
 
+sys.path.insert(0, str(REPO_ROOT / "packages" / "narrativetrace-skills-catalogue" / "evals"))
+from model_ids import is_full_id
+
 _LEDGER_DIR = REPO_ROOT / "packages" / "narrativetrace-skills-catalogue" / "ledger"
 _RUNS_PATH = _LEDGER_DIR / "runs.jsonl"
 _PROMOTION_PATH = _LEDGER_DIR / "promotion.md"
@@ -45,13 +48,19 @@ class LedgerRow:
 
 
 def parse_runs_jsonl(content: str) -> tuple[LedgerRow, ...]:
-    """One JSON object per non-blank line, the shape a Tier B runner's ``run.py`` writes."""
+    """One JSON object per non-blank line, the shape a Tier B runner's ``run.py`` writes. A row
+    whose ``model`` is not a full model id (an alias such as ``haiku``) raises ``ValueError``
+    naming the row (B-99): the matrix groups by that string."""
     rows = []
-    for line in content.splitlines():
+    for number, line in enumerate(content.splitlines(), start=1):
         stripped = line.strip()
         if not stripped:
             continue
         payload = json.loads(stripped)
+        if not is_full_id(payload["model"]):
+            raise ValueError(
+                f"ledger row {number}: model {payload['model']!r} is not a full model id"
+            )
         rows.append(
             LedgerRow(
                 date=payload["date"],

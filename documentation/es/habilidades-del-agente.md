@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob a73c23c13930 | translated: 2026-10-16 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 8299e7c096e9 | translated: 2026-10-20 | reviewed: - -->
 
 # Habilidades del agente
 
@@ -112,14 +112,16 @@ existente. `doctor` es de solo lectura, sin red, `--json` para salida
 legible por máquina, código de salida `0` (limpio), `1` (hallazgos) o `2` (no se pudo ejecutar). Hace fallar el script o el paso de compilación que lo
 ejecutó ante un hallazgo fallido: el informe se escribe primero, así que «doctor en verde» es el
 código de salida `0`.
-Diecinueve comprobaciones con identificadores estables y con puntos: las versiones de
+Veintiuna comprobaciones con identificadores estables y con puntos: las versiones de
 intérprete/pytest frente a lo declarado, los ocho paquetes `narrativetrace-*` de acuerdo en una
 sola versión, la ortografía de `NARRATIVETRACE_OUTPUT`, el registro del plugin de pytest, si las
 habilidades del agente de NarrativeTrace están instaladas y actualizadas, claves desconocidas en
 `narrativetrace.toml`, un marcador de ocultación importado pero nunca usado, los
 parámetros de un método `*args` colapsando en un único valor `args: [...]`, si la ocultación está
 probada en una prueba, diffs de trazas de aprobación obsoletos, líneas base aprobadas que nada compara
-porque el modo de aprobación está apagado, y una comprobación
+porque el modo de aprobación está apagado, la lista `exclude` efectiva (y si un valor configurado se interpreta), si el servicio tiene nombre
+(`config.service-identity`: un contexto construido en código que no es de pruebas, sin
+`NARRATIVETRACE_SERVICE_NAME` ni `ServiceIdentity`), y una comprobación
 `config.<framework>-*` por cada fila de la tabla de frameworks (la tabla y el cableado de cada
 fila están en [`llms-full.md`](../llms-full.md#framework-table--what-the-doctor-checks)): un
 framework que el proyecto usa cuya integración no está añadida, o está añadida pero nunca
@@ -149,7 +151,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.4.1",
+  "carrier": "narrativetrace-skills==0.4.2",
   "actions": [
     {
       "kind": "create",

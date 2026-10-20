@@ -77,6 +77,14 @@ class DoctorSnapshot:
     preference order ``init`` uses (:func:`~narrativetrace_tooling.init.carrier.resolve_carrier`).
     Empty when nothing resolved — a defensive floor, not the common case: this runtime always
     bundles a fallback carrier as package data."""
+    effective_exclude: tuple[str, ...] | None = None
+    """The module prefixes exclusion list 2 resolves to (environment, then config file, else the
+    shipped default), resolved by the ``narrativetrace`` distribution. ``None`` when not resolved
+    or when ``exclude_error`` is set."""
+    exclude_source: Literal["default", "configured"] = "default"
+    """Whether ``effective_exclude`` is the shipped default or an explicitly given list."""
+    exclude_error: str | None = None
+    """Why a configured ``exclude`` value would not parse, or ``None`` when it parsed."""
     narrativetrace_version: str | None = None
     """The NarrativeTrace release this project resolves
     (:func:`~narrativetrace_tooling.init.version_guard.project_family_version`), or ``None`` when

@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/fastapi-asgi.md blob 1ce7dac68ee1 | translated: 2026-09-09 | reviewed: 2026-09-09 -->
+<!-- source: documentation/guides/fastapi-asgi.md blob bc949a9b93f3 | translated: 2026-10-18 | reviewed: - -->
 
 # FastAPI / ASGI
 
@@ -32,7 +32,7 @@ app.add_middleware(NarrativeTraceMiddleware, context=context, exporter=my_export
 
 ## W3C traceparent
 
-入站的 `traceparent` 会被采纳为该请求的追踪 id。对于服务间调用,可以在出站的 `httpx` 客户端上
+入站的 `traceparent` 会被采纳为该请求的追踪 id,其 parent id 成为该请求根 span 的父 span;出站时,头里指明发起调用的 span。对于服务间调用,可以在出站的 `httpx` 客户端上
 注入它 —— 异步客户端需要异步钩子 `attach_traceparent_async`(`httpx.AsyncClient` 会对每个请求钩子
 执行 `await`,而同步钩子返回的 `None` 无法被 await):
 

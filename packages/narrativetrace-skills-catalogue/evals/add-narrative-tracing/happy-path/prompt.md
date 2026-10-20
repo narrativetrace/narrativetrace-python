@@ -15,8 +15,11 @@ narrativetrace doctor` and reports its findings rather than declaring success un
 
 **Grading:**
 - **Gates** (every model): `graders/verify.sh` — `pyproject.toml` exists and declares
-  `narrativetrace` as a dependency, the script prints a rendered trace line, and every
-  `toolchain.*` doctor finding holds.
+  `narrativetrace` as a dependency; the grader itself runs the demo the agent left (`main.py`,
+  else any script that captures a trace — found in the tree, not the transcript), which exits 0 and
+  prints a traced call line (`Class.method(...)`); and every `toolchain.*` doctor finding holds. The
+  premise is an empty project with no tests, so the trace goes to the console: nothing is asked to
+  be written to disk, and the page never adds a test runner.
 - **Report-only** (cheapest model), gates (mid model+): did the agent run the final
   `narrativetrace doctor` seam step and read its report, rather than declaring the project done
   unprompted?

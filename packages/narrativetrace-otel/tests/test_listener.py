@@ -280,3 +280,59 @@ class TestOrphansAndIgnored:
 
         orphan = otel.named("Svc.slow")
         assert orphan.status.status_code == StatusCode.ERROR
+
+
+REMOTE_TRACE = TraceId("0af7651916cd43dd8448eb211c80319c")
+REMOTE_PARENT = SpanId("b7ad6b7169203331")
+
+
+class TestAdoptedRemoteParent:
+    def test_root_under_an_adopted_traceparent_parents_on_the_remote_span(
+        self, otel: Harness
+    ) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        sc = SpanContext(
+            REMOTE_TRACE, SpanId.generate(), parent_span_id=REMOTE_PARENT, trace_flags=1
+        )
+        _emit(listener, sc, "Svc", "run", None)
+
+        span = otel.named("Svc.run")
+        assert span.context is not None
+        assert format(span.context.trace_id, "032x") == "0af7651916cd43dd8448eb211c80319c"
+        assert span.parent is not None
+        assert format(span.parent.span_id, "016x") == "b7ad6b7169203331"
+        assert span.parent.is_remote is True
+        assert span.parent.trace_flags.sampled is True
+
+    def test_unsampled_flag_from_the_header_is_honoured_by_the_parent_based_sampler(
+        self, otel: Harness
+    ) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        sc = SpanContext(
+            REMOTE_TRACE, SpanId.generate(), parent_span_id=REMOTE_PARENT, trace_flags=0
+        )
+        _emit(listener, sc, "Svc", "run", None)
+
+        assert otel.finished() == []
+
+    def test_local_child_still_parents_on_its_local_active_span(self, otel: Harness) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        root = SpanContext(
+            REMOTE_TRACE, SpanId.generate(), parent_span_id=REMOTE_PARENT, trace_flags=1
+        )
+        child = _child_sc(root)
+        listener(_enter(root, "Svc", "run", T0))
+        listener(_enter(child, "Svc", "inner", T0 + 1))
+        listener(ExitEvent(child, T0 + 2, Returned(None)))
+        listener(ExitEvent(root, T0 + 3, Returned(None)))
+
+        inner = otel.named("Svc.inner")
+        assert inner.parent is not None
+        assert inner.parent.span_id == otel.span_id(otel.named("Svc.run"))
+        assert inner.parent.is_remote is False
+
+    def test_root_without_adoption_has_no_parent(self, otel: Harness) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        _emit(listener, _root_sc(), "Svc", "run", None)
+
+        assert otel.named("Svc.run").parent is None

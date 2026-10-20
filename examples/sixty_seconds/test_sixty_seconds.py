@@ -49,10 +49,12 @@ from __future__ import annotations
 import ast
 import json
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
 
+from examples.sixty_seconds import tutorial_artifacts
 from examples.sixty_seconds.tutorial_artifacts import write_agent_skills_preview, write_artifacts
 
 _HERE = Path(__file__).parent
@@ -201,3 +203,48 @@ def test_the_agent_skills_init_preview_shows_a_clean_plan_and_writes_nothing() -
     assert any(path.startswith(".agents/skills/") for path in paths)
     assert not (_HERE / "AGENTS.md").exists()
     assert not (_HERE / ".agents").exists()
+
+
+def _preview_with_carrier(carrier: str) -> str:
+    return json.dumps({"exit_code": 0, "carrier": carrier, "actions": []})
+
+
+class TestPreviewRefusesAStaleInstall:
+    """B-104: the preview's ``carrier`` is the *installed* skills distribution. A venv synced
+    behind the tree made the regenerated preview say 0.4.0 while the page (right) said 0.4.1."""
+
+    def test_a_carrier_behind_the_tree_fails_naming_both_versions_and_writes_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(tutorial_artifacts, "BUILD_DIR", tmp_path)
+
+        with pytest.raises(
+            tutorial_artifacts.StaleInstallError,
+            match=r"\Astale install: narrativetrace-skills==0\.4\.0 installed, "
+            r"tree is 9\.9\.9 — sync the workspace\Z",
+        ):
+            write_agent_skills_preview(
+                run_preview=lambda: _preview_with_carrier("narrativetrace-skills==0.4.0"),
+                tree_version="9.9.9",
+            )
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_carrier_equal_to_the_tree_writes_the_preview(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(tutorial_artifacts, "BUILD_DIR", tmp_path)
+        stdout = _preview_with_carrier("narrativetrace-skills==9.9.9")
+
+        written = write_agent_skills_preview(run_preview=lambda: stdout, tree_version="9.9.9")
+
+        assert written == stdout
+        assert (tmp_path / tutorial_artifacts.AGENT_SKILLS_INIT_PREVIEW_ARTIFACT).read_text(
+            encoding="utf-8"
+        ) == stdout
+
+    def test_the_tree_version_defaults_to_the_skills_package_pyproject(self) -> None:
+        pyproject = _HERE.parents[1] / "packages" / "narrativetrace-skills" / "pyproject.toml"
+        expected = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+
+        assert tutorial_artifacts.tree_skills_version() == expected

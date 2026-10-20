@@ -29,10 +29,12 @@ from scripts.skills_render import (
     _cursor_rule_path,
     _fix_all,
     _marketplace_json_path,
+    _openai_plugin_json_path,
     _rendered_agents_md,
     _rendered_carrier_files,
     _rendered_cursor_rule,
     _rendered_marketplace_json,
+    _rendered_openai_plugin_json,
     _rendered_skill_files,
     _stray_carrier_files,
 )
@@ -152,6 +154,44 @@ class TestMarketplaceFileMatchesTheTypedCatalogue:
         _fix_all(tmp_path)
         _marketplace_json_path(tmp_path).write_text("tampered", encoding="utf-8")
         assert _marketplace_json_path(tmp_path) in _check_all(tmp_path)
+
+
+class TestOpenAiPluginJsonMatchesTheTypedCatalogue:
+    """`packages/narrativetrace-skills-catalogue/openai-plugin/plugin.json` -- the OpenAI plugin
+    directory's versionless manifest rendered from `narrativetrace_skills.OPENAI_DIRECTORY`
+    (Phase 4 milestone 8)."""
+
+    def test_the_committed_file_equals_a_fresh_render(self) -> None:
+        assert _openai_plugin_json_path().read_text(encoding="utf-8") == (
+            _rendered_openai_plugin_json()
+        )
+
+    def test_lives_inside_the_catalogue_package_not_at_the_repo_root(self) -> None:
+        assert _openai_plugin_json_path() == (
+            REPO_ROOT
+            / "packages"
+            / "narrativetrace-skills-catalogue"
+            / "openai-plugin"
+            / "plugin.json"
+        )
+        assert not (REPO_ROOT / "plugin.json").exists()
+
+    def test_is_included_in_fix_all_and_check_all(self, tmp_path: Path) -> None:
+        written = _fix_all(tmp_path)
+        path = _openai_plugin_json_path(tmp_path)
+        assert path in written
+        assert path.read_text(encoding="utf-8") == _rendered_openai_plugin_json()
+        assert _check_all(tmp_path) == []
+
+    def test_check_all_flags_a_hand_edited_file(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        _openai_plugin_json_path(tmp_path).write_text("tampered", encoding="utf-8")
+        assert _openai_plugin_json_path(tmp_path) in _check_all(tmp_path)
+
+    def test_check_all_flags_a_missing_file(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        _openai_plugin_json_path(tmp_path).unlink()
+        assert _openai_plugin_json_path(tmp_path) in _check_all(tmp_path)
 
 
 class TestCursorFilesMatchTheTypedCatalogueAndThePlatformTable:

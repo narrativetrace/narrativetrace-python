@@ -18,6 +18,8 @@ DOC = {
     "pytest_configuration": f"{_BASE}guides/pytest.md#what-you-get",
     "where_settings_come_from": f"{_BASE}guides/configuration.md#where-settings-come-from",
     "output_settings": f"{_BASE}guides/configuration.md#output-settings-pytest-plugin",
+    "exclude": f"{_BASE}guides/configuration.md#excluding-libraries-and-generated-code",
+    "service_identity": f"{_BASE}guides/configuration.md#service-identity",
     "config_keys": f"{_BASE}guides/configuration.md#where-settings-come-from",
     "no_trace_files_written": f"{_BASE}troubleshooting.md#no-trace-output-files",
     "parameter_names": (

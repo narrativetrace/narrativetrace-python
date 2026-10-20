@@ -15,7 +15,7 @@ uv run narrativetrace doctor || true
 **verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 21 else 0)
 '`
 
 **failure:** the CLI is not found, or the project has no pyproject.toml — NarrativeTrace is not installed in this project's environment. Fix: report under the prompt or library category instead -- those do not need a doctor report

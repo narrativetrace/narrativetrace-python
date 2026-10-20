@@ -14,7 +14,7 @@ fails `poe check` (`python scripts/promotion_render.py --check`; `--fix` fixes i
 | Skill | Claude | Codex | Antigravity | Cursor |
 |---|---|---|---|---|
 | `narrativetrace-doctor` | not yet run | not yet run | not yet run | not yet run |
-| `add-narrative-tracing` | red (claude-haiku-5-5, 2026-10-16) | not yet run | not yet run | not yet run |
+| `add-narrative-tracing` | green (claude-haiku-5-5, 2026-10-17) | not yet run | not yet run | not yet run |
 | `narrativetrace-feedback` | green (claude-haiku-5-5, 2026-10-08) | not yet run | not yet run | not yet run |
 | `add-narrativetrace-clarity` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |
 | `narrativetrace-verify` | green (claude-haiku-5-5, 2026-10-09) | not yet run | not yet run | not yet run |

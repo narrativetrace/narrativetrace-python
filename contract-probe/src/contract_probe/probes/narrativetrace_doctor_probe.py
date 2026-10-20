@@ -3,7 +3,7 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """`config-shape-narrativetrace-doctor`: `narrativetrace doctor --json` emits a well-formed report
-(parses, carries exactly the nineteen documented finding ids) -- documentation/agent-skills.md
+(parses, carries exactly the twenty-one documented finding ids) -- documentation/agent-skills.md
 `#the-narrativetrace-cli`.
 The id list below IS the documented catalogue, kept here on purpose rather than imported from the
 artifact under test: importing it would compare the artifact with itself. A new doctor finding
@@ -53,6 +53,8 @@ DOCUMENTED_FINDING_IDS = (
     "config.flask-integration",
     "config.django-integration",
     "config.approval-mode",
+    "config.exclude",
+    "config.service-identity",
 )
 
 

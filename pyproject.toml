@@ -1,6 +1,6 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.4.1"
+version = "0.4.2"
 description = "Workspace root for NarrativeTrace for Python"
 requires-python = ">=3.12"
 # Virtual workspace root: no distribution is built from this file.
@@ -84,7 +84,7 @@ cmd = "pytest"
 help = "Run the pytest suite across the workspace"
 
 [tool.poe.tasks.lint]
-cmd = "ruff check ."
+cmd = "ruff check --no-cache ."
 help = "Lint (no fixes)"
 
 [tool.poe.tasks.typecheck]
@@ -325,7 +325,7 @@ sequence = [
 ]
 
 [tool.poe.tasks.format-check]
-cmd = "ruff format --check ."
+cmd = "ruff format --check --no-cache ."
 help = "Verify formatting without writing"
 
 [tool.poe.tasks.lint-imports]
@@ -441,6 +441,15 @@ embedded source to resolve."""
 cmd = "python scripts/skills_render.py --fix"
 help = "Regenerates .claude/skills/{doctor,add}/SKILL.md and the AGENTS.md managed section."
 
+[tool.poe.tasks.openai-plugin-check]
+cmd = "python scripts/openai_plugin_pack.py --check"
+help = """OpenAI plugin directory package gate: builds the release ZIP into a temporary directory \
+and asserts it -- entries EQUAL the catalogue-derived layout, the root pyproject's version is \
+semantic and inside plugin.json, every ./ path in the manifest resolves, each icon is square, \
+48 px or more and 5 MiB or less, and no hooks/, mcp.json, .app.json or .class entry. The ZIP \
+itself is built by hand from a v* tag ('python scripts/openai_plugin_pack.py --build DIR'), \
+never committed, never uploaded by a session."""
+
 [tool.poe.tasks.promotion-check]
 cmd = "python scripts/promotion_render.py --check"
 help = """Tier B promotion-matrix gate: packages/narrativetrace-skills-catalogue/ledger/promotion.md \
@@ -461,7 +470,7 @@ git tags only"""
 help = """Single quality gate: format-check + lint + typecheck + lint-imports + coverage + \
 metrics + clarity + no-license-headers + translation-check + snippet-check + legal-check + \
 duplication-check + contract-lint + comment-hygiene + deep-fixture-budget + timeout-floor + \
-bandit + skills-check + promotion-check + context7-check"""
+bandit + skills-check + openai-plugin-check + promotion-check + context7-check"""
 sequence = [
     { ref = "format-check" },
     { ref = "lint" },
@@ -482,6 +491,7 @@ sequence = [
     { ref = "timeout-floor" },
     { ref = "bandit" },
     { ref = "skills-check" },
+    { ref = "openai-plugin-check" },
     { ref = "promotion-check" },
     { ref = "context7-check" },
 ]
@@ -635,6 +645,10 @@ exclude = [
     # checkout -- two more top-level `billing`s, duplicates rather than typing findings, and the
     # verify fixture's vendored shopkit is a stand-in third-party framework. Their code is typed.
     'packages/narrativetrace-skills-catalogue/evals/fixtures/existing-service-checkout(-currency)?/',
+    # The tests-premise fixture is `existing-service` plus a pytest suite -- one more top-level
+    # `billing` (and a `test_invoice_service` module the checkout fixtures share): a duplicate,
+    # not a typing finding. Its code is typed anyway.
+    'packages/narrativetrace-skills-catalogue/evals/fixtures/existing-service-pytest/',
 ]
 
 # atheris is platform-conditional (see the `security` dependency group below and

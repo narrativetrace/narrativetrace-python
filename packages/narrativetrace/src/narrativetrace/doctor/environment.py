@@ -22,8 +22,10 @@ import sys
 import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
+from typing import Literal
 
 from narrativetrace.config import ConfigResolver
+from narrativetrace.exclusions import ExcludedModules
 from narrativetrace_tooling.doctor.types import DoctorSnapshot, Env, PackageInfo
 from narrativetrace_tooling.frameworks.manifests import is_manifest
 from narrativetrace_tooling.init import (
@@ -222,6 +224,24 @@ class _Walker:
                 self._visit_file(entry)
 
 
+def _resolve_exclude(
+    resolver: ConfigResolver, env: Env
+) -> tuple[tuple[str, ...] | None, Literal["default", "configured"], str | None]:
+    """The snapshot's exclusion-list fields: (effective list, where it came from, parse error).
+
+    ``env`` is consulted first so a snapshot built from an explicit environment reports that
+    environment; otherwise the resolver's own chain (process environment, config file) decides."""
+    given = env.get("NARRATIVETRACE_EXCLUDE")
+    try:
+        excluded = (
+            ExcludedModules.parse(given) if given is not None else ExcludedModules.resolve(resolver)
+        )
+    except ValueError as error:
+        return None, "default", str(error)
+    configured = given is not None or resolver.resolve("exclude", None) is not None
+    return excluded.prefixes, "configured" if configured else "default", None
+
+
 def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
     """Builds a :class:`~narrativetrace_tooling.doctor.types.DoctorSnapshot` from the real
     filesystem rooted at ``cwd``."""
@@ -230,6 +250,7 @@ def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
     config = resolver.file_values
     output_dir_name = str(config.get("output_dir") or "narrative-traces")
     approved_dir_name = str(config.get("approved_dir") or "test-narratives")
+    exclude = _resolve_exclude(resolver, env)
     walker = _Walker(root, output_dir_name, approved_dir_name)
     walker.walk()
     project = _read_project_state(root)
@@ -248,4 +269,7 @@ def build_snapshot(cwd: str, env: Env) -> DoctorSnapshot:
         pointer_readings=_resolve_pointer_readings(project),
         catalogue_skill_names=_resolve_catalogue_skill_names(),
         narrativetrace_version=project_family_version(),
+        effective_exclude=exclude[0],
+        exclude_source=exclude[1],
+        exclude_error=exclude[2],
     )

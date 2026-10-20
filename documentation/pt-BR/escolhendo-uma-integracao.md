@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob 753ad8c19299 | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob fc9fcea7ca8d | translated: 2026-10-20 | reviewed: 2026-09-03 -->
 
 # Escolhendo uma integração
 
@@ -55,6 +55,17 @@ Onde você quer que os traces comecem?
 Não existe mecanismo de anexação em nível de bytecode e sem código (nenhum import hook, nenhuma
 auto-instrumentação via `sitecustomize.py` incluída aqui) — todo caminho acima é uma chamada explícita
 que seu código faz ou um middleware que você registra, nunca algo que reescreve suas classes ao carregá-las.
+
+## O que é rastreado e o que nunca é
+
+`trace_object` envolve exatamente o objeto que você entrega: essa é a inclusão. Depois valem duas listas de exclusão: uma embutida para o que estruturalmente nunca é uma fronteira de negócio (alvos de tipo embutido, `functools.partial`, chamáveis do runtime em C, `<lambda>`), que nada reativa, e uma configurável para internos de bibliotecas com padrão embarcado (bibliotecas de teste e de mock, runtimes APM), que `exclude=`, `NARRATIVETRACE_EXCLUDE` ou a chave `exclude` substituem. A exclusão vence:
+
+```python
+service = trace_object(OrderService(), context)                        # rastreado
+service = trace_object(OrderService(), context, exclude="acme.orders")  # volta sem envolver
+```
+
+As duas listas, literalmente, estão no [guia de configuração](guia-de-configuracao.md).
 
 ## Uma coisa que todo caminho compartilha
 

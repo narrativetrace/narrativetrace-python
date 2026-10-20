@@ -46,7 +46,7 @@ sys.exit(1 if bad else 0)
 
 ## 3. First trace: wrap, call, render, run
 
-**when:** if the project already has an application entry point — a script or module that starts it, a web or application framework the doctor reports — do not create a demo main.py: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the standalone script, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest script as follows
+**when:** if the project already has tests — a test directory, a runner's table in its pyproject.toml or a test runner among its dependencies — and the doctor reports a test integration for that runner, do not add a demo script: run one existing test through that integration with output on, which writes that test's narrative files, .md and .nt, under the integration's output directory — the files narrativetrace-doctor, -verify, -debug and -explain read; print the rendered file so the trace is also on the console; the step is done when that test's files exist; a project whose runner has no integration keeps that runner and takes the console path below; if the project already has an application entry point — a script or module that starts it, a web or application framework the doctor reports — do not create a demo main.py: run the application the way it already runs, exercise one real boundary, and read that request's trace; the verify below is for the standalone script, and in an existing application the step is done when that request's trace is in the output; otherwise create the smallest script as follows; nothing is written to disk by this script — the application's log is the record once the logging bridge in the later step is wired; this page never adds a test runner or a test to a project that has none
 
 <!-- snippet: examples/sixty_seconds/main.py -->
 ```python
@@ -81,7 +81,35 @@ print(IndentedTextRenderer().render(context.capture_trace()))
 
 **failure:** a *args method's parameters render as one args: [...] value — inspect.signature has nothing named to reconstruct per-argument that Python itself does not have. Fix: supply explicit names: @traced("first", "second", ...) above the method
 
-## 4. Send it to your logger
+**failure:** a bare function, a lambda or a functools.partial gives no spans at all, or a span carries the wrong class name — a span is named after type(target).__name__, and trace_object never traces a function, lambda or partial. Fix: trace an instance of a class of your own, or pass class_name="..." to trace_object to show a different name
+
+**failure:** trace_object returns the object unwrapped and stderr says it cannot trace it (excluded module ...) — the class is defined under a module prefix on the exclude list, whose shipped default covers test and mocking libraries and APM runtimes. Fix: wrap a class of your own, or set NARRATIVETRACE_EXCLUDE (or the exclude key) to the full list you want, which replaces the default
+
+## 4. Name the service
+
+<!-- snippet: examples/sixty_seconds/main_named_service.py -->
+```python
+# main.py
+from narrativetrace import ContextVarNarrativeContext, ServiceIdentity
+
+context = ContextVarNarrativeContext(service_identity=ServiceIdentity("orders", "1.4.0", "prod"))
+```
+<!-- /snippet -->
+
+**done when:** the service has its own real name — set once, where the context is built or in the environment the service runs in (NARRATIVETRACE_SERVICE_NAME), never a placeholder; in an existing application the line that builds the context changes, no second context is added
+
+**verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
+report = json.load(sys.stdin)
+by_id = {f["id"]: f for f in report["findings"]}
+finding = by_id.get("config.service-identity")
+if finding is None or finding["status"] != "pass":
+    print(finding["fix"] if finding else "the doctor has no config.service-identity finding")
+sys.exit(0 if finding is not None and finding["status"] == "pass" else 1)
+'`
+
+**failure:** traces say unknown_service:python on the platform — nobody named the service, so the fallback name is all there is. Fix: pass service_identity=ServiceIdentity("orders") to the ContextVarNarrativeContext, or set NARRATIVETRACE_SERVICE_NAME (and NARRATIVETRACE_SERVICE_VERSION, NARRATIVETRACE_ENVIRONMENT) in the environment the service runs in
+
+## 5. Send it to your logger
 
 **when:** if the project already has an application entry point — a script or module that starts it, a web or application framework the doctor reports — do not create a second main.py or a second logging setup: add the filter and the export_to_logger call to the application's own logging configuration and the boundary you exercised; the verify below is for the standalone script, and in an existing application the step is done when that boundary's trace reaches the application's own logger; otherwise create the smallest script as follows
 
@@ -137,7 +165,7 @@ export_to_logger(trace)  # new: sends the same captured trace through the config
 
 **verify:** `uv run python main_with_logger.py`
 
-## 5. Run the doctor and resolve its findings
+## 6. Run the doctor and resolve its findings
 
 ```bash
 uv run narrativetrace doctor || true
@@ -146,10 +174,10 @@ uv run narrativetrace doctor || true
 **verify:** `uv run narrativetrace doctor --json | uv run python -c 'import json, sys
 report = json.load(sys.stdin)
 findings = report.get("findings")
-sys.exit(1 if not isinstance(findings, list) or len(findings) != 19 else 0)
+sys.exit(1 if not isinstance(findings, list) or len(findings) != 21 else 0)
 '`
 
-## 6. Install the skills for next time
+## 7. Install the skills for next time
 
 ```bash
 uv run narrativetrace init --dry-run

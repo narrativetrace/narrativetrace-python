@@ -1,0 +1,41 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "narrativetrace-python",
+  "description": "Install NarrativeTrace in a Python project and reach a first trace, diagnose an install that traces nothing, add a naming-clarity report and gate, report a defect in NarrativeTrace itself, verify a change by reading what the code actually did, debug a wrong result by the span where its value diverged, and explain what an application actually does by reading the trace of one run.",
+  "author": {
+    "name": "NarrativeTrace"
+  },
+  "homepage": "https://narrativetrace.ai",
+  "license": "Apache-2.0",
+  "keywords": [
+    "narrativetrace",
+    "python",
+    "tracing",
+    "observability",
+    "agent-skills"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "NarrativeTrace for Python",
+        "shortDescription": "NarrativeTrace Python skills",
+        "longDescription": "Install NarrativeTrace in a Python project and reach a first trace, diagnose an install that traces nothing, add a naming-clarity report and gate, report a defect in NarrativeTrace itself, verify a change by reading what the code actually did, debug a wrong result by the span where its value diverged, and explain what an application actually does by reading the trace of one run. It reads what one run actually did, and needs a Python interpreter, uv, and network access for the first dependency fetch.",
+        "developerName": "NarrativeTrace",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "add narrative tracing to my service",
+          "check my narrativetrace setup",
+          "debug this with the trace"
+        ],
+        "brandColor": "#00845a",
+        "websiteURL": "https://narrativetrace.ai",
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/composer-icon.png"
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob a73c23c13930 | translated: 2026-10-16 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 8299e7c096e9 | translated: 2026-10-20 | reviewed: - -->
 
 # Habilidades do agente
 
@@ -110,14 +110,16 @@ verbo por trás de `narrativetrace-feedback`) e do script de console `narrativet
 existente. `doctor` é somente leitura, sem rede, `--json` para saída
 legível por máquina, código de saída `0` (limpo), `1` (achados) ou `2` (não foi possível
 executar). Ele faz falhar o script ou a etapa de build que o executou diante de um achado com
-falha: o relatório é escrito primeiro, então «doctor verde» é o código de saída `0`. Dezenove verificações com identificadores estáveis e pontuados: as versões de
+falha: o relatório é escrito primeiro, então «doctor verde» é o código de saída `0`. Vinte e uma verificações com identificadores estáveis e pontuados: as versões de
 interpretador/pytest em relação ao que é declarado, os oito pacotes `narrativetrace-*`
 concordando em uma única versão, a grafia de `NARRATIVETRACE_OUTPUT`, o registro do plugin do
 pytest, se as habilidades do agente do NarrativeTrace estão instaladas e atualizadas, chaves
 desconhecidas em `narrativetrace.toml`, um marcador de ocultação importado mas nunca usado, os
 parâmetros de um método `*args` colapsando em um único valor `args: [...]`, se a
 ocultação está comprovada em um teste, diffs de traces de aprovação obsoletos, baselines aprovadas que nada compara
-porque o modo de aprovação está desligado, e uma verificação
+porque o modo de aprovação está desligado, a lista `exclude` efetiva (e se um valor configurado é interpretado), se o serviço tem nome
+(`config.service-identity`: um contexto construído em código que não é de teste, sem
+`NARRATIVETRACE_SERVICE_NAME` nem `ServiceIdentity`), e uma verificação
 `config.<framework>-*` por linha da tabela de frameworks (a tabela e a conexão de cada linha estão
 em [`llms-full.md`](../llms-full.md#framework-table--what-the-doctor-checks)): um framework que o
 projeto usa cuja integração não foi adicionada, ou foi adicionada mas nunca conectada, falha com
@@ -145,7 +147,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.4.1",
+  "carrier": "narrativetrace-skills==0.4.2",
   "actions": [
     {
       "kind": "create",

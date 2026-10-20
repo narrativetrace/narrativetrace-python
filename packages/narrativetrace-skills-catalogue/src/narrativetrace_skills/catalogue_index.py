@@ -17,6 +17,7 @@ from narrativetrace_skills.catalogue.narrativetrace_feedback import NARRATIVETRA
 from narrativetrace_skills.catalogue.narrativetrace_verify import NARRATIVETRACE_VERIFY
 from narrativetrace_skills.catalogue.pro_listings import PRO_LISTINGS
 from narrativetrace_skills.marketplace import MarketplaceListing, MarketplaceOwner
+from narrativetrace_skills.openai_listing import OpenAiListing
 from narrativetrace_skills.pro_listing import ProListing
 from narrativetrace_skills.skill import Skill
 
@@ -50,6 +51,27 @@ MARKETPLACE: MarketplaceListing = MarketplaceListing(
     license="Apache-2.0",
     homepage="https://narrativetrace.ai",
     keywords=("narrativetrace", "python", "tracing", "observability", "agent-skills"),
+)
+
+# How this repository presents MARKETPLACE to the OpenAI plugin directory (shared by ChatGPT and
+# Codex): the same listing plus the directory's own display fields. `capabilities` names what the
+# skills do -- run a local build, read and write files -- not a network or data-access claim;
+# `default_prompts` are drawn verbatim from the skills' own trigger phrases in SKILLS, never
+# invented ones. `brand_color` is the brand tile colour, and the two icons under
+# openai-plugin/assets/ are the brand bundle's avatar marks.
+OPENAI_DIRECTORY: OpenAiListing = OpenAiListing(
+    base=MARKETPLACE,
+    display_name="NarrativeTrace for Python",
+    short_description="NarrativeTrace Python skills",
+    category="Developer Tools",
+    capabilities=("Read", "Write"),
+    default_prompts=(
+        "add narrative tracing to my service",
+        "check my narrativetrace setup",
+        "debug this with the trace",
+    ),
+    brand_color="#00845a",
+    website_url=MARKETPLACE.homepage,
 )
 
 

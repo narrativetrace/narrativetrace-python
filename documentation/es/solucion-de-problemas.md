@@ -1,4 +1,4 @@
-<!-- source: documentation/troubleshooting.md blob 1839b50194fe | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/troubleshooting.md blob 136224219d89 | translated: 2026-09-12 | reviewed: - -->
 
 # Solución de problemas
 
@@ -47,6 +47,10 @@ class Calc:
         return sum(args)
 ```
 
+Cualquier otra firma trazada se lee por nombre; `*args` es el único caso que Python no puede leer.
+Un método con `*args` y sin nombres de `@traced` imprime una línea en stderr, una vez por proceso,
+avisándolo.
+
 ## `trace_object` envuelve el objeto, pero las llamadas siguen sin trazarse
 
 **Causa:** en algún lugar tienes una referencia al objeto *original*, sin envolver —
@@ -57,6 +61,21 @@ envoltorio por completo.
 **Solución:** asegúrate de que cada llamador tenga el objeto que devolvió `trace_object(...)`, no
 el que construiste. Normalmente esto significa envolver una sola vez, en una raíz de composición o
 en una fixture, y pasar la referencia envuelta en todo el flujo posterior.
+
+**Además:** un span se nombra según la clase del objetivo (`type(target).__name__`), así que traza
+una instancia de una clase propia, o pasa `class_name="..."` a `trace_object` para mostrar otro
+nombre. `trace_object` nunca traza una función suelta, una lambda ni un `functools.partial`:
+envuélvelos en una clase.
+
+## Las trazas dicen `unknown_service:python`
+
+**Causa:** nadie nombró el servicio, así que la plataforma y OpenTelemetry recurren a
+`unknown_service:python`.
+
+**Solución:** define `NARRATIVETRACE_SERVICE_NAME` (y, si los quieres, `NARRATIVETRACE_SERVICE_VERSION`
+y `NARRATIVETRACE_ENVIRONMENT`) en el entorno donde se ejecuta el servicio, o pasa
+`ContextVarNarrativeContext(service_identity=ServiceIdentity("orders"))`. `narrativetrace doctor` lo
+señala como `config.service-identity`.
 
 ## Las trazas entre hilos o entre tareas están vacías, o un hijo bifurcado aparece como una nueva raíz
 

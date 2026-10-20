@@ -202,6 +202,46 @@
         "pt-BR": "revise-uma-refatoracao-o-comportamento-mudou.md",
         "zh-CN": "审查重构行为变了吗.md"
       }
+    },
+    {
+      "source": "documentation/recipes/follow-one-request-across-services.md",
+      "translations": {
+        "es": "sigue-una-peticion-entre-servicios.md",
+        "pt-BR": "acompanhe-uma-requisicao-entre-servicos.md",
+        "zh-CN": "跨服务追踪一次请求.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/keep-secrets-out-of-the-logs.md",
+      "translations": {
+        "es": "manten-los-secretos-fuera-de-los-logs.md",
+        "pt-BR": "mantenha-os-segredos-fora-dos-logs.md",
+        "zh-CN": "别让密钥进日志.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/follow-a-flow-across-threads.md",
+      "translations": {
+        "es": "sigue-un-flujo-entre-hilos.md",
+        "pt-BR": "acompanhe-um-fluxo-entre-threads.md",
+        "zh-CN": "跨线程追踪一个流程.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/send-traces-to-the-observability-stack-you-already-run.md",
+      "translations": {
+        "es": "envia-las-trazas-al-stack-de-observabilidad-que-ya-tienes.md",
+        "pt-BR": "envie-os-traces-para-o-stack-de-observabilidade-que-voce-ja-tem.md",
+        "zh-CN": "把追踪发到你已有的可观测性栈.md"
+      }
+    },
+    {
+      "source": "documentation/recipes/trace-in-production-without-the-cost.md",
+      "translations": {
+        "es": "traza-en-produccion-sin-el-coste.md",
+        "pt-BR": "trace-em-producao-sem-o-custo.md",
+        "zh-CN": "在生产环境追踪而不付出代价.md"
+      }
     }
   ]
 }

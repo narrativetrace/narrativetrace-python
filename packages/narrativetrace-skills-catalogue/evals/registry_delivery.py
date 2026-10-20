@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal, TypeGuard, get_args
 
 import isolated_agent_config
 from narrativetrace_skills import MARKETPLACE
@@ -48,7 +48,7 @@ _FIELD = "registry"
 _MANIFEST = "case.json"
 
 
-def is_registry(value: str) -> bool:
+def is_registry(value: str) -> TypeGuard[Registry]:
     """Whether ``value`` is one of the registries a case may declare."""
     return value in REGISTRIES
 
@@ -112,7 +112,7 @@ def registry_for_case(case_dir: Path) -> Registry | None:
             f'{manifest} declares "{_FIELD}": {declared!r}, which is not one of '
             f"{', '.join(REGISTRIES)}"
         )
-    return declared  # type: ignore[return-value]
+    return declared
 
 
 @dataclass(frozen=True, slots=True)

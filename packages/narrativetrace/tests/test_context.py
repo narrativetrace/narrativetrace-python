@@ -14,7 +14,7 @@ from contextlib import AbstractContextManager, contextmanager
 import pytest
 
 from narrativetrace.context import NOOP_CONTEXT, ContextSnapshot, ContextVarNarrativeContext
-from narrativetrace.ids import TraceId
+from narrativetrace.ids import SpanId, TraceId
 from narrativetrace.levels import NarrativeTraceConfig, TracingLevel
 from narrativetrace.metadata import ClientIp, EnduserId, HttpRoute, SessionId, TenantId
 from narrativetrace.outcomes import Returned, Threw
@@ -134,6 +134,68 @@ class TestTraceId:
         span_ctx = ctx.capture_trace().roots[0].span_context
         assert span_ctx is not None
         assert span_ctx.trace_id == inbound
+
+    def test_adopted_remote_parent_becomes_the_root_spans_parent(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        remote_parent = SpanId.generate()
+        ctx.adopt_trace_id(TraceId.generate(), remote_parent)
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.enter_method(_sig("Svc", "inner"))
+        ctx.exit_method_with_return(None)
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0]
+        assert root.span_context is not None
+        assert root.span_context.parent_span_id == remote_parent
+        child = root.children[0].span_context
+        assert child is not None
+        assert child.parent_span_id == root.span_context.span_id
+
+    def test_adopted_trace_flags_are_carried_on_the_root_and_its_children(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        ctx.adopt_trace_id(TraceId.generate(), SpanId.generate(), trace_flags=0x01)
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.enter_method(_sig("Svc", "inner"))
+        ctx.exit_method_with_return(None)
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0]
+        assert root.span_context is not None
+        assert root.span_context.trace_flags == 0x01
+        assert root.children[0].span_context is not None
+        assert root.children[0].span_context.trace_flags == 0x01
+
+    def test_adopted_trace_flags_are_cleared_by_reset(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        ctx.adopt_trace_id(TraceId.generate(), SpanId.generate(), trace_flags=0x01)
+        ctx.reset()
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0].span_context
+        assert root is not None
+        assert root.trace_flags == 0
+
+    def test_adopt_trace_id_without_a_remote_parent_leaves_the_root_parentless(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        ctx.adopt_trace_id(TraceId.generate())
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0].span_context
+        assert root is not None
+        assert root.parent_span_id is None
+
+    def test_adopted_remote_parent_is_cleared_by_reset(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        ctx.adopt_trace_id(TraceId.generate(), SpanId.generate())
+        ctx.reset()
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0].span_context
+        assert root is not None
+        assert root.parent_span_id is None
 
     def test_adopt_trace_id_cleared_by_reset(self, ctx: ContextVarNarrativeContext) -> None:
         inbound = TraceId.generate()

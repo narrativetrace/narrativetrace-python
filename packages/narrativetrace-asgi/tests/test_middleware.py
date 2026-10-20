@@ -257,6 +257,29 @@ class TestTraceparent:
         assert root_sc is not None
         assert str(root_sc.trace_id) == "0af7651916cd43dd8448eb211c80319c"
 
+    def test_inbound_traceparent_parent_becomes_the_root_spans_parent(self) -> None:
+        app, _, exporter = _build_app()
+        inbound = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+        with _client(app) as client:
+            client.get("/orders", headers={"traceparent": inbound})
+        tree, _ = exporter.calls[0]
+        root_sc = tree.roots[0].span_context
+        assert root_sc is not None
+        assert str(root_sc.parent_span_id) == "b7ad6b7169203331"
+
+    @pytest.mark.parametrize(("flags", "expected"), [("01", 1), ("00", 0)])
+    def test_inbound_traceparent_flags_are_carried_on_the_root_span(
+        self, flags: str, expected: int
+    ) -> None:
+        app, _, exporter = _build_app()
+        inbound = f"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-{flags}"
+        with _client(app) as client:
+            client.get("/orders", headers={"traceparent": inbound})
+        tree, _ = exporter.calls[0]
+        root_sc = tree.roots[0].span_context
+        assert root_sc is not None
+        assert root_sc.trace_flags == expected
+
     def test_traceparent_ignored_when_disabled(self) -> None:
         app, _, exporter = _build_app(adopt_traceparent=False)
         inbound = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"

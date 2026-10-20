@@ -5,10 +5,10 @@
 """``config.unknown-keys`` — every key a ``narrativetrace.toml`` (or ``[tool.narrativetrace]``
 table) can carry is read through :class:`~narrativetrace.config.ConfigResolver`'s fixed set of
 keys (``output``, ``output_dir``, ``format``, ``canonical``, ``approval``, ``approved_dir``,
-``glossary``, ``glossary_dir``, ``level``). A misspelled key (``ouput_dir``, ``aproved_dir``) is
-never rejected by :meth:`~narrativetrace.config.ConfigResolver.resolve` — it simply falls through
-to the caller's default, exactly as if the key were absent, so a typo silently does nothing rather
-than raising. This is the one check that catches it."""
+``glossary``, ``glossary_dir``, ``level``, ``exclude``). A misspelled key (``ouput_dir``,
+``aproved_dir``) is never rejected by :meth:`~narrativetrace.config.ConfigResolver.resolve` — it
+simply falls through to the caller's default, exactly as if the key were absent, so a typo
+silently does nothing rather than raising. This is the one check that catches it."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ KNOWN_KEYS = frozenset(
         "glossary",
         "glossary_dir",
         "level",
+        "exclude",
     }
 )
 

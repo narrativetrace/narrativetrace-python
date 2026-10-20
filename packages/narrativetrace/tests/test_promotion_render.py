@@ -7,10 +7,13 @@ platform pointers, adds Cursor) and its committed file is a fresh render of the 
 
 from __future__ import annotations
 
+import pytest
 from scripts.promotion_render import (
     _PROMOTION_PATH,
+    _RUNS_PATH,
     LedgerRow,
     _expected_content,
+    parse_runs_jsonl,
     render_promotion_markdown,
 )
 
@@ -41,3 +44,23 @@ class TestTheColumns:
 
     def test_the_committed_matrix_is_a_fresh_render(self) -> None:
         assert _PROMOTION_PATH.read_text(encoding="utf-8") == _expected_content()
+
+
+class TestTheLedgerRecordsModelIds:
+    """B-99: an alias in ``model`` splits the matrix's groups and made a fresh render differ."""
+
+    def test_the_committed_ledger_parses_with_every_row_a_full_model_id(self) -> None:
+        content = _RUNS_PATH.read_text(encoding="utf-8")
+
+        assert len(parse_runs_jsonl(content)) > 0
+
+    def test_a_row_carrying_an_alias_is_refused_naming_the_row(self) -> None:
+        line = (
+            '{"date": "2026-10-18T00:00:00", "skill": "s", "case": "c", "platform": "p",'
+            ' "model": "haiku", "trial": 1, "result": "pass"}'
+        )
+
+        with pytest.raises(
+            ValueError, match=r"\Aledger row 1: model 'haiku' is not a full model id\Z"
+        ):
+            parse_runs_jsonl(line)

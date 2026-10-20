@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob e0ffe5762deb | translated: 2026-09-18 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 4e3ceec743da | translated: 2026-10-20 | reviewed: - -->
 
 # Configuración
 
@@ -78,6 +78,55 @@ clave `level`. Los valores desconocidos o vacíos degradan al valor
 predeterminado en lugar de lanzar una excepción — una mala configuración
 nunca debe tumbar la captura consigo. Los nombres de nivel no distinguen
 mayúsculas de minúsculas.
+
+## Excluir bibliotecas y código generado
+
+`trace_object` envuelve exactamente el objeto que le entregas: esa es la lista de inclusión, y no hay ningún import hook que la amplíe. Después, dos listas de exclusión deciden qué nunca se traza, cada una con su propio responsable:
+
+1. **Integrada, no configurable.** Lo que estructuralmente nunca es un límite de negocio en Python. Ningún ajuste la reactiva y nunca se informa.
+2. **Configurable, con un valor predeterminado incluido.** Elementos internos de bibliotecas y frameworks, nombrados por prefijo de módulo. Dar la clave `exclude` *reemplaza* el valor predeterminado (decide la presencia, como con cada clave de aquí); para ampliarlo, repite sus entradas.
+
+```python
+from narrativetrace import trace_object
+
+service = trace_object(OrderService(), context)                     # envuelto: esta es la inclusión
+service = trace_object(OrderService(), context, exclude="acme.fakes")  # ...salvo que su módulo esté excluido
+```
+
+```toml
+# narrativetrace.toml (o [tool.narrativetrace]); NARRATIVETRACE_EXCLUDE fija la misma clave
+exclude = "acme.fakes;unittest;pytest"     # delimitada por ';', o un arreglo TOML
+```
+
+Un objetivo excluido vuelve de `trace_object` sin envolver, así que sus llamadas se ejecutan sin trazar; la exclusión gana sobre el envoltorio. Los prefijos se comparan con el módulo que define el tipo del objetivo, en un límite de `.`: `acme.fakes` cubre `acme.fakes.deep` pero no `acme.fakesx`. Una línea en stderr lo avisa por cada prefijo coincidente, nunca por objetivo. `narrativetrace doctor` (`config.exclude`) imprime la lista efectiva y falla ante un valor que no se puede interpretar; hasta corregirlo se aplica el valor predeterminado.
+
+**Lista 1 — integrada**
+
+| Nunca se traza | Propiedad estructural |
+|---|---|
+| `builtins.*` | El tipo del objetivo lo define el propio intérprete (`list`, `dict`, `str`) |
+| `functools.partial` | Un objeto `functools.partial` / `partialmethod`, como objetivo o como miembro |
+| `types.BuiltinFunctionType` | Un miembro que aporta el runtime en C: funciones integradas, métodos integrados enlazados, method wrappers, slot wrappers, method descriptors |
+| `<lambda>` | Un miembro cuyo `__name__` no es un identificador (`<lambda>`, `<genexpr>`) |
+| `_name` | Un miembro `_privado` o `__dunder__`: maquinaria que el runtime llama por su cuenta |
+
+Los envoltorios de `functools.lru_cache` y las funciones decoradas con `functools.wraps` no están en ella: un método de negocio con caché sigue siendo un límite que vale la pena ver.
+
+**Lista 2 — el valor predeterminado incluido**
+
+| Prefijo de módulo | Por qué se excluye |
+|---|---|
+| `unittest` | La plataforma de pruebas de la biblioteca estándar y, como `unittest.mock`, su biblioteca de mocks: una subclase `Mock` generada registra cada llamada que recibe |
+| `mock` | El backport de `unittest.mock` en PyPI, con las mismas clases de mock generadas |
+| `pytest_mock` | Los ayudantes de pytest-mock alrededor de `unittest.mock` |
+| `pytest` | Los ayudantes propios del ejecutor de pruebas |
+| `_pytest` | La implementación privada del ejecutor de pruebas, a la que llaman plugins y fixtures |
+| `pluggy` | La maquinaria de llamada de hooks de pytest |
+| `hypothesis` | Los ayudantes y estrategias propios del motor de pruebas basadas en propiedades |
+| `coverage` | El trazador y los informes de coverage.py |
+| `narrativetrace` | Los tipos de esta propia biblioteca: trazarlos sería trazar al trazador |
+| `ddtrace` | El runtime de otro agente APM: evita la instrumentación recursiva cuando conviven |
+| `opentelemetry` | El otro runtime APM con más probabilidad de convivir, por la misma razón |
 
 ## Dos diales, dos rutas
 
@@ -286,3 +335,45 @@ from narrativetrace import ServiceIdentity
 
 context = ContextVarNarrativeContext(service_identity=ServiceIdentity("orders", "1.4.0", "prod"))
 ```
+
+Solo el nombre es obligatorio; `ServiceIdentity("orders")` deja la versión y el entorno sin definir.
+Si se omite por completo, el contexto lee esos tres valores del entorno:
+
+| Variable de entorno | Se convierte en |
+|---|---|
+| `NARRATIVETRACE_SERVICE_NAME` | el nombre del servicio |
+| `NARRATIVETRACE_SERVICE_VERSION` | la versión del servicio |
+| `NARRATIVETRACE_ENVIRONMENT` | el entorno de despliegue |
+
+Un nombre en blanco significa que no hay identidad —una versión o un entorno sin nombre se
+ignoran— y una identidad pasada al contexto prevalece sobre el entorno. Son solo variables de
+entorno: ninguna clave de `narrativetrace.toml` las lleva. Sin ninguna de las dos, cada traza dice
+`unknown_service:python` en la plataforma y en OpenTelemetry. `narrativetrace doctor`
+(`config.service-identity`) falla cuando el código que no es de pruebas construye un
+`ContextVarNarrativeContext` y nada nombra el servicio.
+
+## Ampliar los valores por defecto de la ocultación
+
+Dos mandos, y hacen cosas distintas.
+
+```bash
+# AÑADIR al vocabulario integrado (subcadenas de nombres de campo separadas por comas)
+export NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS=betalingskort,kontonummer
+```
+
+```python
+# REEMPLAZAR por completo el vocabulario integrado
+ValueRenderer(redaction_policy=RedactionPolicy.of_patterns({"ssn", "internal_ref"}))
+```
+
+La variable de entorno es para quien *despliega* el servicio: no necesita reconstrucción y se lee
+solo del entorno, no de `narrativetrace.toml` ni de `pyproject.toml`, al construir una política.
+`of_patterns` es para quien *escribe* la aplicación. Se combinan: las adiciones siguen aplicándose a
+una política construida con `of_patterns`, porque reemplazar el vocabulario es la opinión de una
+aplicación sobre cuáles de sus propios campos son sensibles, no un permiso para deshacer la
+ampliación de un despliegue. `RedactionPolicy.DISABLED` las ignora. Contrato completo:
+[Privacidad y ocultación](privacidad-y-ocultacion.md).
+
+> **Las adiciones son patrones de subcadena**, comparados exactamente como el vocabulario de
+> subcadenas integrado. Una corta arrastra la trampa que las palabras por token evitan: añadir `id`
+> oculta todos los identificadores de la traza.

@@ -24,6 +24,8 @@ source_paths = [
     "trial_environment.py",
     "case_turns.py",
     "agent_turns.py",
+    "case_prompt.py",
+    "model_ids.py",
 ]
 also_copy = [
     "test_run.py",
@@ -36,6 +38,8 @@ also_copy = [
     "test_trial_environment.py",
     "test_case_turns.py",
     "test_agent_turns.py",
+    "test_case_prompt.py",
+    "test_model_ids.py",
 ]
 # Not run under the copy, deliberately: these test files import the graders under the case
 # directories (narrativetrace-*/, add-*/) and read evals/fixtures/, none of which mutmut copies --
@@ -46,4 +50,4 @@ also_copy = [
 # behaviour those files pin is also pinned by the copied files above.
 # Same reason as packages/narrativetrace/pyproject.toml's identical line: the pytest plugin
 # distribution imports narrativetrace at plugin-load time, before the mutated copy is on sys.path.
-pytest_add_cli_args = ["-p", "no:narrativetrace", "--ignore=test_fresh_session_grader_under_mutation_cwd.py", "--ignore=test_adversarial_clarity.py", "--ignore=test_adversarial_trials.py", "--ignore=test_clarity_graders.py", "--ignore=test_debug_graders.py", "--ignore=test_fastapi_grader.py", "--ignore=test_feedback_graders.py", "--ignore=test_verify_graders.py"]
+pytest_add_cli_args = ["-p", "no:narrativetrace", "--ignore=test_fresh_session_grader_under_mutation_cwd.py", "--ignore=test_adversarial_clarity.py", "--ignore=test_adversarial_trials.py", "--ignore=test_clarity_graders.py", "--ignore=test_debug_graders.py", "--ignore=test_fastapi_grader.py", "--ignore=test_feedback_graders.py", "--ignore=test_verify_graders.py", "--ignore=test_explain_graders.py", "--ignore=test_first_trace_graders.py", "--ignore=test_case_fixture_agrees.py", "-k", "not TestEveryPromptUnderEvals", "--ignore=test_mutation_copy_set.py"]

@@ -26,6 +26,8 @@ class TestForCheck:
             ("config.pytest-plugin-registered", _ADD),
             ("config.output-env", _DOCTOR),
             ("config.unknown-keys", _DOCTOR),
+            ("config.exclude", _DOCTOR),
+            ("config.service-identity", _ADD),
             ("trap.parameter-names", _ADD),
             ("trap.silent-sink", _DOCTOR),
             ("trap.redaction-proof", _DOCTOR),

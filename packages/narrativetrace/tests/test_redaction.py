@@ -363,3 +363,85 @@ class TestValueShapeMasking:
 
         assert "123456789" in flat
         assert REDACTED_MARKER not in flat
+
+
+_ADDITIONS_VARIABLE = "NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS"
+
+
+class TestOperatorSuppliedAdditions:
+    """The additive knob: ``NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS`` appends substring
+    patterns to whatever policy is constructed (mirror of Java's additions class)."""
+
+    def test_unset_variable_adds_nothing(self) -> None:
+        policy = RedactionPolicy.defaults(environ={})
+
+        assert policy.patterns == RedactionPolicy.DEFAULT.patterns
+
+    @pytest.mark.parametrize("raw", ["", "   ", ",", " , ", ",,"])
+    def test_blank_or_separator_only_values_add_nothing(self, raw: str) -> None:
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: raw})
+
+        assert policy.patterns == RedactionPolicy.DEFAULT.patterns
+        assert not policy.should_redact("ordinaryField")
+
+    def test_additions_widen_the_defaults_rather_than_replacing_them(self) -> None:
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: "betalingskort"})
+
+        assert policy.should_redact("betalingskort")
+        assert policy.should_redact("kundeBetalingskortNummer")
+        assert policy.should_redact("password")
+        assert policy.should_redact("contraseña")
+
+    def test_patterns_are_comma_separated_stripped_and_empty_entries_dropped(self) -> None:
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: " alpha , beta ,,gamma,"})
+
+        assert policy.patterns == RedactionPolicy.DEFAULT.patterns | {"alpha", "beta", "gamma"}
+        assert policy.should_redact("xbetax")
+
+    def test_additions_are_case_and_accent_folded_like_the_built_ins(self) -> None:
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: "Kontonummer, Mot Clé"})
+
+        assert policy.should_redact("KONTONUMMER")
+        assert policy.should_redact("kundeKontonummer")
+        assert policy.should_redact("mot cle")
+
+    def test_a_short_addition_is_a_plain_substring_not_a_token_match(self) -> None:
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: "pan"})
+
+        assert policy.should_redact("companyName")
+        assert not RedactionPolicy.DEFAULT.should_redact("companyName")
+
+    def test_of_patterns_replaces_the_vocabulary_but_still_carries_the_additions(self) -> None:
+        policy = RedactionPolicy.of_patterns(
+            {"ssn"}, environ={_ADDITIONS_VARIABLE: "betalingskort"}
+        )
+
+        assert policy.should_redact("taxSsn")
+        assert policy.should_redact("betalingskort")
+        assert not policy.should_redact("password")
+
+    def test_the_process_environment_is_read_when_no_lookup_is_handed_in(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_ADDITIONS_VARIABLE, "betalingskort")
+
+        assert RedactionPolicy.defaults().should_redact("betalingskort")
+        assert RedactionPolicy.of_patterns({"ssn"}).should_redact("betalingskort")
+
+    def test_the_disabled_policy_ignores_the_additions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(_ADDITIONS_VARIABLE, "betalingskort")
+
+        assert not RedactionPolicy.DISABLED.should_redact("betalingskort")
+
+    def test_additions_reach_rendering_through_a_default_built_policy(self) -> None:
+        @dataclass
+        class Order:
+            betalingskort: str
+
+        policy = RedactionPolicy.defaults(environ={_ADDITIONS_VARIABLE: "betalingskort"})
+        rendered = ValueRenderer(redaction_policy=policy).render(Order("1234"))
+
+        assert "1234" not in rendered
+        assert REDACTED_MARKER in rendered

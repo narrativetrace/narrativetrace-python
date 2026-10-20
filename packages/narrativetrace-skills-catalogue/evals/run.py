@@ -85,12 +85,14 @@ _EVIDENCE_ROOT = _EVALS_DIR.parent / "build" / "evals"
 sys.path.insert(0, str(_EVALS_DIR))
 
 from agent_turns import AgentTurns  # noqa: E402
+from case_prompt import is_case_document, prompt_for_agent  # noqa: E402
 from case_turns import fresh_turns_for, scripted_replies_for  # noqa: E402
 from isolated_agent_config import (  # noqa: E402
     config_dir,
     real_config_dir,
     seed_login,
 )
+from model_ids import resolve_model  # noqa: E402
 from platform_presets import (  # noqa: E402 - see sys.path.insert above
     Platform,
     is_platform,
@@ -104,7 +106,7 @@ from quota import (  # noqa: E402
     parse_quota_markdown,
     skip_reason,
 )
-from registry_delivery import RegistryDelivery, registry_for_case  # noqa: E402
+from registry_delivery import RegistryDelivery, is_registry, registry_for_case  # noqa: E402
 from tier_precondition import assert_deterministic_tiers_green  # noqa: E402
 from trial_environment import TrialEnvironment  # noqa: E402
 
@@ -219,11 +221,15 @@ def _parse_args(argv: list[str]) -> RunArgs:
         parser.error(
             f"--platform must be one of claude, codex, antigravity, cursor; got {parsed.platform!r}"
         )
+    try:
+        model = resolve_model(parsed.model)
+    except ValueError as refusal:
+        parser.error(str(refusal))
     return RunArgs(
         skill=parsed.skill,
         case_name=parsed.case_name,
         platform=parsed.platform,
-        model=parsed.model,
+        model=model,
         agent_command=parsed.agent_command,
         trials=parsed.trials,
     )
@@ -283,16 +289,35 @@ def _run_grader(case_dir: Path, cwd: Path, spawn: Spawner, env: Mapping[str, str
         return "fail"
 
 
-def _delivery_for(case_dir: Path, work_dir: Path) -> RegistryDelivery:
-    """How this case's skill pages reach the project. A case that declares a registry runs its
-    registry's commands in the trial's own work directory, outside every repository tree: the
-    staged snapshot the registry tool reads and the throwaway vendor configuration it installs into
-    both live there."""
+_NO_DELIVERY = "none"
+"""The ledger's ``delivery`` for a trial whose project receives no catalogue from the harness."""
+
+
+def _delivery_name(case_dir: Path, from_checkout: bool) -> str:
+    """How the catalogue reaches this case's project, as the ledger row and the transcript name it:
+    the registry the case declares; ``"checkout"`` for a checkout install; ``"narrativetrace-init"``
+    for a CASE DOCUMENT declaring neither (this checkout's own installer, the same pages and paths a
+    reader's ``init`` writes); ``"none"`` for a bare prompt, whose premise is a project without the
+    catalogue."""
     registry = registry_for_case(case_dir)
-    if registry is None:
+    if registry is not None:
+        return registry
+    if from_checkout:
+        return _CHECKOUT_INSTALL
+    if is_case_document(case_dir / "prompt.md"):
+        return _INIT_DELIVERY
+    return _NO_DELIVERY
+
+
+def _delivery_for(name: str, work_dir: Path) -> RegistryDelivery:
+    """How this case's skill pages reach the project. A case delivered by a registry (or by this
+    checkout's installer) runs its commands in the trial's own work directory, outside every
+    repository tree: the staged snapshot the registry tool reads and the throwaway vendor
+    configuration it installs into both live there."""
+    if not is_registry(name):
         return RegistryDelivery()
-    print(f"registry pre-step: {registry}")
-    return RegistryDelivery(registry, work_dir)
+    print(f"registry pre-step: {name}")
+    return RegistryDelivery(name, work_dir)
 
 
 def _seed_the_isolated_configuration(work_dir: Path) -> None:
@@ -330,6 +355,9 @@ def _run_pre_step(delivery: RegistryDelivery, scratch: Path, spawn: Spawner) -> 
                 "there is no registry state to grade and this trial writes no ledger row"
             ) from error
 
+
+_INIT_DELIVERY = "narrativetrace-init"
+"""A case document's delivery when it declares neither ``install`` nor ``registry``."""
 
 _CHECKOUT_INSTALL = "checkout"
 """The one ``"install"`` a case may declare: this checkout's build, not the published release."""
@@ -565,6 +593,7 @@ def _run_one_trial(args: RunArgs, case_dir: Path, prompt: str, trial: int, deps:
                 "platform": args.platform,
                 "model": args.model,
                 "trial": trial,
+                "delivery": _delivery_name(case_dir, declared.from_checkout),
                 "result": result,
             },
         )
@@ -592,7 +621,8 @@ def _run_in(  # noqa: PLR0913 - one trial's already-validated inputs, passed thr
     :raises: whatever crashed the trial -- a failed pre-step, build or agent turn -- so the caller
         writes no ledger row for it
     """
-    delivery = _delivery_for(case_dir, work_dir)
+    delivery_name = _delivery_name(case_dir, declared.from_checkout)
+    delivery = _delivery_for(delivery_name, work_dir)
     _seed_the_isolated_configuration(work_dir)
     scratch = _scaffold_fixture(_case_fixture(args.skill, args.case_name))
     try:
@@ -604,6 +634,8 @@ def _run_in(  # noqa: PLR0913 - one trial's already-validated inputs, passed thr
         if declared.in_repository:
             _commit_the_project(scratch, deps.spawn)
         _run_pre_step(delivery, scratch, deps.spawn)
+        if delivery.delivers_the_skills:
+            environment.record_delivery(delivery_name)
         agent_env = {**delivery.environment, **environment.agent_environment, **installed}
         _drive_the_conversation(turns, scratch, agent_env, environment, deps.spawn)
         grader_env = {**delivery.environment, **environment.grader_environment, **installed}
@@ -620,7 +652,7 @@ def run_trials(args: RunArgs, deps: RunDeps | None = None) -> int:
     prompt_path = case_dir / "prompt.md"
     if not prompt_path.is_file():
         raise FileNotFoundError(f"No case found at {case_dir}")
-    prompt = prompt_path.read_text(encoding="utf-8")
+    prompt = prompt_for_agent(prompt_path)
     skipped = _skip_line(args.platform, deps.quota_path)
     if skipped is not None:
         print(skipped)

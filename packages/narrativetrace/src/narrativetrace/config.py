@@ -60,9 +60,12 @@ def _load_toml(path: Path) -> dict[str, Any] | None:
 
 
 def _canonical(value: Any) -> str:
-    """Renders a TOML scalar the way a properties file would carry it (``true``, not ``True``)."""
+    """Renders a TOML value the way a properties file would carry it (``true``, not ``True``; an
+    array as its items joined by ``;``, the delimiter list-valued keys such as ``exclude`` use)."""
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, list):
+        return ";".join(_canonical(item) for item in value)
     return str(value)
 
 

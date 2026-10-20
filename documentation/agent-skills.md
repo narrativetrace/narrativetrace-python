@@ -100,13 +100,16 @@ The first two skills run `uv run narrativetrace doctor` — the free CLI's `doct
 `narrativetrace-feedback`) and the existing `narrativetrace-approve` console script.
 `doctor` is read-only, zero network, `--json` for machine output, exit `0` (clean), `1` (findings),
 or `2` (could not run). It fails the script or build step that ran it on a failing finding — the
-report is written first, so "doctor green" is exit `0`. Nineteen checks with stable, dotted ids: interpreter/pytest versions
+report is written first, so "doctor green" is exit `0`. Twenty-one checks with stable, dotted ids: interpreter/pytest versions
 against what's declared, the eight `narrativetrace-*` packages agreeing on one version,
 `NARRATIVETRACE_OUTPUT`'s spelling, the pytest plugin's registration, whether the NarrativeTrace
 agent skills are installed and current, unrecognized `narrativetrace.toml` keys, an
 imported-but-unused redaction marker, a `*args` method's parameters collapsing to one
 `args: [...]` value, whether redaction is proven in a test, stale approval-trace diffs, approved
-baselines nothing compares because approval mode is off, and one
+baselines nothing compares because approval mode is off, the effective `exclude` list (and whether
+a configured value parses), whether the service is named
+(`config.service-identity`: a context built in non-test source with no `NARRATIVETRACE_SERVICE_NAME` and
+no `ServiceIdentity`), and one
 `config.<framework>-*` check per row of the framework table (the table and each row's wiring are
 in [`llms-full.md`](llms-full.md#framework-table--what-the-doctor-checks)): a framework the project
 uses whose integration is not added, or added but never wired, fails with the lines to add; a
@@ -135,7 +138,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.4.1",
+  "carrier": "narrativetrace-skills==0.4.2",
   "actions": [
     {
       "kind": "create",

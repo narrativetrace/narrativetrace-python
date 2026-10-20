@@ -18,6 +18,10 @@ class TestCheckUnknownConfigKeys:
         snapshot = make_snapshot(narrativetrace_config={"level": "DETAIL", "output_dir": "traces"})
         assert check_unknown_config_keys(snapshot).status == "pass"
 
+    def test_the_exclude_key_is_known(self, make_snapshot: MakeSnapshot) -> None:
+        snapshot = make_snapshot(narrativetrace_config={"exclude": "acme.mocks"})
+        assert check_unknown_config_keys(snapshot).status == "pass"
+
     def test_fails_on_a_typo_d_key(self, make_snapshot: MakeSnapshot) -> None:
         snapshot = make_snapshot(narrativetrace_config={"ouput_dir": "traces"})
         finding = check_unknown_config_keys(snapshot)

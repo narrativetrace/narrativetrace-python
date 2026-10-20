@@ -244,7 +244,7 @@ class TestParseArgs:
             skill="s",
             case_name="c",
             platform="claude",
-            model="haiku",
+            model="claude-haiku-5-5",
             agent_command=None,
             trials=1,
         )
@@ -259,7 +259,7 @@ class TestParseArgs:
                 "--platform",
                 "codex",
                 "--model",
-                "mini",
+                "gpt-5-mini",
                 "--agent-command",
                 "codex {prompt}",
                 "--trials",
@@ -1091,7 +1091,7 @@ class TestMain:
             skill="s",
             case_name="c",
             platform="claude",
-            model="haiku",
+            model="claude-haiku-5-5",
             agent_command=None,
             trials=1,
         )
@@ -1775,3 +1775,109 @@ class TestTheSpawnersHygiene:
         )
 
         assert out.read_text(encoding="utf-8") == "['CLAUDE_CONFIG_DIR', 'kept']\n"
+
+
+_CASE_DOCUMENT = (
+    "# Case: c\n\n**Task prompt** (given to the agent):\n\n> the quoted words\n\n**Grading:** g\n"
+)
+_INIT = ["uv", "run", "--project", "<repo>", "narrativetrace", "init"]
+
+
+class TestTheDeliveryOfACaseDocument:
+    """A case document with neither ``install`` nor ``registry`` gets the catalogue from this
+    checkout's own ``narrativetrace init`` in the project; a bare prompt gets nothing."""
+
+    def _init(self, repo_root: Path) -> list[str]:
+        return [*_INIT[:3], str(repo_root), *_INIT[4:]]
+
+    def test_runs_this_checkouts_init_in_the_project_before_the_agent(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "doc", prompt=_CASE_DOCUMENT)
+        spy = RecordingSpawn()
+
+        run._run_one_trial(
+            _run_args(case_name="doc"),
+            run._EVALS_DIR / "demo-skill" / "doc",
+            "p",
+            1,
+            _trial_deps(synthetic_repo, spy),
+        )
+
+        (argv, cwd) = spy.pre_step_calls[0]
+        assert argv == self._init(synthetic_repo)
+        assert cwd != synthetic_repo
+        assert spy.calls.index(spy.pre_step_calls[0]) < spy.calls.index(spy.agent_calls[0])
+
+    def test_logs_the_delivery_before_turn_one_and_on_the_ledger_row(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "doc", prompt=_CASE_DOCUMENT)
+        deps = _trial_deps(synthetic_repo, RecordingSpawn())
+
+        run._run_one_trial(
+            _run_args(case_name="doc"), run._EVALS_DIR / "demo-skill" / "doc", "p", 1, deps
+        )
+
+        kept = synthetic_repo / "kept-evidence" / "demo-skill" / "doc" / "trial-1-pass"
+        lines = (kept / "transcript.jsonl").read_text(encoding="utf-8").splitlines()
+        assert json.loads(lines[0]) == {"nt_delivery": "narrativetrace-init"}
+        assert json.loads(lines[1])["nt_turn"] == 1
+        row = json.loads((synthetic_repo / "runs.jsonl").read_text(encoding="utf-8"))
+        assert row["delivery"] == "narrativetrace-init"
+
+    def test_a_bare_prompt_gets_nothing_and_says_so_on_the_ledger_row(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "bare", prompt="Set up NarrativeTrace.\n")
+        spy = RecordingSpawn()
+
+        run._run_one_trial(
+            _run_args(case_name="bare"),
+            run._EVALS_DIR / "demo-skill" / "bare",
+            "p",
+            1,
+            _trial_deps(synthetic_repo, spy),
+        )
+
+        assert spy.pre_step_calls == []
+        row = json.loads((synthetic_repo / "runs.jsonl").read_text(encoding="utf-8"))
+        assert row["delivery"] == "none"
+
+    def test_a_checkout_install_case_keeps_its_own_page_copy_and_runs_no_init(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "doc", prompt=_CASE_DOCUMENT)
+        _with_rendered_pages(synthetic_repo)
+        case_dir = _with_manifest(synthetic_repo, "demo-skill", "doc", install="checkout")
+        spy = RecordingSpawn()
+
+        run._run_one_trial(
+            _run_args(case_name="doc"), case_dir, "p", 1, _trial_deps(synthetic_repo, spy)
+        )
+
+        assert [argv for argv, _ in spy.pre_step_calls if "init" in argv] == []
+        row = json.loads((synthetic_repo / "runs.jsonl").read_text(encoding="utf-8"))
+        assert row["delivery"] == "checkout"
+
+
+class TestTheAgentIsSentOnlyTheQuotedTaskPrompt:
+    def test_a_case_document_reaches_the_agent_as_its_blockquote(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "doc", prompt=_CASE_DOCUMENT)
+        spy = RecordingSpawn()
+
+        run.run_trials(_run_args(case_name="doc"), _trial_deps(synthetic_repo, spy))
+
+        assert spy.agent_calls[0][0] == ["echo", "the quoted words"]
+
+    def test_a_case_document_without_a_blockquote_raises_before_the_agent_starts(
+        self, synthetic_repo: Path
+    ) -> None:
+        _add_case(synthetic_repo, "demo-skill", "doc", prompt="# Case: c\n\nno task prompt\n")
+        spy = RecordingSpawn()
+
+        with pytest.raises(ValueError, match=r"prompt\.md"):
+            run.run_trials(_run_args(case_name="doc"), _trial_deps(synthetic_repo, spy))
+        assert spy.calls == []

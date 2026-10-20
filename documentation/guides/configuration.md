@@ -71,6 +71,65 @@ Unknown or empty values degrade to the default rather than raising —
 misconfiguration must never take capture down with it. Level names are
 case-insensitive.
 
+## Excluding libraries and generated code
+
+`trace_object` wraps exactly the object you hand it — that is the include list, and there is no
+import hook that widens it. Two exclusion lists then decide what is never traced, each with its own
+owner:
+
+1. **Built in, not configurable.** What is structurally never a business boundary in Python. No
+   setting turns it back on, and it is never reported.
+2. **Configurable, with a shipped default.** Library and framework internals, named by module prefix.
+   Giving the `exclude` key *replaces* the default (presence decides, as with every key here); to
+   extend it, repeat its entries.
+
+```python
+from narrativetrace import trace_object
+
+service = trace_object(OrderService(), context)                     # wrapped: this is the include
+service = trace_object(OrderService(), context, exclude="acme.fakes")  # ...unless its module is excluded
+```
+
+```toml
+# narrativetrace.toml (or [tool.narrativetrace]); NARRATIVETRACE_EXCLUDE sets the same key
+exclude = "acme.fakes;unittest;pytest"     # ';'-delimited, or a TOML array
+```
+
+An excluded target comes back from `trace_object` unwrapped, so its calls run untraced; the
+exclusion wins over wrapping. Prefixes match the module that defines the target's type, on a `.`
+boundary: `acme.fakes` covers `acme.fakes.deep` but not `acme.fakesx`. One line on stderr says so
+per matched prefix, never per target. `narrativetrace doctor` (`config.exclude`) prints the
+effective list and fails on a value that does not parse; until it is fixed the default applies.
+
+**List 1 — built in**
+
+| Never traced | Structural property |
+|---|---|
+| `builtins.*` | The target's type is defined by the interpreter itself (`list`, `dict`, `str`) |
+| `functools.partial` | A `functools.partial` / `partialmethod` object, as a target or as a member |
+| `types.BuiltinFunctionType` | A member the C runtime supplies: builtin functions, bound builtin methods, method wrappers, slot wrappers, method descriptors |
+| `<lambda>` | A member whose `__name__` is not an identifier (`<lambda>`, `<genexpr>`) |
+| `_name` | A `_private` or `__dunder__` member: machinery the runtime calls for itself |
+
+`functools.lru_cache` wrappers and `functools.wraps`-decorated functions are not on it: a cached
+business method is still a boundary worth seeing.
+
+**List 2 — the shipped default**
+
+| Module prefix | Why it is excluded |
+|---|---|
+| `unittest` | The standard library's test runner and, as `unittest.mock`, its mocking library: a generated `Mock` subclass records every call it receives |
+| `mock` | The PyPI backport of `unittest.mock`, same generated mock classes |
+| `pytest_mock` | pytest-mock's fixture helpers around `unittest.mock` |
+| `pytest` | The test runner's own helpers |
+| `_pytest` | The test runner's private implementation, which plugins and fixtures call into |
+| `pluggy` | pytest's hook-calling machinery |
+| `hypothesis` | The property-testing engine's own helpers and strategies |
+| `coverage` | coverage.py's tracer and reporters |
+| `narrativetrace` | This library's own types: tracing them would trace the tracer |
+| `ddtrace` | Another APM agent's runtime: avoids recursive instrumentation when co-deployed |
+| `opentelemetry` | The other APM runtime most likely to be co-deployed, same reason |
+
 ## Two dials, two paths
 
 **I set the tracing level to `DETAIL` but nothing shows up in my logs. Or: I set my logger to
@@ -265,3 +324,44 @@ from narrativetrace import ServiceIdentity
 
 context = ContextVarNarrativeContext(service_identity=ServiceIdentity("orders", "1.4.0", "prod"))
 ```
+
+Only the name is required; `ServiceIdentity("orders")` leaves version and environment unset. Left
+out entirely, the context reads the same three values from the environment:
+
+| Environment variable | Becomes |
+|---|---|
+| `NARRATIVETRACE_SERVICE_NAME` | the service name |
+| `NARRATIVETRACE_SERVICE_VERSION` | the service version |
+| `NARRATIVETRACE_ENVIRONMENT` | the deployment environment |
+
+A blank name means no identity — a version or environment without a name is ignored — and an
+identity passed to the context wins over the environment. They are environment variables only: no
+`narrativetrace.toml` key carries them. With neither, every trace says `unknown_service:python` on
+the platform and in OpenTelemetry. `narrativetrace doctor` (`config.service-identity`) fails when
+non-test source builds a `ContextVarNarrativeContext` and nothing names the service.
+
+## Widening the redaction defaults
+
+Two knobs, and they do different things.
+
+```bash
+# APPEND to the built-in vocabulary (comma-separated field-name substrings)
+export NARRATIVETRACE_REDACTION_ADDITIONALPATTERNS=betalingskort,kontonummer
+```
+
+```python
+# REPLACE the built-in vocabulary entirely
+ValueRenderer(redaction_policy=RedactionPolicy.of_patterns({"ssn", "internal_ref"}))
+```
+
+The environment variable is for whoever *deploys* the service — it needs no rebuild, and it is read
+from the environment only, not from `narrativetrace.toml` or `pyproject.toml`, when a policy is
+constructed. `of_patterns` is for whoever *writes* the application. They compose: the additions
+still apply to a policy built by `of_patterns`, because replacing the vocabulary is an
+application's opinion about which of its own fields are sensitive, not permission to undo a
+deployment's widening. `RedactionPolicy.DISABLED` ignores them. Full contract:
+[Privacy and Redaction](../privacy-and-redaction.md).
+
+> **Additions are substring patterns**, matched exactly as the built-in substring vocabulary is. A
+> short one carries the trap the token-matched words avoid: adding `id` blanks every identifier in
+> the trace.
