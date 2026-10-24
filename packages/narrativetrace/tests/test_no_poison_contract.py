@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 
 from narrativetrace.rendering import ValueRenderer
-from narrativetrace.values import ListVal, ObjectVal, StringVal
+from narrativetrace.values import IntVal, ListVal, ObjectVal, StringVal
 
 
 class _ThrowingIterator(list[object]):
@@ -81,12 +81,11 @@ class TestCollectionTotality:
         rendered = ValueRenderer().render(_ThrowingIterator([1, 2]))
         assert rendered == "[1, 2]"
 
-    def test_structured_render_survives_a_throwing_iterator(self) -> None:
-        """Structured rendering is deliberately unchanged by the rule fix (no pending test
-        requires origin-aware dispatch there -- see `rendering.py`'s module docstring): the
-        override is still consulted for `render_structured`, so a throwing one still degrades."""
+    def test_structured_render_reads_a_list_subclass_through_the_ancestors_own_state(self) -> None:
+        """B-191: the structured path takes the same origin decision as the flat one, so the
+        overridden ``__iter__`` is bypassed there too -- the elements render, nothing degrades."""
         rendered = ValueRenderer().render_structured(_ThrowingIterator([1, 2]))
-        assert rendered == StringVal("<_ThrowingIterator>")
+        assert rendered == ListVal([IntVal(1), IntVal(2)])
 
     def test_one_bad_element_does_not_poison_a_sibling_list(self) -> None:
         rendered = ValueRenderer().render([_ThrowingIterator([1]), "ok"])
@@ -104,11 +103,10 @@ class TestMapTotality:
         rendered = ValueRenderer().render(_ThrowingDict({"a": 1}))
         assert rendered == '{"a"=1}'
 
-    def test_structured_render_survives_a_throwing_items(self) -> None:
-        """Structured rendering is deliberately unchanged by the rule fix -- see the collection
-        counterpart above."""
+    def test_structured_render_reads_a_dict_subclass_through_the_ancestors_own_state(self) -> None:
+        """B-191: counterpart of the collection test above; ``dict.items`` is read unbound."""
         rendered = ValueRenderer().render_structured(_ThrowingDict({"a": 1}))
-        assert rendered == StringVal("<_ThrowingDict>")
+        assert rendered == ObjectVal("Map", {'"a"': IntVal(1)})
 
 
 class TestNumberTotality:

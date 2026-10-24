@@ -15,8 +15,20 @@ import pytest
 from narrativetrace._generated import GENERATED_MEMBERS
 from narrativetrace.exclusions import DEFAULT_EXCLUDE, EXCLUDE_REASONS
 
-_GUIDE = Path(__file__).resolve().parents[3] / "documentation/guides/configuration.md"
-_DOCS = Path(__file__).resolve().parents[3] / "documentation"
+
+def _find_repo_root() -> Path:
+    """Walks up to the directory holding both the root ``pyproject.toml`` and ``packages/``
+    instead of counting parents: under ``mutmut`` this suite re-runs from a copied tree one level
+    deeper (``packages/narrativetrace/mutants/tests/``), where a fixed ``parents[3]`` lands on
+    ``packages/`` and the guide is not found (nightly 2026-10-22, B-153)."""
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file() and (candidate / "packages").is_dir():
+            return candidate
+    raise RuntimeError(f"no workspace root (pyproject.toml + packages/) above {__file__}")
+
+
+_DOCS = _find_repo_root() / "documentation"
+_GUIDE = _DOCS / "guides/configuration.md"
 
 
 def _table(header: tuple[str, str], rows: list[tuple[str, str]]) -> str:

@@ -168,13 +168,31 @@ class TestTraceId:
     def test_adopted_trace_flags_are_cleared_by_reset(
         self, ctx: ContextVarNarrativeContext
     ) -> None:
-        ctx.adopt_trace_id(TraceId.generate(), SpanId.generate(), trace_flags=0x01)
+        ctx.adopt_trace_id(TraceId.generate(), SpanId.generate(), trace_flags=0x00)
         ctx.reset()
         ctx.enter_method(_sig("Svc", "run"))
         ctx.exit_method_with_return(None)
         root = ctx.capture_trace().roots[0].span_context
         assert root is not None
-        assert root.trace_flags == 0
+        assert root.trace_flags == 0x01  # back to a fresh root: sampled
+
+    def test_a_fresh_root_mints_the_sampled_flag(self, ctx: ContextVarNarrativeContext) -> None:
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0].span_context
+        assert root is not None
+        assert root.trace_flags == 0x01
+        assert root.sampled
+
+    def test_a_bare_trace_id_adoption_keeps_the_sampled_flag(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        ctx.adopt_trace_id(TraceId.generate())
+        ctx.enter_method(_sig("Svc", "run"))
+        ctx.exit_method_with_return(None)
+        root = ctx.capture_trace().roots[0].span_context
+        assert root is not None
+        assert root.trace_flags == 0x01
 
     def test_adopt_trace_id_without_a_remote_parent_leaves_the_root_parentless(
         self, ctx: ContextVarNarrativeContext

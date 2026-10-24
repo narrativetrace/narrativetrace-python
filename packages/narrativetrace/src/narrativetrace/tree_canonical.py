@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
+from narrativetrace import exception_message
 from narrativetrace.canonical import (
     SCHEMA_VERSION,
     CanonicalEntry,
@@ -167,7 +168,7 @@ def _enter_entry(
 
 def _exit_message(sig: MethodSignature, outcome: TraceOutcome | None) -> str:
     if isinstance(outcome, Threw):
-        return f"!! {type(outcome.exception).__name__}: {outcome.exception}"
+        return f"!! {type(outcome.exception).__name__}: {exception_message.text(outcome.exception)}"
     return f"← {sig.class_name}.{sig.method_name}"
 
 
@@ -187,7 +188,7 @@ def _exit_entry(
         duration_ms=node.duration_millis,
         nt_return_value=returned.rendered_value if returned is not None else None,
         exception_type=type(threw.exception).__name__ if threw is not None else None,
-        exception_message=str(threw.exception) if threw is not None else None,
+        exception_message=exception_message.of(threw.exception) if threw is not None else None,
         nt_exception_package=(
             getattr(type(threw.exception), "__module__", None) if threw is not None else None
         ),

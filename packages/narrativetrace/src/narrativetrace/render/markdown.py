@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from narrativetrace import exception_message
 from narrativetrace.escape import markdown_code, markdown_text
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
@@ -229,7 +230,7 @@ class MarkdownRenderer:
         elif isinstance(outcome, Threw):
             error_indent = "  " * (depth + 1)
             exc_type = markdown_code(type(outcome.exception).__name__)
-            message = markdown_text(str(outcome.exception))
+            message = markdown_text(exception_message.text(outcome.exception))
             parts.append(f"\n\n{error_indent}> ❌ {exc_type}: {message}")
             if sig.error_context is not None:
                 parts.append(f"\n{error_indent}> {markdown_text(sig.error_context)}")
@@ -249,7 +250,7 @@ class MarkdownRenderer:
         elif isinstance(outcome, Threw):
             error_indent = "  " * (depth + 1)
             exc_type = markdown_code(type(outcome.exception).__name__)
-            message = markdown_text(str(outcome.exception))
+            message = markdown_text(exception_message.text(outcome.exception))
             parts.append(f"❌ {exc_type}: {message}")
             if sig.error_context is not None:
                 parts.append(f"\n{error_indent}> {markdown_text(sig.error_context)}")

@@ -400,8 +400,7 @@ def _safe_exit_return(
     context: NarrativeContext, result: object, span_id: SpanId | None, renderer: ValueRenderer
 ) -> None:
     try:
-        rendered = renderer.render(result)
-        structured = renderer.render_structured(result)
+        rendered, structured, _shape_redacted = renderer.render_for_capture(result)
         context.exit_method_with_return(rendered, structured, span_id)
     except PROPAGATED_EXCEPTIONS:
         raise

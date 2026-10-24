@@ -6,8 +6,11 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from narrativetrace_otel import TraceSpanExporter
+from narrativetrace_otel.monotonic_to_epoch import MonotonicToEpoch
 from opentelemetry.trace import StatusCode
 from otel_harness import Harness
 
@@ -168,10 +171,21 @@ class TestChildEvents:
 
     def test_child_event_uses_child_completion_timestamp(self, otel: Harness) -> None:
         child = _node("Svc", "work", Returned("ok"), start_time_nanos=5000, duration_nanos=50_000)
-        TraceSpanExporter(otel.tracer).export(
+        TraceSpanExporter(otel.tracer, epoch=MonotonicToEpoch(0, 0)).export(
             [_node("Root", "run", Returned("ok"), children=[child])]
         )
         assert otel.named("Root.run").events[0].timestamp == 5000 + 50_000
+
+    def test_child_event_timestamp_is_epoch_time_under_the_default_anchor(
+        self, otel: Harness
+    ) -> None:
+        now = time.perf_counter_ns()
+        child = _node("Svc", "work", Returned("ok"), start_time_nanos=now, duration_nanos=50_000)
+        TraceSpanExporter(otel.tracer).export(
+            [_node("Root", "run", Returned("ok"), children=[child])]
+        )
+        stamp = otel.named("Root.run").events[0].timestamp
+        assert abs(stamp - time.time_ns()) < 60_000_000_000
 
     def test_root_without_children_has_no_events(self, otel: Harness) -> None:
         TraceSpanExporter(otel.tracer).export([_node("Root", "run", Returned("ok"))])

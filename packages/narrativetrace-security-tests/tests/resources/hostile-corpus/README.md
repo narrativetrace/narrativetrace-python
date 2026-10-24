@@ -26,7 +26,7 @@ bytes are, and keep the file ASCII — every non-ASCII character is written as a
 | `strings.json` | the value renderer, every output format, and (four `diagram-alias-*` cases) Mermaid's alias-mode participant derivation, as a class name | hostile scalar values: control characters, bidi and zero-width, combining sequences, unpaired surrogates, template lookalikes, JSON/Mermaid/Markdown/YAML metacharacters, values up to 1 MiB |
 | `headers.json` | `Traceparent` and any other wire reader | W3C `traceparent` and `tracestate` values: wrong lengths, non-hex, all-zero ids, version `ff`, trailing garbage, embedded CRLF, oversize |
 | `templates.json` | `TemplateParser` and `RedactedPaths` | `@Narrated`/`@OnError` templates: nesting, unterminated braces, paths into redacted members at every depth, 50-segment paths, unicode identifiers |
-| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary, the platform-type carve-out (a trusted short value, a deny-listed name holding one, a lookalike name and a subclass that must still be walked) |
+| `graphs.json` | the value renderer | declarative object-graph *shapes*: depth, width, cycles, self-reference, `Optional`-in-`Map`-in-record chains, throwing/blocking/recursive `toString`, `hashCode` that throws, huge collections, standalone `Map.Entry`, `AtomicReferenceArray`, curated stringification at top level and around a nested holder, a composite map key, a throwing summary, a shared-subgraph ladder (2<sup>n</sup> paths through `n + 1` objects), the platform-type carve-out (a trusted short value, a deny-listed name holding one, a lookalike name and a subclass that must still be walked), a type that declares its elements safe to enumerate (same elements under the same cap on both rendering paths, a raising hook rendered as the error marker), a user subclass of a platform list and map whose overrides must never run |
 | `injection.json` | every output format, as an AI-consumer oracle | prompt-injection payloads arriving as captured values: override phrasings, role and turn markers, tool-call lookalikes, markdown-link exfiltration, fence and frontmatter terminators, Mermaid label terminators, homoglyph and zero-width variants |
 | `names.json` | the artifact writers, which turn a name into a path | test class and method names: separators and parent traversal, control characters, lone surrogates, noncharacters, bidi overrides, and names past the filesystem's per-element limit in characters *and* in bytes |
 | `redaction.json` | the name deny-list and the value-shape matcher | sensitive field names in English, Spanish, Portuguese, French and Chinese; national-id value shapes with their check digits; and — carrying equal weight — the near-miss names and checksum-failing lookalikes that must stay **visible** |
@@ -116,6 +116,7 @@ or `kind`, naming a shape a stack cannot express:
 |---|---|
 | `repeatLayer` | `n` copies of `layer` stacked around `payload` |
 | `width` | one `container` holding `n` elements, `payload` last |
+| `sharedLadder` | `n` rungs whose two fields hold the same next rung, `payload` at the foot — `n + 1` distinct objects, 2<sup>n</sup> paths |
 | `cycle` | a ring of `n` holders; `n: 1` is a self-holding object |
 | `selfInCollection` | a `container` that contains itself |
 | `diamond` | one object reached twice by different paths — shared, not cyclic |
@@ -128,6 +129,8 @@ or `kind`, naming a shape a stack cannot express:
 | `platformNameRedacted` | a deny-listed field name holding a value of a platform type the renderer would otherwise trust to stringify itself |
 | `platformLookalike` | a user type named after a platform type, carrying a deny-listed field |
 | `platformSubclass` | a user subclass of a platform type, carrying a deny-listed field |
+| `declaredElements` | a list holding a type that declares its elements safe to enumerate (an iterable and a map, seven elements each, a secret first, past the cap of five) and a declaring type whose hook raises -- both paths show the same elements under the same cap, the hook runs once per rendering and only under the rendering guard, the raising hook renders the typed error marker |
+| `userSubclassAncestorState` | a list holding a user subclass of a platform list and a user subclass of a platform map whose overridden iterators and views count their calls and refuse -- the platform ancestor's state is read on both paths and no override runs |
 | `manyFields` | an object with `n` fields |
 | `emptyContainers` | every empty container, nested |
 | `future` | a `Future` in the given `state` |

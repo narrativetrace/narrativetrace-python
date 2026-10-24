@@ -4,4 +4,4 @@
 # Copyright (c) 2026 Empower Agile
 """pytest plugin for narrativetrace."""
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"

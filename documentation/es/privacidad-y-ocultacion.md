@@ -1,4 +1,4 @@
-<!-- source: documentation/privacy-and-redaction.md blob 1b743a9e56fa | translated: 2026-10-19 | reviewed: - -->
+<!-- source: documentation/privacy-and-redaction.md blob c7b8e92f99f2 | translated: 2026-10-23 | reviewed: - -->
 
 # Privacidad y ocultación
 
@@ -189,6 +189,18 @@ lanza una excepción, esa parte se renderiza como `<error: <TypeName>>` — el n
 excepción (`<error: ValueError>`, `<error: RecursionError>`) sustituido solo para esa parte. El
 *mensaje* de la excepción deliberadamente nunca se renderiza, porque un mensaje puede llevar el
 mismo valor que falló al renderizarse; solo el nombre del tipo llega a la salida, nunca `str(exc)`.
+
+Un método `@narrative_summary` se ejecuta como máximo una vez por instancia y por valor capturado: un
+parámetro o valor de retorno se renderiza dos veces (el texto y la forma estructurada), y la respuesta,
+marcador de fallo incluido, se comparte entre las dos renderizaciones, de modo que un gancho con efecto
+secundario no se repite por culpa del trazado. Un gancho puede a su vez renderizar un valor o llamar a
+código trazado: la guarda de renderizado se anida, y una llamada hecha desde dentro de un gancho no abre
+ningún span.
+
+El renderizado está acotado por lo que un valor es, no por cuántos caminos llevan hasta él. Una instancia
+que ya se renderizó completa (al menos ocho valores) se renderiza como `<repeat: TypeName>` al volver a
+alcanzarla, y una renderización nunca supera los 1024 valores: pasado ese presupuesto un valor se
+renderiza `<max-nodes>`. Los valores compartidos pequeños siguen repitiéndose en línea.
 
 **Una limitación documentada, registrada en lugar de corregida.** La resolución de marcadores de
 posición de plantilla (`{param}`, `{param.property}`) siempre comprueba los valores contra

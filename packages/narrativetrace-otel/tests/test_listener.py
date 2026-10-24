@@ -6,11 +6,15 @@
 
 from __future__ import annotations
 
+import time
+
 from narrativetrace_otel import OtelTraceEventListener
+from narrativetrace_otel.monotonic_to_epoch import MonotonicToEpoch
 from opentelemetry.trace import StatusCode
 from otel_harness import Harness
 
 from narrativetrace.canonical import SCHEMA_VERSION
+from narrativetrace.concurrency import ConcurrencyInfo, ConcurrencyKind
 from narrativetrace.events import EnterEvent, ExitEvent, FireAndForgetEvent, ForkCreatedEvent
 from narrativetrace.ids import SpanId, TraceId
 from narrativetrace.metadata import EnduserId, HttpRoute
@@ -19,6 +23,8 @@ from narrativetrace.signature import MethodSignature, ParameterCapture
 from narrativetrace.span import SpanContext
 
 T0 = 1_000_000
+# An anchor at (0, 0): epoch time equals the event reading, so tests assert exact timestamps.
+IDENTITY = MonotonicToEpoch(0, 0)
 
 
 def _root_sc(**kw: object) -> SpanContext:
@@ -42,6 +48,23 @@ def _emit(
     listener(ExitEvent(sc, T0 + 1_000_000, Returned(rendered)))
 
 
+class TestLiveSpansCarryEpochTime:
+    """B-167: events carry the monotonic clock; OpenTelemetry timestamps are Unix-epoch."""
+
+    def test_a_span_started_now_has_an_epoch_start_time(self, otel: Harness) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        sc = _root_sc()
+        started = time.perf_counter_ns()
+        listener(_enter(sc, "Svc", "run", started))
+        listener(ExitEvent(sc, started + 5_000_000, Returned('"ok"')))
+
+        span = otel.finished()[0]
+        assert span.start_time is not None
+        assert abs(span.start_time - time.time_ns()) < 60_000_000_000
+        assert span.end_time is not None
+        assert span.end_time - span.start_time == 5_000_000
+
+
 class TestSpanLifecycle:
     def test_enter_and_exit_produces_one_span(self, otel: Harness) -> None:
         listener = OtelTraceEventListener(otel.tracer)
@@ -53,7 +76,7 @@ class TestSpanLifecycle:
         assert otel.finished()[0].name == "OrderService.placeOrder"
 
     def test_span_start_and_end_anchored_to_event_timestamps(self, otel: Harness) -> None:
-        listener = OtelTraceEventListener(otel.tracer)
+        listener = OtelTraceEventListener(otel.tracer, epoch=IDENTITY)
         sc = _root_sc()
         listener(_enter(sc, "Svc", "run", T0))
         listener(ExitEvent(sc, T0 + 5_000_000, Returned('"ok"')))
@@ -142,7 +165,7 @@ class TestParentChild:
         assert {s.name for s in otel.finished()} == {"C.work", "P.run"}
 
     def test_parent_receives_child_completion_event(self, otel: Harness) -> None:
-        listener = OtelTraceEventListener(otel.tracer)
+        listener = OtelTraceEventListener(otel.tracer, epoch=IDENTITY)
         parent = _root_sc()
         child = _child_sc(parent)
         listener(_enter(parent, "Root", "handle", T0))
@@ -336,3 +359,65 @@ class TestAdoptedRemoteParent:
         _emit(listener, _root_sc(), "Svc", "run", None)
 
         assert otel.named("Svc.run").parent is None
+
+
+class TestLateAsyncChild:
+    """B-168: a child entered after its local parent exited keeps that parent."""
+
+    @staticmethod
+    def _async_enter(parent: SpanContext, name: str) -> tuple[SpanContext, EnterEvent]:
+        # Sampled, as an adopted traceparent's flags would be: the SDK's parent-based sampler drops
+        # a child whose (reconstructed) parent context says "not sampled".
+        child = SpanContext(
+            parent.trace_id, SpanId.generate(), parent_span_id=parent.span_id, trace_flags=1
+        )
+        info = ConcurrencyInfo("async-g1", ConcurrencyKind.ASYNC)
+        return child, EnterEvent(child, T0 + 10, MethodSignature("Worker", name, []), info)
+
+    def _parent_then_late_child(
+        self, listener: OtelTraceEventListener, *, newer_frames: int = 0
+    ) -> SpanContext:
+        parent = _root_sc()
+        _emit(listener, parent, "Service", "parent", None)
+        for n in range(newer_frames):
+            _emit(listener, _root_sc(), "Service", f"newer{n}", None)
+        child, enter = self._async_enter(parent, "child")
+        listener(enter)
+        listener(ExitEvent(child, T0 + 20, Returned(None)))
+        return parent
+
+    def test_a_child_within_the_memory_parents_on_its_real_otel_parent(self, otel: Harness) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        self._parent_then_late_child(listener)
+
+        child = otel.named("Worker.child")
+        assert otel.parent_id(child) == otel.span_id(otel.named("Service.parent"))
+        assert child.parent is not None
+        assert child.parent.is_remote is False
+        assert "narrative.parent.synthetic" not in otel.attrs(child)
+
+    def test_a_child_past_the_memory_gets_a_local_parent_marked_synthetic(
+        self, otel: Harness
+    ) -> None:
+        listener = OtelTraceEventListener(otel.tracer, max_active_spans=1)
+        parent = self._parent_then_late_child(listener, newer_frames=2)
+
+        child = otel.named("Worker.child")
+        assert child.parent is not None
+        assert child.parent.is_remote is False
+        assert child.parent.span_id == int(parent.span_id.value, 16)
+        attrs = otel.attrs(child)
+        assert attrs["narrative.parent.synthetic"] is True
+        assert attrs["narrative.parent_span_id"] == parent.span_id.value
+
+    def test_an_adopted_root_keeps_the_remote_parent_unmarked(self, otel: Harness) -> None:
+        listener = OtelTraceEventListener(otel.tracer)
+        sc = SpanContext(
+            REMOTE_TRACE, SpanId.generate(), parent_span_id=REMOTE_PARENT, trace_flags=1
+        )
+        _emit(listener, sc, "Svc", "run", None)
+
+        span = otel.named("Svc.run")
+        assert span.parent is not None
+        assert span.parent.is_remote is True
+        assert "narrative.parent.synthetic" not in otel.attrs(span)

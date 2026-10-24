@@ -17,11 +17,13 @@ value is absent, a string-inference fallback parses the flat rendered string.
 
 from __future__ import annotations
 
+import traceback
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from opentelemetry.trace import Span, Status, StatusCode
 
+from narrativetrace import exception_message
 from narrativetrace.canonical import SCHEMA_VERSION
 from narrativetrace.context_export import export as context_export
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
@@ -41,6 +43,7 @@ if TYPE_CHECKING:
     from narrativetrace.nodes import TraceNode
     from narrativetrace.signature import MethodSignature, ParameterCapture
     from narrativetrace.span import SpanContext
+    from narrativetrace_otel.monotonic_to_epoch import MonotonicToEpoch
 
 MAX_FLATTEN_DEPTH = 3
 
@@ -84,14 +87,53 @@ def set_concurrency_attributes(info: ConcurrencyInfo | None, span: Span) -> None
         span.set_attribute("narrative.concurrency.taskLabel", info.task_label)
 
 
+def _append_frames(out: list[str], exception: BaseException) -> None:
+    for frame in traceback.extract_tb(exception.__traceback__):
+        out.append(f"\n\tat {frame.filename}:{frame.lineno} in {frame.name}")
+
+
+def _next_cause(exception: BaseException) -> BaseException | None:
+    if exception.__cause__ is not None:
+        return exception.__cause__
+    return None if exception.__suppress_context__ else exception.__context__
+
+
+def _add_exception_event(span: Span, thrown: BaseException) -> None:
+    """Adds the semantic-convention ``exception`` event by hand instead of ``record_exception``,
+    which would render ``str(exc)`` and the whole traceback, cause messages included, unredacted.
+
+    **@edgeCase** ``exception.message`` goes through :mod:`narrativetrace.exception_message`, like
+    the status description. ``exception.stacktrace`` is frames only: the exception's type name
+    without its message, then each frame; every cause contributes its type name, its redacted
+    message and its frames. A cyclic cause chain is cut at the first repeat.
+    """
+    lines = [type(thrown).__name__]
+    _append_frames(lines, thrown)
+    seen = {id(thrown)}
+    cause = _next_cause(thrown)
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        lines.append(f"\nCaused by: {type(cause).__name__}: {exception_message.text(cause)}")
+        _append_frames(lines, cause)
+        cause = _next_cause(cause)
+    span.add_event(
+        "exception",
+        {
+            "exception.type": type(thrown).__name__,
+            "exception.message": exception_message.text(thrown),
+            "exception.stacktrace": "".join(lines),
+        },
+    )
+
+
 def set_outcome_attributes(outcome: TraceOutcome | None, span: Span) -> None:
     """Sets outcome attributes/status from ``outcome``."""
     if isinstance(outcome, Returned):
         if outcome.rendered_value is not None:
             span.set_attribute("narrative.outcome", outcome.rendered_value)
     elif isinstance(outcome, Threw):
-        span.set_status(Status(StatusCode.ERROR, str(outcome.exception)))
-        span.record_exception(outcome.exception)
+        span.set_status(Status(StatusCode.ERROR, exception_message.text(outcome.exception)))
+        _add_exception_event(span, outcome.exception)
     elif isinstance(outcome, Incomplete):
         span.set_attribute("narrative.outcome", "in-flight")
 
@@ -145,11 +187,14 @@ def build_event_attributes(
     return attrs
 
 
-def emit_child_event(parent_span: Span, child: TraceNode) -> None:
-    """Emits a child method completion as a timestamped event on the parent span."""
+def emit_child_event(parent_span: Span, child: TraceNode, epoch: MonotonicToEpoch) -> None:
+    """Emits a child method completion as a timestamped event on the parent span.
+
+    The node's times are monotonic readings; ``epoch`` places the event on the epoch timeline.
+    """
     attrs = build_event_attributes(child.signature, child.outcome)
     name = f"{child.signature.class_name}.{child.signature.method_name}"
-    timestamp = child.start_time_nanos + child.duration_nanos
+    timestamp = epoch.epoch_nanos(child.start_time_nanos + child.duration_nanos)
     parent_span.add_event(name, attributes=attrs, timestamp=timestamp)
 
 
@@ -250,4 +295,4 @@ def _add_outcome_to_event(attrs: dict[str, AttributeValue], outcome: TraceOutcom
     if isinstance(outcome, Returned) and outcome.rendered_value is not None:
         attrs["narrative.outcome"] = outcome.rendered_value
     elif isinstance(outcome, Threw):
-        attrs["narrative.outcome"] = f"error: {outcome.exception}"
+        attrs["narrative.outcome"] = f"error: {exception_message.text(outcome.exception)}"

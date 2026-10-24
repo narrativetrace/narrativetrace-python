@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/opentelemetry.md blob 8c80d624163c | translated: 2026-09-03 | reviewed: 2026-09-03 -->
+<!-- source: documentation/guides/opentelemetry.md blob 493e4b05a067 | translated: 2026-10-22 | reviewed: - -->
 
 # OpenTelemetry
 
@@ -31,7 +31,7 @@ listener = OtelTraceEventListener(trace.get_tracer("orders"))
 # 从捕获管道中喂给它 TraceEvent
 ```
 
-## 属性词汇表
+### 属性词汇表
 
 追踪级别的键(仅根 span):`narrative.service.name/version/environment`、
 `narrative.http.method/route`、`narrative.client_ip`、`narrative.enduser.id`、

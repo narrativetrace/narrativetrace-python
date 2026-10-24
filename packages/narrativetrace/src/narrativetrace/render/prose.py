@@ -12,6 +12,7 @@ Every span is named by its span id in parentheses (``(#1.3)``,
 
 from __future__ import annotations
 
+from narrativetrace import exception_message
 from narrativetrace.escape import control_sanitize
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
@@ -165,7 +166,7 @@ class ProseRenderer:
         if isinstance(outcome, Returned) and outcome.rendered_value is not None:
             parts.append(f"{indent}  Returned {outcome.rendered_value}.\n")
         elif isinstance(outcome, Threw):
-            message = control_sanitize(str(outcome.exception))
+            message = exception_message.text(outcome.exception)
             parts.append(f"{indent}  {_exception_type(outcome.exception)}: {message}.\n")
         elif isinstance(outcome, Incomplete):
             parts.append(f"{indent}  ⏳ in-flight.\n")
@@ -176,7 +177,7 @@ class ProseRenderer:
         if isinstance(outcome, Returned) and outcome.rendered_value is not None:
             parts.append(f", returning {outcome.rendered_value}")
         elif isinstance(outcome, Threw):
-            message = control_sanitize(str(outcome.exception))
+            message = exception_message.text(outcome.exception)
             parts.append(f" — {_exception_type(outcome.exception)}: {message}")
             if sig.error_context is not None:
                 parts.append(f" ({control_sanitize(sig.error_context)})")

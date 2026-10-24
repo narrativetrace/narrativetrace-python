@@ -227,7 +227,7 @@ class NarrativeContext(ABC):
         self,
         trace_id: TraceId,
         remote_parent_span_id: SpanId | None = None,
-        trace_flags: int = 0,
+        trace_flags: int | None = None,
     ) -> None:
         """Adopts an inbound (e.g. W3C ``traceparent``) trace id for the current scope.
 
@@ -236,7 +236,9 @@ class NarrativeContext(ABC):
         ``parent_span_id``, so a consumer that follows parent ids links this service's trace to the
         caller's; it never appears as a span in this scope's own tree. ``trace_flags`` is the
         ``traceparent`` flags byte (bit 0 = sampled); every span this scope creates carries it as
-        :attr:`~narrativetrace.span.SpanContext.trace_flags`.
+        :attr:`~narrativetrace.span.SpanContext.trace_flags`. ``None`` (the default, a bare id with
+        no ``traceparent``) keeps the scope's current flags, sampled unless a flags byte was adopted
+        earlier; only an explicit value overwrites them.
         """
 
     def story_id(self) -> str | None:
@@ -276,6 +278,9 @@ class _RequestMetadata:
 
 _EMPTY_METADATA = _RequestMetadata()
 
+# W3C trace-flags bit 0. A fresh root is sampled; only an adopted ``traceparent`` overwrites it.
+_SAMPLED = 1
+
 MAX_ADOPTED_SPANS = 10_000
 """Ceiling on spans one stack accepts from worker scopes, and on its live-child registrations.
 
@@ -304,7 +309,7 @@ class _TraceStack:
     scoped_parent: SpanId | None = None
     snapshot_parent: SpanId | None = None
     remote_parent: SpanId | None = None
-    trace_flags: int = 0
+    trace_flags: int = _SAMPLED
     story_id: str | None = None
     chapter_id: str | None = None
     metadata: _RequestMetadata = _EMPTY_METADATA
@@ -773,12 +778,13 @@ class ContextVarNarrativeContext(NarrativeContext):
         self,
         trace_id: TraceId,
         remote_parent_span_id: SpanId | None = None,
-        trace_flags: int = 0,
+        trace_flags: int | None = None,
     ) -> None:
         stack = self._get_stack()
         stack.trace_id = trace_id
         stack.remote_parent = remote_parent_span_id
-        stack.trace_flags = trace_flags
+        if trace_flags is not None:
+            stack.trace_flags = trace_flags
 
     def story_id(self) -> str | None:
         return self._get_stack().story_id
@@ -788,13 +794,13 @@ class ContextVarNarrativeContext(NarrativeContext):
 
     # -- concurrency lifecycle --------------------------------------------- #
     def on_fork_created(self, group_id: str) -> None:
-        self._store.add(ForkCreatedEvent(group_id, _now_nanos()))
+        self._store.add(ForkCreatedEvent(group_id, _now_nanos(), self.current_span_id()))
 
     def on_merge(self, group_id: str, members: list[TraceNode]) -> None:
-        self._store.add(MergeEvent(group_id, len(members), _now_nanos()))
+        self._store.add(MergeEvent(group_id, len(members), _now_nanos(), self.current_span_id()))
 
     def on_fire_and_forget_launched(self, group_id: str) -> None:
-        self._store.add(FireAndForgetEvent(group_id, _now_nanos()))
+        self._store.add(FireAndForgetEvent(group_id, _now_nanos(), self.current_span_id()))
 
     def emit_trace_node(self, node: TraceNode, parent_span_id: SpanId | None) -> None:
         self._emit_trace_node(node, parent_span_id, TreeWalk())

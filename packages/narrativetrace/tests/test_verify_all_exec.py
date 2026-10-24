@@ -74,8 +74,7 @@ class TestHostDescriptor:
 
 class TestShortCommit:
     def test_returns_a_short_hex_hash_for_a_real_repo(self) -> None:
-        repo_root = Path(__file__).resolve().parents[3]
-        commit = short_commit(repo_root)
+        commit = short_commit(Path(__file__).resolve().parent)
         assert commit == "unknown" or all(c in "0123456789abcdef" for c in commit)
 
     def test_returns_unknown_for_a_directory_with_no_git_repo(self, tmp_path: Path) -> None:

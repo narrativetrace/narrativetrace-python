@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
+from narrativetrace import exception_message
 from narrativetrace.concurrency import ThreadIdentity
 from narrativetrace.events import (
     EnterEvent,
@@ -252,7 +253,7 @@ def _split_span_name(span_name: str | None) -> tuple[str, str]:
 
 def _exit_message(span: SpanContext, outcome: TraceOutcome) -> str:
     if isinstance(outcome, Threw):
-        return f"!! {type(outcome.exception).__name__}: {outcome.exception}"
+        return f"!! {type(outcome.exception).__name__}: {exception_message.text(outcome.exception)}"
     name = span.span_name if span.span_name is not None else "method"
     if isinstance(outcome, Returned) and outcome.rendered_value is not None:
         return f"← {name} returned {outcome.rendered_value}"
@@ -286,7 +287,7 @@ def _from_exit_event(event: ExitEvent, anchor: MonotonicAnchor) -> CanonicalEntr
         nt_outcome=_exit_outcome(outcome),
         nt_return_value=returned.rendered_value if returned is not None else None,
         exception_type=type(threw.exception).__name__ if threw is not None else None,
-        exception_message=str(threw.exception) if threw is not None else None,
+        exception_message=exception_message.of(threw.exception) if threw is not None else None,
         nt_exception_package=_package_of(threw.exception) if threw is not None else None,
     )
     return _with_correlation(entry, span)

@@ -184,6 +184,17 @@ one part renders `<error: <TypeName>>` — the exception's own type name
 deliberately never rendered, because a message can carry the very value that failed to render;
 only the type name reaches output, never `str(exc)`.
 
+A `@narrative_summary` method runs at most once per instance per captured value: a parameter or
+return value is rendered twice (the text and the structured form), and the answer, a failure
+marker included, is shared between the two renderings, so a hook with a side effect is not
+repeated by tracing. A hook may itself render a value or call traced code: the rendering guard
+nests, and a call made from inside a hook opens no span.
+
+Rendering is bounded by what a value is, not by how many paths lead to it. An instance that
+already rendered in full (at least eight values) renders as `<repeat: TypeName>` when reached
+again, and one rendering never exceeds 1024 values: past that budget a value renders
+`<max-nodes>`. Small shared values still repeat inline.
+
 **One documented narrowness, recorded rather than fixed.** Template placeholder resolution
 (`{param}`, `{param.property}`) always checks values against `RedactionPolicy.DEFAULT` — the
 policy is not threaded through from a custom `ValueRenderer` you pass to `trace_object`. In

@@ -72,7 +72,7 @@ from narrativetrace_skills.skill import (
     vocabulary_violations,
 )
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 
 __all__ = [
     "AGENTS_MD_BEGIN",

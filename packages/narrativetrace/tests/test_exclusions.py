@@ -7,6 +7,7 @@ default. Parsing, precedence, reporting and every attachment surface carrying th
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest import mock
@@ -15,14 +16,19 @@ import pytest
 
 from narrativetrace.config import ConfigResolver
 from narrativetrace.context import ContextVarNarrativeContext
-from narrativetrace.exclusions import DEFAULT_EXCLUDE, ExcludedModules
+from narrativetrace.exclusions import DEFAULT_EXCLUDE, ExcludedModules, _configured
 from narrativetrace.trace_object import trace_object
+
+_CWD_AT_COLLECTION = os.getcwd()
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("NARRATIVETRACE_EXCLUDE", raising=False)
-    monkeypatch.chdir(tmp_path)
+    # Config discovery reads `Path.cwd()`; fake it, never a real chdir (see the B-141 test below).
+    monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
+    # The configured list is cached per real `os.getcwd()`, which no longer moves per test.
+    _configured.cache_clear()
 
 
 @pytest.fixture
@@ -39,6 +45,13 @@ def _service_in(module_name: str) -> object:
 
     Service.__module__ = module_name
     return Service()
+
+
+def test_no_test_here_moves_the_process_off_its_working_directory() -> None:
+    """B-141: a real ``chdir`` starves mutmut's trampoline, which re-resolves its relative
+    ``source_paths`` against the live cwd on every call into mutated code, so the mutation gate
+    collected no stats. Config discovery is steered by faking ``Path.cwd()``, never by a chdir."""
+    assert os.getcwd() == _CWD_AT_COLLECTION
 
 
 class TestParsing:

@@ -53,31 +53,53 @@ class ExitEvent(TraceEvent):
 
 @dataclass(frozen=True, slots=True)
 class ForkCreatedEvent(TraceEvent):
-    """Lifecycle marker: a fork group was created."""
+    """Lifecycle marker: a fork group was created.
+
+    ``owner_span_id`` is the span current on the launching thread when the group was created
+    (B-166); ``None`` for a group created outside every span, which no request ever removes.
+    """
 
     group_id: str
     timestamp_nanos: int
+    owner_span_id: SpanId | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class MergeEvent(TraceEvent):
-    """Lifecycle marker: a fork group merged its collected children."""
+    """Lifecycle marker: a fork group merged its collected children.
+
+    ``owner_span_id`` is the span current on the merging (launching) thread (B-166); ``None``
+    outside every span.
+    """
 
     group_id: str
     member_count: int
     timestamp_nanos: int
+    owner_span_id: SpanId | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class FireAndForgetEvent(TraceEvent):
-    """Lifecycle marker: a fire-and-forget group was launched."""
+    """Lifecycle marker: a fire-and-forget group was launched.
+
+    ``owner_span_id`` is the span current on the launching thread (B-166); ``None`` for a group
+    launched outside every span.
+    """
 
     group_id: str
     timestamp_nanos: int
+    owner_span_id: SpanId | None = None
 
 
 def span_id_of(event: TraceEvent) -> SpanId | None:
-    """Returns the span id an event belongs to, or ``None`` for group lifecycle events."""
+    """Returns the span id an event belongs to.
+
+    Enter/exit events answer their own span; group lifecycle events answer the span that
+    launched the group (``owner_span_id``), so a request's cleanup removes them with it. A group
+    created outside every span has no owner: ``None``, and the event is retained (B-166).
+    """
     if isinstance(event, EnterEvent | ExitEvent):
         return event.span_context.span_id
+    if isinstance(event, ForkCreatedEvent | MergeEvent | FireAndForgetEvent):
+        return event.owner_span_id
     return None

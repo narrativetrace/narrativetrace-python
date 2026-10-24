@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from narrativetrace import exception_message
 from narrativetrace.concurrency import ConcurrencyInfo
 from narrativetrace.identity import resolve_identity
 from narrativetrace.nodes import TraceNode
@@ -151,7 +152,7 @@ def _append_outcome(event: dict[str, Any], outcome: TraceOutcome | None) -> None
     elif isinstance(outcome, Threw):
         event["outcome"] = "threw"
         event["errorType"] = type(outcome.exception).__name__
-        event["errorMessage"] = str(outcome.exception)
+        event["errorMessage"] = exception_message.of(outcome.exception)
     elif isinstance(outcome, Incomplete):
         event["outcome"] = "incomplete"
     else:

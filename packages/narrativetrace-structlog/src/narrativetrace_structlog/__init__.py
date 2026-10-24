@@ -27,7 +27,7 @@ from typing import Any
 
 from narrativetrace import current_scope_keys
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 
 __all__ = ["narrative_context_processor"]
 

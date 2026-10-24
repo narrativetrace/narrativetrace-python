@@ -29,7 +29,7 @@ listener = OtelTraceEventListener(trace.get_tracer("orders"))
 # feed it TraceEvents from the capture pipeline
 ```
 
-## Attribute vocabulary
+### Attribute vocabulary
 
 Trace-level keys (root spans only): `narrative.service.name/version/environment`,
 `narrative.http.method/route`, `narrative.client_ip`, `narrative.enduser.id`,

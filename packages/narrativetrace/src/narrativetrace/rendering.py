@@ -77,7 +77,7 @@ import sys
 from collections.abc import Callable, Collection, Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from narrativetrace.escape import control_sanitize
 from narrativetrace.markers import is_field_not_traced
@@ -118,6 +118,19 @@ under that name. Public: :mod:`narrativetrace.template` and :mod:`narrativetrace
 both need to tell "no state to read" apart from a real, stored ``None``."""
 
 _TOO_DEEP = "<max-depth>"
+_TOO_MANY = "<max-nodes>"
+"""Rendered in place of a value once one walk has rendered :data:`_MAX_NODES` values (B-185)."""
+
+_MAX_NODES = 1024
+"""How many values one walk renders, at most. On the scale of the per-level caps: a full five-wide
+tree four levels deep is 781 values, already more than a reader scans in one parameter; 1024 is the
+next round number above it. Scalars count too, and the count comes before the scalar split, so the
+flat and structured paths -- which classify a few leaves differently -- keep identical budgets."""
+
+_REPEAT_MIN_NODES = 8
+"""The smallest completed rendering, in values, that a later reference to the same instance points
+back to (``<repeat: TypeName>``) instead of repeating. A smaller one is as cheap to repeat as to
+point at, and reads better repeated."""
 
 _TRUSTED_NUMERIC_TYPES = (int, float)
 
@@ -156,12 +169,13 @@ own BODY makes are unaffected: the flag is only ever set for the duration of a
 A :class:`contextvars.ContextVar`, not a plain module global or a bare ``threading.local``: a
 fresh thread gets its own copy for free (Python threads do not share a ``Context`` by default),
 and an asyncio task gets an isolated copy of whatever was set at the moment it was created --
-never a mutation a concurrently scheduled sibling task makes afterwards. One flag, never a
-counter: nothing inside :class:`ValueRenderer`'s own recursive ``_render*`` methods calls back
-into one of its own PUBLIC entry points (:meth:`ValueRenderer.render`,
-:meth:`ValueRenderer.render_structured`, :meth:`ValueRenderer.render_for_capture`) -- the only
-nesting :func:`rendering_scope` ever sees is ``render_for_capture`` calling the other two, which
-:meth:`contextvars.ContextVar.set`/``reset`` handle correctly regardless.
+never a mutation a concurrently scheduled sibling task makes afterwards. It nests (B-186, Java's
+depth counter): the narrative-summary hook is a sanctioned door into user code, and what it reaches
+may render a value of its own -- another :class:`ValueRenderer`, a ``{obj.prop}`` template -- each
+running its own :func:`rendering_scope` pair inside the outer one. :func:`rendering_scope` resets by
+token, so an inner exit restores exactly what the inner entry found and the guard stays up for the
+rest of the outer walk; only the outermost exit clears it. The variable is a plain ``bool`` because
+the token carries the nesting, not a stored count.
 """
 
 
@@ -197,18 +211,33 @@ def rendering_scope() -> Iterator[None]:
 
 
 class _RenderWalk:
-    """One render call's recursion state: identity ancestry plus remaining depth budget.
+    """One render call's recursion state: identity ancestry, remaining depth budget, the total
+    node budget, the memo of completed renderings and the summary hook's answers.
 
-    ``RenderWalk``. The two answer different questions -- "have I been here before"
-    (cycles) and "how deep am I" (stack safety) -- but both unwind in the same ``finally``, so one
-    object owns both rather than threading two parameters through every recursive method.
+    ``RenderWalk``. The ancestry answers "have I been here before" (cycles), the depth "how deep
+    am I" (stack safety), the budget and the memo "how much have I rendered" (B-185: the cycle
+    guard drops an ancestor on the way out so a shared object may render twice, and when the
+    sharing repeats down a graph every rung doubles the walk). All unwind or advance in the same
+    funnel, so one object owns them rather than threading parameters through every recursive
+    method. Values the memo and the summary cache remember are held by reference, so an identity
+    can never be reused by a temporary the walk has already let go of.
     """
 
-    __slots__ = ("_ancestors", "_depth")
+    __slots__ = ("_ancestors", "_depth", "_nodes", "_repeats", "_summaries")
 
     def __init__(self) -> None:
         self._ancestors: set[int] = set()
         self._depth = 0
+        self._nodes = 0
+        self._repeats: dict[int, object] = {}
+        self._summaries: dict[int, tuple[object, str]] = {}
+
+    def next_path(self) -> _RenderWalk:
+        """A fresh walk for the second render path of the same capture: nothing of this walk's
+        path, memo or budget, only the summary hook's answers."""
+        walk = _RenderWalk()
+        walk._summaries = self._summaries
+        return walk
 
     def seen(self, value: object) -> bool:
         """Whether ``value`` is already an ancestor on the current path (a cycle)."""
@@ -222,6 +251,39 @@ class _RenderWalk:
         """Un-marks ``value`` once its subtree has finished rendering."""
         self._ancestors.discard(id(value))
 
+    def is_repeat(self, value: object) -> bool:
+        """Whether ``value`` already rendered in full earlier in this walk."""
+        return id(value) in self._repeats
+
+    def rendered(self, value: object, nodes_before: int) -> None:
+        """Remembers that ``value`` rendered to completion, when that rendering was large enough
+        to be worth pointing back to. The root is never remembered: it cannot be reached again
+        except as a cycle, which the ancestor half already answers."""
+        if self._depth == 0 or self._nodes - nodes_before + 1 < _REPEAT_MIN_NODES:
+            return
+        self._repeats.setdefault(id(value), value)
+
+    def count(self) -> bool:
+        """Counts one more rendered value against :data:`_MAX_NODES`; ``False`` means the caller
+        renders the node-budget marker instead of the value."""
+        if self._nodes >= _MAX_NODES:
+            return False
+        self._nodes += 1
+        return True
+
+    def nodes(self) -> int:
+        """How many values this walk has counted so far."""
+        return self._nodes
+
+    def cached_summary(self, value: object) -> str | None:
+        """The summary hook's answer for ``value`` earlier in this capture, or ``None``."""
+        entry = self._summaries.get(id(value))
+        return None if entry is None else entry[1]
+
+    def cache_summary(self, value: object, text: str) -> None:
+        """Records the summary hook's answer for ``value``, for the rest of this capture."""
+        self._summaries[id(value)] = (value, text)
+
     def descend(self) -> bool:
         """Claims one level of depth budget; ``False`` once :data:`ValueRenderer.MAX_DEPTH` is
         spent, so the caller renders the ``<max-depth>`` marker instead of recursing further."""
@@ -233,6 +295,11 @@ class _RenderWalk:
     def ascend(self) -> None:
         """Returns one level of depth budget on the way back up the call stack."""
         self._depth -= 1
+
+
+def _repeat_marker(value: object) -> str:
+    """``<repeat: TypeName>``: the same instance, shown above -- deterministic, so goldens hold."""
+    return f"<repeat: {type(value).__name__}>"
 
 
 class ValueRenderer:
@@ -267,6 +334,14 @@ class ValueRenderer:
                 return f"<{type(value).__name__}>"
 
     def _render(self, value: object, walk: _RenderWalk) -> str:
+        # Counted before the scalar split: the two paths classify a few leaves differently, and
+        # counting every value rendered keeps their budgets, and so their back-references, equal.
+        if not walk.count():
+            return _TOO_MANY
+        scalar = self._render_scalar(value)
+        return scalar if scalar is not None else self._render_guarded(value, walk)
+
+    def _render_scalar(self, value: object) -> str | None:
         if value is None:
             return "null"
         if isinstance(value, bool):
@@ -279,12 +354,23 @@ class ValueRenderer:
                 return scalar
         if isinstance(value, Enum):
             return self._render_with_str(value)  # no trusted built-in Enum: __str__ is overridable
+        return None
+
+    def _render_guarded(self, value: object, walk: _RenderWalk) -> str:
+        """The back-reference, one level deeper, or the depth marker. Only a rendering that
+        completed is remembered: one that raised is not, and one refused by the depth cap never
+        began, so a later, shallower reference to the same instance renders it in full."""
+        if walk.is_repeat(value):
+            return _repeat_marker(value)
         if not walk.descend():
             return _TOO_DEEP
+        nodes_before = walk.nodes()
         try:
-            return self._render_complex(value, walk)
+            rendered = self._render_complex(value, walk)
         finally:
             walk.ascend()
+        walk.rendered(value, nodes_before)
+        return rendered
 
     def _render_structured_string(self, value: str) -> RenderedValue:
         if self.redaction_policy.should_redact_value(value):
@@ -349,7 +435,7 @@ class ValueRenderer:
         enumerated = self._render_if_enumerable(value, walk)
         if enumerated is not None:
             return enumerated
-        summary = self._render_summary(value)
+        summary = self._render_summary(value, walk)
         if summary is not None:
             return summary
         shape = _shape_of(value)
@@ -376,13 +462,14 @@ class ValueRenderer:
 
         Returns ``None`` when the caller should fall through to the summary/introspection path.
         """
-        if _has_elements_hook(value):
+        origin = _enumeration_of(value)
+        if origin is _Enumeration.DECLARED:
             return self._render_elements_hook(value, walk)
-        if isinstance(value, _COLLECTION_TYPES) and not _is_named_tuple(value):
+        if origin is _Enumeration.COLLECTION:
             return self._render_collection(value, walk)
-        if isinstance(value, dict):
-            return self._render_map(value, walk)
-        if isinstance(value, Iterable) and not isinstance(value, Collection):
+        if origin is _Enumeration.MAP:
+            return self._render_map(cast("dict[Any, Any]", value), walk)
+        if origin is _Enumeration.BARE_ITERABLE:
             return _bare_iterable_marker(value)
         return None
 
@@ -525,14 +612,23 @@ class ValueRenderer:
         except Exception:  # failed dereference renders a marker
             return "<failed>"
 
-    def _render_summary(self, value: object) -> str | None:
+    def _render_summary(self, value: object, walk: _RenderWalk) -> str | None:
+        """The ``@narrative_summary`` hook's text, run at most once per instance per capture: the
+        walk caches the answer, failure marker included, and :meth:`render_for_capture` hands the
+        cache from the flat walk to the structured one, so a hook with a side effect is not
+        repeated by tracing."""
         method = _find_summary_method(type(value))
         if method is None:
             return None
+        cached = walk.cached_summary(value)
+        if cached is not None:
+            return cached
         try:
-            return str(method(value))
+            text = str(method(value))
         except Exception as exc:  # a broken summary is an error, not a silent fallback
-            return _error_marker(exc)
+            text = _error_marker(exc)
+        walk.cache_summary(value, text)
+        return text
 
     # ------------------------------------------------------------------ #
     # Structured rendering                                                #
@@ -581,12 +677,27 @@ class ValueRenderer:
                     if shape_redacted:
                         return REDACTED_MARKER, StringVal(REDACTED_MARKER), True
                     return self._render_string_body(value), StringVal(value), False
-                return self.render(value), self.render_structured(value), False
+                walk = _RenderWalk()
+                try:
+                    flat = self._render(value, walk)
+                except Exception:  # each path is total on its own
+                    flat = f"<{type(value).__name__}>"
+                try:
+                    structured = self._render_structured(value, walk.next_path())
+                except Exception:
+                    structured = StringVal(f"<{type(value).__name__}>")
+                return flat, structured, False
             except Exception:  # the renderer is total: nothing a value does may escape capture
                 marker = f"<{type(value).__name__}>"
                 return marker, StringVal(marker), False
 
     def _render_structured(self, value: object, walk: _RenderWalk) -> RenderedValue:
+        if not walk.count():
+            return StringVal(_TOO_MANY)
+        scalar = self._render_structured_scalar(value)
+        return scalar if scalar is not None else self._render_structured_guarded(value, walk)
+
+    def _render_structured_scalar(self, value: object) -> RenderedValue | None:
         if value is None:
             return NullVal()
         if isinstance(value, bool):
@@ -603,23 +714,31 @@ class ValueRenderer:
                 return structured_float
         if isinstance(value, Enum):
             return StringVal(self._render_with_str(value))
+        return None
+
+    def _render_structured_guarded(self, value: object, walk: _RenderWalk) -> RenderedValue:
+        """Structured twin of :meth:`_render_guarded`: the same decision in the same order."""
+        if walk.is_repeat(value):
+            return StringVal(_repeat_marker(value))
         if not walk.descend():
             return StringVal(_TOO_DEEP)
+        nodes_before = walk.nodes()
         try:
-            return self._render_structured_complex(value, walk)
+            rendered = self._render_structured_complex(value, walk)
         finally:
             walk.ascend()
+        walk.rendered(value, nodes_before)
+        return rendered
 
     def _render_structured_complex(self, value: object, walk: _RenderWalk) -> RenderedValue:
         if self._is_future(value):
             return self._render_structured_future(value, walk)
         if inspect.isawaitable(value):
             return StringVal("<pending>")
-        if isinstance(value, _COLLECTION_TYPES) and not _is_named_tuple(value):
-            return self._render_structured_collection(value, walk)
-        if isinstance(value, dict):
-            return self._render_structured_map(value, walk)
-        summary = self._render_summary(value)
+        enumerated = self._render_structured_if_enumerable(value, walk)
+        if enumerated is not None:
+            return enumerated
+        summary = self._render_summary(value, walk)
         if summary is not None:
             return StringVal(summary)
         shape = _shape_of(value)
@@ -628,6 +747,39 @@ class ValueRenderer:
         if shape is _Shape.OWN_STRING:
             return StringVal(self._render_with_str(value))
         return StringVal(_opaque_marker(value))
+
+    def _render_structured_if_enumerable(
+        self, value: object, walk: _RenderWalk
+    ) -> RenderedValue | None:
+        """Structured twin of :meth:`_render_if_enumerable`: asks the SAME verdict
+        (:func:`_enumeration_of`) and only encodes the answer as a :class:`RenderedValue`."""
+        origin = _enumeration_of(value)
+        if origin is _Enumeration.DECLARED:
+            return self._render_structured_elements_hook(value, walk)
+        if origin is _Enumeration.COLLECTION:
+            return self._render_structured_collection(value, walk)
+        if origin is _Enumeration.MAP:
+            return self._render_structured_map(cast("dict[Any, Any]", value), walk)
+        if origin is _Enumeration.BARE_ITERABLE:
+            return StringVal(_bare_iterable_marker(value))
+        return None
+
+    def _render_structured_elements_hook(self, value: object, walk: _RenderWalk) -> RenderedValue:
+        if walk.seen(value):
+            return StringVal(_identity_marker(value))
+        walk.enter(value)
+        try:
+            try:
+                items = list(getattr(value, _ELEMENTS_HOOK)())
+            except Exception as exc:  # a rogue hook must not break capture
+                return StringVal(_error_marker(exc))
+            return self._render_structured_items(items, walk)
+        finally:
+            walk.exit(value)
+
+    def _render_structured_items(self, items: list[object], walk: _RenderWalk) -> RenderedValue:
+        shown = items[: self.max_collection_items]
+        return ListVal([self._render_structured_element(item, walk) for item in shown])
 
     def _render_structured_collection(self, value: Any, walk: _RenderWalk) -> RenderedValue:
         if walk.seen(value):
@@ -640,10 +792,10 @@ class ValueRenderer:
 
     def _render_structured_collection_body(self, value: Any, walk: _RenderWalk) -> RenderedValue:
         try:
-            items = list(value)[: self.max_collection_items]
+            items = _collection_elements(value)
         except Exception:  # a rogue iterator must not break capture
             return StringVal(f"<{type(value).__name__}>")
-        return ListVal([self._render_structured_element(item, walk) for item in items])
+        return self._render_structured_items(items, walk)
 
     def _render_structured_element(self, item: object, walk: _RenderWalk) -> RenderedValue:
         try:
@@ -664,7 +816,7 @@ class ValueRenderer:
         self, value: dict[Any, Any], walk: _RenderWalk
     ) -> RenderedValue:
         try:
-            items = list(value.items())
+            items = _map_items(value)
         except Exception:  # a rogue Mapping must not break capture
             return StringVal(f"<{type(value).__name__}>")
         fields: dict[str, RenderedValue] = {}
@@ -861,6 +1013,43 @@ def _map_items(value: dict[Any, Any]) -> list[tuple[object, object]]:
     if type(value) is dict:
         return list(value.items())
     return list(dict.items(value))
+
+
+class _Enumeration(Enum):
+    """Whether, and how, a value's elements may be walked: the ONE origin decision of the
+    rendering rule, asked once per value by BOTH channels
+    (:meth:`ValueRenderer._render_if_enumerable` and
+    :meth:`ValueRenderer._render_structured_if_enumerable`) so the flat text and the structured
+    export cannot drift apart (B-191; the Java twin is ``ElementOrigin``). Each channel only
+    ENCODES the verdict."""
+
+    DECLARED = "declared"
+    """The type declares ``__narrative_elements__``: enumerate through the hook (asked first)."""
+
+    COLLECTION = "collection"
+    """An exact platform collection, or a user subclass read through the ancestor's own state."""
+
+    MAP = "map"
+    """An exact ``dict`` or a user ``dict`` subclass read through ``dict``'s own state."""
+
+    BARE_ITERABLE = "bare-iterable"
+    """An ``Iterable`` that is not a ``Collection``: type name and size, never its iterator."""
+
+    NOT_ENUMERABLE = "not-enumerable"
+    """Not enumerated here: the caller continues with summary, introspection and leaf text."""
+
+
+def _enumeration_of(value: object) -> _Enumeration:
+    """The verdict for one value -- the single place the enumeration order is decided."""
+    if _has_elements_hook(value):
+        return _Enumeration.DECLARED
+    if isinstance(value, _COLLECTION_TYPES) and not _is_named_tuple(value):
+        return _Enumeration.COLLECTION
+    if isinstance(value, dict):
+        return _Enumeration.MAP
+    if isinstance(value, Iterable) and not isinstance(value, Collection):
+        return _Enumeration.BARE_ITERABLE
+    return _Enumeration.NOT_ENUMERABLE
 
 
 def _has_elements_hook(value: object) -> bool:

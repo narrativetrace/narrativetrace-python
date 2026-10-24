@@ -44,6 +44,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from enum import Enum
 
+from narrativetrace import exception_message
 from narrativetrace.context import ContextVarNarrativeContext
 from narrativetrace.escape import control_sanitize
 from narrativetrace.events import (
@@ -254,7 +255,7 @@ class LoggingTraceConsumer:
         self, exception: BaseException, error_context: str | None, keys: dict[str, str]
     ) -> None:
         exc_type = type(exception).__name__
-        message = control_sanitize(str(exception))
+        message = exception_message.text(exception)
         if error_context is not None:
             self._logger.log(
                 self._exception,

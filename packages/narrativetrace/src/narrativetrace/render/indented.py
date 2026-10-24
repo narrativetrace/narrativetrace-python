@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from narrativetrace import exception_message
 from narrativetrace.escape import control_sanitize
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Incomplete, Returned, Threw, TraceOutcome
@@ -211,7 +212,7 @@ class IndentedTextRenderer:
         if isinstance(outcome, Returned):
             parts.append(f" → {_return_text(outcome.rendered_value)}")
         elif isinstance(outcome, Threw):
-            message = control_sanitize(str(outcome.exception))
+            message = exception_message.text(outcome.exception)
             parts.append(f" !! {_exception_type(outcome.exception)}: {message}")
             if sig.error_context is not None:
                 parts.append(f" | {control_sanitize(sig.error_context)}")
@@ -224,7 +225,7 @@ class IndentedTextRenderer:
         if isinstance(outcome, Returned):
             parts.append(f"→ {_return_text(outcome.rendered_value)}")
         elif isinstance(outcome, Threw):
-            message = control_sanitize(str(outcome.exception))
+            message = exception_message.text(outcome.exception)
             parts.append(f"!! {_exception_type(outcome.exception)}: {message}")
             if sig.error_context is not None:
                 parts.append(f" | {control_sanitize(sig.error_context)}")

@@ -102,7 +102,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future
-from typing import NamedTuple
+from typing import NamedTuple, NoReturn
 
 from hostile_corpus import GraphCase
 
@@ -111,6 +111,7 @@ from narrativetrace.markers import (
     narrative_summary,
     not_traced_field,
 )
+from narrativetrace.rendering import is_rendering
 
 
 @dataclasses.dataclass
@@ -124,6 +125,23 @@ class SecretRecord:
 @dataclasses.dataclass
 class _Box:
     value: object = None
+
+
+@dataclasses.dataclass
+class _Rung:
+    """One rung of the ``sharedLadder`` shape: both fields hold the same next rung."""
+
+    left: object = None
+    right: object = None
+
+
+def _shared_ladder(rungs: int, payload: object) -> object:
+    """``rungs`` rungs whose two fields hold the same next rung, the payload at the foot: ``n + 1``
+    distinct objects reached by ``2**n`` paths -- the diamond, repeated down the graph."""
+    current = payload
+    for _ in range(rungs):
+        current = _Rung(current, current)
+    return current
 
 
 class _Entry(NamedTuple):
@@ -533,6 +551,107 @@ class _ThrowingSummary:
         raise RuntimeError(f"cannot summarise {secret}")
 
 
+class _DeclaredElementsIterable:
+    """The third sanctioned hook (``__narrative_elements__``) on an iterable-shaped type: seven
+    elements, the first the sentinel-bearing record, past the collection cap of five. Counts its
+    hook calls and records whether the rendering guard was active while the hook ran. Mirrors
+    Java's ``HostileMembers.DeclaredElementsIterable``."""
+
+    def __init__(self, held: object) -> None:
+        self._items: list[object] = [held, *(f"elem-{i}" for i in range(1, 7))]
+        self.hook_calls = 0
+        self.guard_active_during_hook = False
+
+    def __narrative_elements__(self) -> list[object]:
+        self.hook_calls += 1
+        self.guard_active_during_hook = is_rendering()
+        return list(self._items)
+
+
+class _DeclaredElementsMap:
+    """The same hook on a map-shaped type: seven ``(key, value)`` entries, the first value the
+    sentinel-bearing record. Mirrors Java's ``HostileMembers.DeclaredElementsMap``."""
+
+    def __init__(self, held: object) -> None:
+        self._held = held
+        self.hook_calls = 0
+        self.guard_active_during_hook = False
+
+    def __narrative_elements__(self) -> list[object]:
+        self.hook_calls += 1
+        self.guard_active_during_hook = is_rendering()
+        entries: list[object] = [("entry-key-0", self._held)]
+        entries.extend((f"entry-key-{i}", f"entry-value-{i}") for i in range(1, 7))
+        return entries
+
+
+class _DeclaredElementsRaising:
+    """A declaring type whose hook raises: the typed error marker on both paths. Mirrors Java's
+    ``HostileMembers.DeclaredElementsRaising``."""
+
+    def __narrative_elements__(self) -> list[object]:
+        raise RuntimeError("the hook refuses")
+
+
+class _AncestorStateList(list[object]):
+    """A user subclass of the platform ``list`` whose overridden ``__iter__`` counts its calls and
+    refuses: the ancestor's own backing state is the only honest read. Mirrors Java's
+    ``HostileMembers.AncestorStateList``."""
+
+    def __init__(self, held: object) -> None:
+        super().__init__(["ancestor-list-element", held])
+        self.override_calls = 0
+
+    def __iter__(self) -> Iterator[object]:
+        self.override_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+
+class _AncestorStateMap(dict[str, object]):
+    """A user subclass of the platform ``dict`` whose overridden views count their calls and
+    refuse: the ancestor's own table is the only honest read. Mirrors Java's
+    ``HostileMembers.AncestorStateMap``."""
+
+    def __init__(self, held: object) -> None:
+        super().__init__({"visible": "ancestor-map-value", "held": held})
+        self.override_calls = 0
+
+    def items(self) -> NoReturn:
+        self.override_calls += 1
+        raise NotImplementedError("items() must never be called by rendering")
+
+    def keys(self) -> NoReturn:
+        self.override_calls += 1
+        raise NotImplementedError("keys() must never be called by rendering")
+
+    def values(self) -> NoReturn:
+        self.override_calls += 1
+        raise NotImplementedError("values() must never be called by rendering")
+
+    def __iter__(self) -> Iterator[str]:
+        self.override_calls += 1
+        raise NotImplementedError("__iter__ must never be called by rendering")
+
+
+def declared_elements(sentinel: str) -> list[object]:
+    """The ``declared-elements`` row: a list holding a declared iterable, a declared map and a
+    declared iterable whose hook raises, in that order."""
+    return [
+        _DeclaredElementsIterable(SecretRecord("item", sentinel)),
+        _DeclaredElementsMap(SecretRecord("item", sentinel)),
+        _DeclaredElementsRaising(),
+    ]
+
+
+def user_subclass_ancestor_state(sentinel: str) -> list[object]:
+    """The ``structured-path-user-subclass-ancestor-state`` row: a list holding a user ``list``
+    subclass and a user ``dict`` subclass, in that order."""
+    return [
+        _AncestorStateList(SecretRecord("item", sentinel)),
+        _AncestorStateMap(SecretRecord("item", sentinel)),
+    ]
+
+
 def _secret_text(payload: object) -> str:
     return payload.secret if isinstance(payload, SecretRecord) else str(payload)
 
@@ -678,6 +797,7 @@ _KIND_BUILDERS: dict[str, Callable[[GraphCase, object], object]] = {
     "cycle": lambda c, p: _cycle(c.n or 1, p),
     "selfInCollection": lambda c, p: _self_in_collection(c.container or "list", p),
     "diamond": lambda c, p: [p, p],
+    "sharedLadder": lambda c, p: _shared_ladder(c.n or 0, p),
     "hostileMember": lambda c, p: _HOSTILE_MEMBERS[c.member or ""](p),
     "manyFields": lambda c, p: _many_fields(c.n or 0, p),
     "emptyContainers": lambda c, p: [[], {}, [], {"a": []}, [{}]],
@@ -691,6 +811,8 @@ _KIND_BUILDERS: dict[str, Callable[[GraphCase, object], object]] = {
     "platformNameRedacted": lambda c, p: _platform_name_redacted(p),
     "platformLookalike": lambda c, p: _FakePath(p),
     "platformSubclass": lambda c, p: _SubclassedUUID(p),
+    "declaredElements": lambda c, p: declared_elements(_secret_text(p)),
+    "userSubclassAncestorState": lambda c, p: user_subclass_ancestor_state(_secret_text(p)),
 }
 
 

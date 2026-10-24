@@ -399,6 +399,10 @@ class ThrowingRenderer(ValueRenderer):
     def render(self, value: object) -> str:
         raise RuntimeError("renderer exploded")
 
+    def render_for_capture(self, value: object) -> tuple[str, RenderedValue, bool]:
+        # The return path renders through render_for_capture (one hook answer per capture).
+        raise RuntimeError("renderer exploded")
+
 
 class TestDeferredExitGuarantee:
     def test_sync_throwing_return_renderer_does_not_mask_result(
