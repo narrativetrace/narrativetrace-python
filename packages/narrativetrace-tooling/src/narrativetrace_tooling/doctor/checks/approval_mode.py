@@ -6,8 +6,8 @@
 
 INTENT: a baseline is the durable form of what a flow is supposed to do, and it only guards
 anything while a run compares against it. With approval mode off the tests pass whatever the
-structure does, so a committed baseline reads as protection the project does not have. Mirrors
-Java's ``ApprovalModeCheck`` on this runtime's own switch.
+structure does, so a committed baseline reads as protection the project does not have.
+The check reads this runtime's own switch.
 
 **@llmNote** "On" is read where this runtime reads it: ``NARRATIVETRACE_APPROVAL`` in the
 environment, ``approval`` in the resolved ``[tool.narrativetrace]``/``narrativetrace.toml`` table,

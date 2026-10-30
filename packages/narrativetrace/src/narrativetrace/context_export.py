@@ -19,7 +19,7 @@ from __future__ import annotations
 from narrativetrace.escape import control_sanitize
 
 MAX_LENGTH = 256
-"""Matches Java's ``ContextExport.MAX_LENGTH``."""
+"""Maximum exported length, the same in every NarrativeTrace runtime."""
 
 
 def export(value: str) -> str:

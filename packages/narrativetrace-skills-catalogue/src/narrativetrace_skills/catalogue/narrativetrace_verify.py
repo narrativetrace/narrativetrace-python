@@ -3,8 +3,8 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """``narrativetrace-verify`` — reads what a change actually did before the agent says it is done,
-and pins the result as an approval baseline behind the user's yes. Mirrors Java's
-``NarrativeTraceVerifySkill`` on this runtime's capture (the pytest plugin's ``narrative_trace``
+and pins the result as an approval baseline behind the user's yes.
+This skill works on this runtime's capture (the pytest plugin's ``narrative_trace``
 fixture), artifacts (``narrative-traces/``) and approve verb (``narrativetrace-approve``).
 
 The loop runs after the tests are green and before the report: decide whether the change is worth

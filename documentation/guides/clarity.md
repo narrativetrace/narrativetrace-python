@@ -22,6 +22,11 @@ NarrativeTrace runtimes:
 Issues are score-band classified (HIGH ≤ 0.20, MEDIUM ≤ 0.50), deduplicated by
 `category|element` with summed occurrences, and ranked by impact.
 
+The collocation dictionary is a positive signal only: a verb it lists for a noun confirms the
+name reads well, but a verb it does not list is never treated as evidence against the name — the
+rename hint fires only for a generic or genuinely unclear verb, never merely because the actual
+verb is missing from the sample.
+
 ## Your own vocabulary, from the glossary you already have
 
 The built-in dictionaries know general software English. They do not know that `fold` is a verb in

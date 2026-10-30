@@ -8,9 +8,8 @@
 nodes and explain whether work was awaited (fork/join) or launched in the background
 (fire-and-forget).
 
-Python divergence (see plan PY7 / core-pipeline §TS-CORE-6): Java's thread-identity fields are
-kept for the ``ThreadPoolExecutor`` substrate, and an optional ``task_label`` is added for the
-asyncio substrate where thread identity is meaningless.
+Thread-identity fields are kept for the ``ThreadPoolExecutor`` substrate, and an optional
+``task_label`` is added for the asyncio substrate where thread identity is meaningless.
 """
 
 from __future__ import annotations

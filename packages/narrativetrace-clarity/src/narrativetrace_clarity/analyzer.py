@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from narrativetrace.tree_walk import TreeWalk
-from narrativetrace_clarity import scorers
+from narrativetrace_clarity import morphology, scorers, verbs
 from narrativetrace_clarity.models import ClarityIssue, ClarityResult, Severity
 from narrativetrace_clarity.tokenizer import tokenize
 from narrativetrace_clarity.vocabulary import EMPTY, DomainVocabulary
@@ -136,7 +136,7 @@ def _collect_and_deduplicate_issues(
     raw.extend(_find_method_name_issues(nodes, vocabulary))
     raw.extend(_find_class_name_issues(nodes, vocabulary))
     raw.extend(_find_param_name_issues(nodes, vocabulary))
-    raw.extend(_find_collocation_issues(nodes))
+    raw.extend(_find_collocation_issues(nodes, vocabulary))
     return _deduplicate_and_rank(raw)
 
 
@@ -214,7 +214,32 @@ def _find_param_name_issues(
     return issues
 
 
-def _find_collocation_issues(nodes: list[TraceNode]) -> list[ClarityIssue]:
+def _is_weak_verb(verb: str, vocabulary: DomainVocabulary) -> bool:
+    """Whether a first token is already treated as a weak verb by the method-name scorer.
+
+    That is a generic verb, or an unrecognized token that reads as a verb by its morphology. A
+    verb the project's vocabulary declares as its own is never weak.
+    """
+    if vocabulary.is_domain_verb(verb):
+        return False
+    category, _ = verbs.categorize(verb, vocabulary)
+    if category is verbs.Category.GENERIC:
+        return True
+    return (
+        category is verbs.Category.UNKNOWN
+        and morphology.analyze(verb, vocabulary) is morphology.PartOfSpeech.VERB
+    )
+
+
+def _find_collocation_issues(
+    nodes: list[TraceNode], vocabulary: DomainVocabulary
+) -> list[ClarityIssue]:
+    """Suggests a noun's preferred verbs for a weak verb on that noun.
+
+    The collocation dictionary is a positive signal only: a verb absent from a noun's 4-8-verb
+    sample is never evidence against the name, so only a weak verb on a noun with candidates
+    earns an issue.
+    """
     issues = []
     for node in nodes:
         sig = node.signature
@@ -224,7 +249,7 @@ def _find_collocation_issues(nodes: list[TraceNode]) -> list[ClarityIssue]:
         verb = tokens[0].lower()
         noun = tokens[-1].lower()
         preferred = scorers.preferred_verbs(noun)
-        if not preferred or verb in preferred:
+        if not preferred or verb in preferred or not _is_weak_verb(verb, vocabulary):
             continue
         capital_noun = noun[0].upper() + noun[1:]
         suggestion = ", ".join(f"{v}{capital_noun}" for v in sorted(preferred))

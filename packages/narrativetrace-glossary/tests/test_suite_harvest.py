@@ -10,6 +10,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+import pytest
 from narrativetrace_glossary import (
     BoundedContext,
     Glossary,
@@ -157,3 +158,26 @@ def test_empty_candidates_against_an_empty_project_writes_an_empty_glossary(tmp_
     assert result.merge.new_terms == ()
     assert result.summary == "Vocabulary: 0 new terms harvested, 0 deprecated synonyms in use"
     assert (tmp_path / GLOSSARY_JSON_FILE).is_file()
+
+
+def test_a_failed_markdown_write_leaves_the_committed_glossary_json_untouched(
+    tmp_path: Path,
+) -> None:
+    committed = tmp_path / GLOSSARY_JSON_FILE
+    committed.write_text(write_glossary_json(Glossary()), encoding="utf-8")
+    before = committed.read_bytes()
+    (tmp_path / GLOSSARY_MARKDOWN_FILE).mkdir()
+
+    with pytest.raises(OSError):
+        run_suite_harvest(
+            [_candidate()],
+            glossary_dir=tmp_path,
+            output_dir=tmp_path / "out",
+            clock=lambda: date(2026, 8, 11),
+        )
+
+    assert committed.read_bytes() == before
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        GLOSSARY_JSON_FILE,
+        GLOSSARY_MARKDOWN_FILE,
+    ]

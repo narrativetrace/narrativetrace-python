@@ -17,7 +17,7 @@ from __future__ import annotations
 import threading
 
 from narrativetrace.context import ContextVarNarrativeContext
-from narrativetrace.events import EnterEvent
+from narrativetrace.events import EnterEvent, span_id_of
 from narrativetrace.groups import FireAndForgetGroup, ForkJoinGroup
 from narrativetrace.loss import TraceLoss
 from narrativetrace.signature import MethodSignature
@@ -54,7 +54,9 @@ class TestAdoptedSpansDoNotSurviveReset:
         assert not thread.is_alive()
 
         assert len(ctx._store.events()) == 4  # sanity: the adopted work really landed first
-        assert len(ctx._span_contexts) == 2
+        # Since B-211 a span's context leaves the map when the span exits, so the finished work a
+        # request holds until its reset is the spans it can still report from the store.
+        assert len({span_id_of(e) for e in ctx._store.events()}) == 2
 
         ctx.reset()
 

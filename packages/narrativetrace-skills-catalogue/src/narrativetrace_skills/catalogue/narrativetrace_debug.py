@@ -3,8 +3,8 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """``narrativetrace-debug`` — finds the cause of a symptom by reading what the code did with the
-values, fixes it where it diverged, and pins the reproduction behind the user's yes. Mirrors Java's
-``NarrativeTraceDebugSkill`` on this runtime's capture, artifacts and approve verb.
+values, fixes it where it diverged, and pins the reproduction behind the user's yes.
+This skill works on this runtime's capture, artifacts and approve verb.
 
 The loop starts from a symptom, not a change: reproduce it with the smallest input and tracing on;
 across threads or tasks read the sequence diagram first; name, by span id, the first span whose

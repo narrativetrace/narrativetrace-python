@@ -222,3 +222,44 @@ def test_the_document_always_ends_with_a_newline() -> None:
 def test_rendering_rejects_a_missing_glossary() -> None:
     with pytest.raises(TypeError, match=r"\Aglossary must be a Glossary\Z"):
         render_glossary_markdown(None)  # type: ignore[arg-type]
+
+
+def _prose_glossary(description: str | None, packages: list[str]) -> Glossary:
+    return Glossary({"billing": BoundedContext("billing", packages, description)}, [])
+
+
+def test_a_description_cannot_forge_a_context_heading() -> None:
+    glossary = _prose_glossary("## Accepted abbreviations\n# Other\nplain", [])
+
+    lines = render_glossary_markdown(glossary).splitlines()
+
+    assert [line for line in lines if line.startswith("## ")] == ["## billing"]
+    assert [line for line in lines if line.startswith("# ")] == ["# Domain Glossary"]
+
+
+def test_a_description_cannot_leave_a_fence_open() -> None:
+    glossary = _prose_glossary("intro\n```\ncode\n~~~\nmore", [])
+
+    lines = render_glossary_markdown(glossary).splitlines()
+
+    assert [line for line in lines if line.lstrip().startswith(("```", "~~~"))] == []
+
+
+def test_a_description_cannot_forge_a_list_item_or_table_row() -> None:
+    glossary = _prose_glossary("- item\n* item\n+ item\n1. item\n| a | b |", [])
+
+    lines = render_glossary_markdown(glossary).splitlines()
+
+    assert "\\- item" in lines
+    assert "\\* item" in lines
+    assert "\\+ item" in lines
+    assert "\\1. item" in lines
+    assert "\\| a | b |" in lines
+
+
+def test_a_package_prefix_with_a_backtick_stays_inside_its_span() -> None:
+    glossary = _prose_glossary(None, ["acme`.billing", "acme.core"])
+
+    text = render_glossary_markdown(glossary)
+
+    assert "Packages: `acme%60.billing`, `acme.core`\n" in text

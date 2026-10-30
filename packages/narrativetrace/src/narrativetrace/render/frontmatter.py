@@ -41,13 +41,12 @@ def _escape_supplementary(text: str) -> str:
     """Every code point above the Basic Multilingual Plane becomes an 8-digit ``\\U`` escape.
 
     A Python ``str`` already holds a supplementary character as one code point, and PyYAML
-    round-trips it raw without incident -- unlike Java's UTF-16-backed ``String``, there is no
+    round-trips it raw without incident -- there is no
     surrogate-pair encoding here for a downstream reader's buffer boundary to split. But
     frontmatter is a machine-readable interoperability contract this runtime shares with every
-    other NarrativeTrace runtime (mirrors the Java spec repo's fix for its SnakeYAML 2.3 crash,
-    a 2026-09-08 audit's finding), so it is kept BMP-only here too: ``\\U`` is YAML's own
-    32-bit escape (``ns-esc-32-bit``), and a conforming parser anywhere decodes it back to the
-    same code point.
+    other NarrativeTrace runtime (some YAML readers crash on supplementary characters), so it is
+    kept BMP-only here too: ``\\U`` is YAML's own 32-bit escape (``ns-esc-32-bit``), and a
+    conforming parser anywhere decodes it back to the same code point.
     """
     return "".join(f"\\U{ord(c):08x}" if ord(c) > 0xFFFF else c for c in text)
 

@@ -184,7 +184,7 @@ def _harvest_enabled(config: pytest.Config) -> bool:
     """Opt-in by ``glossary.json`` presence, with an explicit ``NARRATIVETRACE_GLOSSARY`` override.
 
     ``off`` disables harvesting unconditionally, even with a glossary already committed — the
-    mid-suite equivalent of Java's suite extension defaulting to ``disabled()``. Any other truthy
+    mid-suite equivalent of a suite-level default of disabled. Any other truthy
     value forces harvesting on, even with no ``glossary.json`` yet (a project's first opt-in run,
     which then creates one). Unset defaults to "harvest only when a glossary.json already exists"
     — the least-surprising default: a project that has never curated a glossary does not get one
@@ -245,7 +245,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     re-derived, never a process-wide singleton a caller cannot vary, which is exactly what makes
     running the identical suite twice with two different run ids provable (see
     ``test_run_name_byte_identity.py``). Threads it into the stdlib logging bridge's MDC-analog
-    context (``runName``, mirroring Java's ``RunListener`` SPI) for the whole session's duration --
+    context (``runName``) for the whole session's duration --
     :func:`pytest_sessionfinish` clears it again.
     """
     run = RunIdentity.generate()
@@ -416,7 +416,7 @@ def _accumulate(config: pytest.Config, scenario: str, tree: TraceTree, loss: Tra
     accumulator = _accumulator(config)
     accumulator.scenarios.append(scenario)
     accumulator.loss = accumulator.loss.plus(loss)
-    if not tree.is_empty:  # clarity aggregates non-empty traces (Java's GlobalTraceAccumulator)
+    if not tree.is_empty:  # clarity aggregates non-empty traces
         accumulator.clarity.append((scenario, analyze_clarity(tree, _project_vocabulary(config))))
         if _harvest_enabled(config):
             accumulator.harvest_trees.append(tree)

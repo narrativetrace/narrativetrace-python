@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 4e3ceec743da | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 1c2f344b6d61 | translated: 2026-10-20 | reviewed: - -->
 
 # Configuração
 
@@ -369,3 +369,19 @@ de uma implantação. `RedactionPolicy.DISABLED` as ignora. Contrato completo:
 > **As adições são padrões de substring**, comparados exatamente como o vocabulário de substrings
 > embutido. Uma curta traz a armadilha que as palavras por token evitam: adicionar `id` oculta todos
 > os identificadores do trace.
+
+## Limites do renderizador
+
+Um `ValueRenderer` limita o que um valor pode custar com quatro limites. Três
+são argumentos do construtor; um é fixo.
+
+| Limite | Padrão | Contrato |
+|---|---|---|
+| Limite de string (`max_string_length`) | 200 | Uma string mais longa é cortada no limite e termina com reticências; um limite negativo é ajustado para 0. |
+| Limite de elementos (`max_collection_items`) | 5 | Uma coleção ou mapa mais longo mostra os primeiros elementos e reticências; um limite negativo é ajustado para 0. |
+| Limite de campos (`max_object_fields`) | 5 | Um objeto mostra os primeiros campos e reticências; um limite negativo é ajustado para 0. |
+| Profundidade (`ValueRenderer.MAX_DEPTH`) | 32 (fixo) | O aninhamento além desse valor é exibido como `<max-depth>`; não é configurável, então não pode ser negativo. |
+
+Um limite negativo nunca é aceito como está: o renderizador se comporta exatamente
+como se fosse 0 e escreve uma linha na saída de erro padrão, nomeando cada limite
+que ajustou, quando é construído.

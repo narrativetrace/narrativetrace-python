@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from scripts.comment_hygiene import (
     HISTORY_PATTERN,
     PORT_FRAMING_PATTERN,
@@ -62,6 +63,59 @@ class TestPortFramingPattern:
     def test_family_wide_framing_is_not_flagged(self) -> None:
         assert not PORT_FRAMING_PATTERN.search("same as every NarrativeTrace runtime.")
         assert not PORT_FRAMING_PATTERN.search("Escapes control characters before rendering.")
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "this is the golden copy of the table.",
+            "the reference implementation decides.",
+            "see the Java reference for the original.",
+            "see the Java version for the original.",
+            "see the Java port for the original.",
+            "see the Java edition for the original.",
+            "the JVM edition does the same.",
+            "behaviour matching the JVM exactly.",
+            "Mirrors Java's `OutputDirectoryResolver`.",
+            "mirrors Java `OutputDirectoryResolver`.",
+            "mirroring Java here.",
+            "matches Java here.",
+            "matching Java here.",
+            "ported from Java.",
+            "a port of the Java code.",
+            "same as Java.",
+            "like Java does.",
+            "As in Java, null is missing.",
+            "Replaced by the Java builder.",
+            "follows Java.",
+            "following the Java layout.",
+            "tracks Java closely.",
+            "tracking Java.",
+            "copied from Java.",
+            "are Java's MarkdownTableEscape.",
+            "(Java `TraceFileWriter`, B-224)",
+            "(Java TraceFileWriter, B-224)",
+            "the Java TraceFileWriter closes it.",
+            "(Java B-224 / B-227)",
+            "see Java B-224.",
+        ],
+    )
+    def test_matches_each_framing_the_widened_pattern_names(self, line: str) -> None:
+        assert PORT_FRAMING_PATTERN.search(line)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Java alone is a language name.",
+            "Java virtual machine interop.",
+            "(Java virtual machine)",
+            "a JavaScript object, like JavaScript does.",
+            "Java version 21 or newer is not a framing.",
+            "Java Collections are not an identifier.",
+            "the same in every NarrativeTrace runtime.",
+        ],
+    )
+    def test_leaves_java_as_a_plain_language_name_alone(self, line: str) -> None:
+        assert not PORT_FRAMING_PATTERN.search(line)
 
 
 class TestPackagesSourceFiles:

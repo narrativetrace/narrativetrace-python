@@ -193,14 +193,13 @@ def _normalized_tokens(identifier: str) -> list[str]:
 def _word_tokens(identifier: str) -> list[str]:
     """Tokenizes, rejecting anything that is not a single code identifier.
 
-    Two guards Java's normalizer lacks, both keeping normalized phrases canonical — they are term
+    Two guards, both keeping normalized phrases canonical — they are term
     identity, so a stray space or an empty phrase corrupts a glossary key:
 
-    - An identifier with no word character (``_``) tokenizes to nothing. Java only rejects blank
-      text and then *asserts* that normalization produced something, so this either trips an
-      assertion or silently yields an empty phrase.
+    - An identifier with no word character (``_``) tokenizes to nothing. Rejecting only blank
+      text would let this either trip an assertion or silently yield an empty phrase.
     - Whitespace never occurs inside a code identifier, and the tokenizer does not split on it, so
-      ``"my var"`` would pass through as one unsingularized token. Java relies on its harvester
+      ``"my var"`` would pass through as one unsingularized token. Relying on the harvester
       filtering non-identifiers before the normalizer sees them; here the normalizer is public API
       and rejects them itself.
     """

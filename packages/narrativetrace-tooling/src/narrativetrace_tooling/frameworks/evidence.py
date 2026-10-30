@@ -5,8 +5,8 @@
 """What in a project's Python source proves a framework row's wiring was applied — the evidence a
 :class:`~narrativetrace_tooling.frameworks.table.Snippet` row carries.
 
-INTENT: Java matches patterns over text because a Java project's wiring is often in YAML or
-properties; every Python row's wiring is Python, so this reads it with :mod:`ast` instead. That is
+INTENT: every Python row's wiring is Python, so this reads it with :mod:`ast` rather than
+matching patterns over text. That is
 what keeps an import (``from narrativetrace_asgi import NarrativeTraceMiddleware``), a comment or a
 docstring naming the thing from counting as having USED it — the "imported, never applied" shape
 the doctor exists to catch — and it needs no pattern a ReDoS gate would have to vet.

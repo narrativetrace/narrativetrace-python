@@ -6,7 +6,7 @@
 concept, so a second hand-copied literal is a duplication-ratchet failure rather than a silent
 divergence.
 
-INTENT (mirrors the Java reference's own ``InstallerCommands``): a skill may PREVIEW the install
+INTENT: a skill may PREVIEW the install
 and may never apply it. The preview is the whole safety property -- ``init`` writes into
 ``AGENTS.md`` and ``.agents/skills/``, and the approval for that is structural: a person reads the
 diff and runs the command again without the flag. That is why only the previewing form is a

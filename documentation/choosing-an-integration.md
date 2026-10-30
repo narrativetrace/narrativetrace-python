@@ -97,6 +97,14 @@ design, an internal decision (PY-001, PY-004, PY-005) this page does not need to
   inside an `async def` traced method resolves the parent through the synchronous call stack, which
   is empty there, so children launched that way land as new roots instead of nested under the
   `async` caller — fork from a synchronous method, or from a thread pool, to keep the nesting.
+  On a pooled thread or an asyncio task that nothing hands over and nothing resets, the next
+  unrelated unit of work still gets a fresh trace — unless its first act is `trace_id()` or
+  `snapshot()` before any traced call, in which case it carries the trace the previous unit left
+  behind: there is no signal that tells a deliberate handover (the work at hand asking for its own
+  identity) apart from an unrelated task that simply asked first. The ASGI `traceparent_header()`
+  is not affected: with no span open and no adopted remote parent it returns `None` and leaves the
+  trace untouched. Hand the work over through `snapshot().wrap(...)` so it carries its own trace
+  from the start, or call `reset()` at the start of each unit of work before reading anything.
 - **`narrativetrace-otel`** — requires `opentelemetry-api>=1.20`; it bridges an already-captured
   `TraceTree` to OTel spans (batch exporter) or listens live — it does not replace OpenTelemetry's
   own SDK/exporter configuration.

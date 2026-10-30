@@ -25,10 +25,11 @@ so it neither re-checks nor could un-redact anything.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from narrativetrace.canonical import CanonicalEntry
+from narrativetrace.canonical import CanonicalEntry, ParameterEntry
 from narrativetrace_glossary.context_resolver import (
     UNASSIGNED_CONTEXT,
     package_to_resolve,
@@ -48,6 +49,7 @@ _EXIT = "method_exit"
 _FAILURE = "failure"
 _INCOMPLETE = "incomplete"
 _INDENT_UNIT = "  "
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
 @dataclass(slots=True)
@@ -163,10 +165,19 @@ class TraceTranslationView:
         if variant is None:
             state.gaps.add(template)
             return ""
-        filled = variant
-        for parameter in entry.nt_parameters or ():
-            filled = filled.replace("{" + parameter.name + "}", parameter.value)
+        filled = self._fill_placeholders(variant, entry.nt_parameters or ())
         return f"{indent}{_INDENT_UNIT}// {filled}\n"
+
+    @staticmethod
+    def _fill_placeholders(template: str, parameters: Sequence[ParameterEntry]) -> str:
+        """Substitutes ``{name}`` placeholders in one pass over the raw template.
+
+        A substituted value is never re-scanned, so a value that itself reads ``{other}`` stays
+        verbatim and the result does not depend on the order parameters were captured in. A name
+        the parameters do not carry stays literal.
+        """
+        values = {parameter.name: parameter.value for parameter in parameters}
+        return _PLACEHOLDER.sub(lambda match: values.get(match.group(1), match.group(0)), template)
 
     # -- exit ------------------------------------------------------------------#
     def _render_exit(self, entry: CanonicalEntry, state: RenderState) -> str:

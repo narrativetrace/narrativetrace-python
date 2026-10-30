@@ -5,7 +5,7 @@
 """Rewrites an absolute home directory to ``~`` — the one normalisation a draft performs before the
 gate reads anything.
 
-Ports Java ``HomePaths``. INTENT: a home path names the account it belongs to, and a problem report
+INTENT: a home path names the account it belongs to, and a problem report
 is full of them because that is where people's projects live. Refusing the report would be the wrong
 answer to a mistake nobody made on purpose; ``~`` says the same thing about the same file and names
 nobody. So this runs FIRST, and :data:`~narrativetrace_tooling.feedback.rules.HOME_PATH` is left as

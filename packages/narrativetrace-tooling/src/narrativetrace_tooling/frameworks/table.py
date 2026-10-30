@@ -4,8 +4,9 @@
 # Copyright (c) 2026 Empower Agile
 """The framework table — Phase 6's D1: ONE committed registry of which frameworks NarrativeTrace
 integrates with, how a project proves it uses one, which distribution it adds, how that is wired,
-and which doctor check watches the wiring. Mirrors Java's ``FrameworkTable``; the row SHAPE, the
-check naming and the hand-off step are the cross-port contract, the rows are this runtime's own.
+and which doctor check watches the wiring. The row SHAPE, the
+check naming and the hand-off step are the same in every NarrativeTrace runtime; the rows are
+this runtime's own.
 
 INTENT: the table ships inside the library the doctor runs from, so a project is measured against
 the rows of the NarrativeTrace version it actually installed — never against the repository or the

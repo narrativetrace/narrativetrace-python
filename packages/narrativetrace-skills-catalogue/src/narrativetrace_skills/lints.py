@@ -181,7 +181,7 @@ script and the ``poe approve`` task. Running it IS the pinning — it turns ever
 
 def promotion_not_pre_approved(skills: tuple[Skill, ...]) -> tuple[str, ...]:
     """A skill whose steps promote an approval baseline must declare NO allowed tool that would
-    pre-approve the promotion. Mirrors Java's ``promotionNotPreApproved``.
+    pre-approve the promotion.
 
     INTENT: the pin is gated — show the whole ``.received.nt``, ask once, end the turn; the
     promotion runs only after the user's yes, in a later turn. A Claude-flavour ``allowed-tools``

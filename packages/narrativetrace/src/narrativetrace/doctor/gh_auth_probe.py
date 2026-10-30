@@ -5,7 +5,7 @@
 """Asks an already-installed ``gh`` whether it is signed in — the one question that decides whether
 the ``gh`` channel of ``narrativetrace feedback`` is offered at all.
 
-Ports Java ``GhAuthProbe``. INTENT: ``gh issue create`` is the convenience path (design D1), and
+INTENT: ``gh issue create`` is the convenience path (design D1), and
 offering it to somebody who has no ``gh``, or an unauthenticated one, is offering them an error
 message. ``gh auth status`` answers exactly that question using that tool's own credential; this
 launcher holds none and never will.

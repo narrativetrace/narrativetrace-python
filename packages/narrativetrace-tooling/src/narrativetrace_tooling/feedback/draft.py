@@ -5,7 +5,7 @@
 """What drafting produced: either a report the gate cleared, with the two texts rendered from it, or
 a refusal naming every rule that stood in the way.
 
-Ports Java's sealed ``FeedbackDraft``. INTENT: a pair of distinct types rather than one draft
+INTENT: a pair of distinct types rather than one draft
 carrying a list of problems, so no caller can print a URL or write a body file while a violation
 stands. :class:`Refused` has no body to file, by construction — not by convention.
 """

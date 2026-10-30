@@ -173,3 +173,22 @@ def test_scan_paths_output_is_totally_ordered_and_deduplicated(tmp_path: Path) -
     keys = [(c.context, c.phrase, c.kind.value, c.site, c.identifier) for c in candidates]
     assert keys == sorted(keys)
     assert len(keys) == len(set(keys))
+
+
+def test_scan_paths_skips_undecodable_and_null_byte_files_and_scans_the_rest(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "good.py").write_text(
+        "class OverdraftAccount:\n    def open(self): ...\n", encoding="utf-8"
+    )
+    (tmp_path / "latin.py").write_bytes(b"class Caf\xe9:\n    pass\n")
+    (tmp_path / "nul.py").write_bytes(b"class Nul:\n    pass\n\x00\n")
+
+    candidates = scan_paths([tmp_path], BILLING)
+
+    assert {c.identifier for c in candidates if c.site.startswith("OverdraftAccount")}
+    assert not any("Caf" in c.identifier or "Nul" in c.identifier for c in candidates)
+
+
+def test_scan_source_with_a_null_byte_yields_no_candidates() -> None:
+    assert scan_source("class Nul:\n    pass\n\x00\n", "acme.billing.nul", BILLING) == ()

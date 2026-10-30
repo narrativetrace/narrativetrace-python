@@ -77,7 +77,7 @@ def _outcome_name(outcome: TraceOutcome | None) -> str:
 
 
 def _timestamp(nanos: int) -> str:
-    """Formats a monotonic reading as the epoch-based instant Java's synthetic base produces.
+    """Formats a monotonic reading as an epoch-based instant (synthetic base).
 
     Node clocks are monotonic nanos with an arbitrary origin. A tree has no wall-clock anchor, so
     the reading is treated as milliseconds since the epoch — deterministic, and the same rule the

@@ -4,8 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """Builds a ``class_name -> module path`` lookup from already-captured trace trees.
 
-``ClassPackageIndex`` (Java's compiled-class-directory scan, .NET's loaded-assembly
-scan). INTENT: :func:`~narrativetrace_glossary.harvester.harvest_traces` takes a ``module_of``
+INTENT: :func:`~narrativetrace_glossary.harvester.harvest_traces` takes a ``module_of``
 callable but does not build one itself — every runtime resolves it differently. Here, the resolver
 that matters is trivial: :attr:`~narrativetrace.signature.MethodSignature.package_name` is already
 captured on every node (``__module__`` at trace time), so this only needs to aggregate it and

@@ -5,7 +5,7 @@
 """One problem report, gathered: which runtime and install, which part of the product, which step,
 the three sentences, the language it is written in, who drafted it, and at most two attachments.
 
-Ports Java's ``FeedbackReport`` and its parts. INTENT: the single object the gate, the draft, the
+INTENT: the single object the gate, the draft, the
 issue-form URL and the ``gh`` line all read, so none of them can disagree about what is being filed.
 Every runtime in the family gathers the same fields under the same names — the issue form is shared,
 so the field set is a cross-runtime contract, not a Python shape.

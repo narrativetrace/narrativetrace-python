@@ -2,7 +2,7 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Generated data (byte-identical to Java CollocationDictionary). Do not edit by hand."""
+"""Generated data (byte-identical in every NarrativeTrace runtime). Do not edit by hand."""
 
 # noun -> preferred verbs (union across all domain category maps)
 COLLOCATIONS = {

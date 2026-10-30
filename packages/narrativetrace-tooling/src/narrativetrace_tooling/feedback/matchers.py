@@ -5,7 +5,7 @@
 """The deciding half of :mod:`narrativetrace_tooling.feedback.rules`: one predicate per rule, each
 testable on its own without building a report around it.
 
-Ports Java ``ValueFreeMatchers``. Every pattern is compiled once, at import — a rule runs over every
+Every pattern is compiled once, at import — a rule runs over every
 field of every report the verb drafts, and this is the one path that must never be the slow one
 somebody skips.
 """
@@ -33,8 +33,8 @@ flip it.
 **@edgeCase** Every runtime's Markdown renderer bolds the qualified name (``- **Name.method**(param:
 value)``), so one optional emphasis marker (``**``, ``__``, ``*``, ``_``) may sit between the method
 and the parenthesis — written as a bounded class (``[*_]{0,2}``), never as the alternation
-``(?:\*\*|__|\*|_)?``: overlapping alternatives are the shape a ReDoS gate rejects (Java's SpotBugs
-does), and the stray mixed pair the class also admits only makes this deny rule stricter.
+``(?:\*\*|__|\*|_)?``: overlapping alternatives are the shape a ReDoS gate rejects, and the
+stray mixed pair the class also admits only makes this deny rule stricter.
 """
 
 RENDERED_OUTCOME: Final = re.compile(r"→\s*(?!value\b)\S")
@@ -71,15 +71,15 @@ the closing quote sits between the key and the colon — so without them the one
 report carries, the doctor's own JSON, was the one format the deny-list could not read at all.
 Corpus row ``named-secret-json-quoted``.
 
-**@llmNote** The key is "anything that is not a separator", NOT ``[\w.\-]`` as Java spells it, and
-this is a REASONED PORT DIVERGENCE rather than a liberty. Java's ``UNICODE_CHARACTER_CLASS`` makes
-``\w`` include the combining-mark categories (``Mn``/``Me``/``Mc``); Python's Unicode ``\w`` is
-``str.isalnum()``-shaped and does not. So the decomposed spelling of ``contraseña`` — ``contrasen``
-+ U+0303, which is what a Mac filesystem hands back — truncated at the mark, and the scan then read
-the key as ``a``, which is in nobody's deny-list. Corpus row ``named-secret-spanish-decomposed``.
+**@llmNote** The key is "anything that is not a separator", NOT ``[\w.\-]``, and this is
+deliberate. Another runtime's regex flavour can make ``\w`` include the combining-mark categories
+(``Mn``/``Me``/``Mc``); Python's Unicode ``\w`` is ``str.isalnum()``-shaped and does not. So the
+decomposed spelling of ``contraseña`` — ``contrasen`` + U+0303, which is what a Mac filesystem
+hands back — truncated at the mark, and the scan then read the key as ``a``,
+which is in nobody's deny-list. Corpus row ``named-secret-spanish-decomposed``.
 Defining the key by its SEPARATORS instead closes the whole class rather than that one mark: no
 character can truncate a key when every non-separator belongs to it. It is also strictly wider than
-Java's class, which is the safe direction for this gate — a near miss costs a sentence (see
+``[\w.\-]``, which is the safe direction for this gate — a near miss costs a sentence (see
 :mod:`narrativetrace_tooling.feedback.vocabulary`)."""
 
 BASE64_RUN: Final = re.compile(r"[A-Za-z0-9+=_]{32,}")
@@ -93,19 +93,19 @@ of ordinary text a secret.
 own doc anchors separate words with, and ``the-quick-brown-fox-jumps-over-the-lazy`` measures 4.33
 bits per character — above the ceiling. Corpus row ``accepted-hyphenated-prose``.
 
-**@llmNote** The SLASH is excluded for the same reason, and this port is where that was found. Java
-measures a path as one run and gets away with it because its doc URLs are short
-(``narrativetrace.ai/docs/<slug>``); this runtime's are GitHub blob links, so one segment of the
+**@llmNote** The SLASH is excluded for the same reason, and a long doc URL is what
+showed it. Measuring a path as one run only works while doc URLs are short; this runtime's are
+GitHub blob links, so one segment of the
 doctor's own ``doc_url`` — ``python/blob/main/documentation/guides/configuration``, 51 characters at
-**4.0303** bits per character — sat just over the ceiling. Every doctor report this port can
+**4.0303** bits per character — sat just over the ceiling. Every doctor report this runtime can
 generate was refused, and so was any report whose prose quoted a doc URL. A path is several tokens,
 not one; measuring it as one made the gate's tightest margin
 (``accepted-structural-artifact-path``, 3.958) a hair's breadth rather than a decision.
 
 **@edgeCase** The price, stated: a STANDARD-base64 secret whose own bytes happen to contain a slash
 is split, and each half may fall under the length floor. That is the identical, already-accepted
-price of excluding the hyphen — Java's own note says a hyphenated base64url token "is still reached
-by its halves". Every credential whose SHAPE is known is caught by
+price of excluding the hyphen — a hyphenated base64url token is still reached
+by its halves. Every credential whose SHAPE is known is caught by
 :mod:`narrativetrace_tooling.feedback.vocabulary` regardless, and the four corpus rows this rule
 exists for contain no slash."""
 

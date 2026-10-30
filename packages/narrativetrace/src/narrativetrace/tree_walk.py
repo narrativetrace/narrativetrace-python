@@ -10,13 +10,13 @@ mutable list even under ``frozen=True``, so a hand-built, replayed, or deseriali
 genuinely cyclic, and a merely deep tree (a recursive business method) is ordinary. Before this
 module existed, every recursive renderer/exporter walking a trace tree here used unbounded
 native recursion with no depth bound or cycle guard -- both a cycle and a sufficiently deep chain
-crashed with an uncaught ``RecursionError``, Python's analogue of Java's ``StackOverflowError``.
+crashed with an uncaught ``RecursionError``.
 
-This runtime keeps native recursion at each call site (mirrors ``rendering.ValueRenderer``'s
-identical, already-reviewed ``_RenderWalk`` pattern for arbitrary value graphs) rather than
-rewriting every walker as an explicit-stack iterator, so ``MAX_DEPTH`` is picked far below Python's
-own recursion ceiling instead of matching Java's 10,000 literally. Measured empirically: the most
-stack-frame-hungry walker in this runtime (``MarkdownRenderer``'s mutual
+This runtime keeps native recursion at each call site (the same
+as ``rendering.ValueRenderer``'s already-reviewed ``_RenderWalk`` pattern for arbitrary value
+graphs) rather than rewriting every walker as an explicit-stack iterator, so ``MAX_DEPTH`` is
+picked far below Python's own recursion ceiling instead of a much larger literal. Measured
+empirically: the most stack-frame-hungry walker in this runtime (``MarkdownRenderer``'s mutual
 recursion) overflows Python's default 1,000-frame recursion limit at a 332-node chain;
 ``MAX_DEPTH`` leaves more than 3x headroom there, and far more for every cheaper (fewer-frames-
 per-level) walker -- confirmed safe even under an artificially reduced ``recursionlimit`` of 400,

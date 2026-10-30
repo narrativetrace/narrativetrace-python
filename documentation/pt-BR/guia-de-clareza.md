@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/clarity.md blob 27a21b6573d8 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/guides/clarity.md blob 89e10ac779d8 | translated: 2026-10-30 | reviewed: - -->
 
 # Clareza
 
@@ -23,6 +23,8 @@ sufixos de papel.
 
 Os problemas são classificados por faixa de pontuação (HIGH ≤ 0.20, MEDIUM ≤ 0.50), deduplicados por
 `category|element` com ocorrências somadas, e ordenados por impacto.
+
+O dicionário de colocações é apenas um sinal positivo: um verbo listado para um substantivo confirma que o nome se lê bem, mas um verbo que não está listado nunca é tratado como evidência contra o nome — a sugestão de renomeação só dispara para um verbo genérico ou genuinamente pouco claro, nunca simplesmente porque o verbo real está ausente da amostra.
 
 ## Seu próprio vocabulário, a partir do glossário que você já tem
 

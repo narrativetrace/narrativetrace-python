@@ -53,17 +53,22 @@ def _is_base64url(segment: str) -> bool:
 
 
 def is_pan_like(value: str) -> bool:
-    """13-19 digits, ``[ -]`` separators allowed, Luhn-valid. A structural checksum rather than a
+    """13-19 ASCII digits (``0``-``9``; a value in another script is not a candidate), ``[ -]``
+    separators allowed, Luhn-valid. A structural checksum rather than a
     length guess -- the one accepted false positive is a card-length identifier that happens to
     satisfy Luhn (~1 in 10), inherent to detecting PANs at all."""
-    if not value or not (value[0].isdigit() and value[-1].isdigit()):
+    if not value or not (_is_ascii_digit(value[0]) and _is_ascii_digit(value[-1])):
         return False
-    if not all(char.isdigit() or char in _PAN_SEPARATORS for char in value):
+    if not all(_is_ascii_digit(char) or char in _PAN_SEPARATORS for char in value):
         return False
-    digits = [char for char in value if char.isdigit()]
+    digits = [char for char in value if _is_ascii_digit(char)]
     if not (_PAN_MIN_DIGITS <= len(digits) <= _PAN_MAX_DIGITS):
         return False
     return _luhn_valid(digits)
+
+
+def _is_ascii_digit(char: str) -> bool:
+    return "0" <= char <= "9"
 
 
 def _luhn_valid(digits: list[str]) -> bool:

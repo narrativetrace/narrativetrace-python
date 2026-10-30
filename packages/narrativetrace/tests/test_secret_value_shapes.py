@@ -101,3 +101,55 @@ class TestIsSecretShaped:
     @pytest.mark.parametrize("value", ["", "hello world", "ORD-2026-000123", "name=Ada; age=36"])
     def test_ordinary_values_are_not_secret_shaped(self, value: str) -> None:
         assert not is_secret_shaped(value)
+
+
+# `str.isdigit()` is true for 128 code points `int()` refuses: Numeric_Type=Digit but not
+# Decimal -- superscripts, subscripts, circled digits, Ethiopic digits. A run of them is a
+# "digit run" to the PAN matcher's three `isdigit()` gates and an `int()` the Luhn step cannot do.
+_NON_DECIMAL_DIGITS = ["²", "₇", "①", "፫"]
+
+
+class TestNonDecimalDigitRuns:
+    """ADV-2026-10-29-1 -- a shape matcher answers for every string: no input makes it raise
+    into its caller, and a value that is not a card number stays visible."""
+
+    @pytest.mark.parametrize("digit", _NON_DECIMAL_DIGITS)
+    def test_adv_2026_10_29_1_a_run_of_unicode_digits_is_not_a_pan(self, digit: str) -> None:
+        assert not is_pan_like(digit * 16)
+
+    @pytest.mark.parametrize("digit", _NON_DECIMAL_DIGITS)
+    def test_adv_2026_10_29_1_a_run_of_unicode_digits_is_not_secret_shaped(
+        self, digit: str
+    ) -> None:
+        assert not is_secret_shaped(digit * 16)
+
+    def test_adv_2026_10_29_1_unicode_digits_around_the_allowed_separators_are_not_a_pan(
+        self,
+    ) -> None:
+        assert not is_pan_like("²²²² ²²²²-²" * 2)
+
+
+_FULLWIDTH_ZERO = 0xFF10
+_ARABIC_INDIC_ZERO = 0x0660
+
+
+def _in_digit_script(value: str, zero: int) -> str:
+    """``value`` with every ASCII digit swapped for the same digit in another decimal script."""
+    return "".join(chr(zero + int(char)) if char.isdigit() else char for char in value)
+
+
+class TestPanInAnotherDecimalScript:
+    """The contract: a card number is a run of ASCII digits (``0``-``9``). A value written in
+    another decimal script is visible and not a candidate -- the matcher neither redacts it nor
+    raises on it."""
+
+    @pytest.mark.parametrize("zero", [_ARABIC_INDIC_ZERO, _FULLWIDTH_ZERO])
+    def test_a_luhn_valid_number_in_another_decimal_script_is_not_a_pan(self, zero: int) -> None:
+        assert not is_pan_like(_in_digit_script(_VISA_TEST_PAN, zero))
+
+    @pytest.mark.parametrize("zero", [_ARABIC_INDIC_ZERO, _FULLWIDTH_ZERO])
+    def test_ascii_separators_do_not_make_another_scripts_digits_a_pan(self, zero: int) -> None:
+        assert not is_pan_like(_in_digit_script("4111 1111 1111 1111", zero))
+
+    def test_one_foreign_digit_among_ascii_digits_is_not_a_pan(self) -> None:
+        assert not is_pan_like("411111111111111" + chr(_ARABIC_INDIC_ZERO + 1))

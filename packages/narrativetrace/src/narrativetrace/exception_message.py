@@ -33,10 +33,10 @@ def of(exception: BaseException | None) -> str | None:
         return None
     try:
         raw = str(exception)
+        if RedactionPolicy.DEFAULT.should_redact_value(raw):
+            return REDACTED_MARKER
     except Exception:
         return UNREADABLE
-    if RedactionPolicy.DEFAULT.should_redact_value(raw):
-        return REDACTED_MARKER
     return control_sanitize(raw)
 
 

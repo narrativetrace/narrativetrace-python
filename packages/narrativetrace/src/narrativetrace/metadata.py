@@ -5,7 +5,7 @@
 """Request/user metadata wrappers and service identity stamped onto spans.
 
 The typed value records ``HttpRoute``, ``ClientIp``, ``EnduserId``, ``SessionId``,
-``TenantId`` and ``ServiceIdentity`` from the Java ``event`` package. The wrappers are thin
+``TenantId`` and ``ServiceIdentity`` from the event model. The wrappers are thin
 non-null value types that stay transparent in string contexts (JSON export, logging, OTel) and
 serve as extension points for privacy behavior available in a paid tier.
 """

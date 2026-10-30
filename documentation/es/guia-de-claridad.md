@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/clarity.md blob 27a21b6573d8 | translated: 2026-09-07 | reviewed: - -->
+<!-- source: documentation/guides/clarity.md blob 89e10ac779d8 | translated: 2026-10-30 | reviewed: - -->
 
 # Claridad
 
@@ -23,6 +23,8 @@ abreviaturas, 35 mapas de colocaciones y sufijos de rol.
 
 Las incidencias se clasifican por banda de puntuación (HIGH ≤ 0.20, MEDIUM ≤ 0.50), se deduplican
 por `category|element` sumando las ocurrencias, y se ordenan por impacto.
+
+El diccionario de colocaciones es solo una señal positiva: un verbo que aparece listado para un sustantivo confirma que el nombre se lee bien, pero un verbo que no aparece listado nunca se trata como evidencia en contra del nombre — la sugerencia de renombrado solo se activa para un verbo genérico o genuinamente confuso, nunca simplemente porque el verbo real esté ausente de la muestra.
 
 ## Tu propio vocabulario, a partir del glosario que ya tienes
 

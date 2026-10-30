@@ -28,7 +28,7 @@ times tolerable drain stall.
 
 Audited against it here: :class:`~narrativetrace.pipeline.bounded_buffer.BoundedEventBuffer` wraps
 a :class:`collections.deque`, which happens to grow its backing linked blocks incrementally as items
-are appended rather than pre-allocating ``capacity`` slots up front (unlike Java's array-backed ring
+are appended rather than pre-allocating ``capacity`` slots up front (unlike an array-backed ring
 buffer). That incremental allocation is exactly the kind of detail the contract puts out of scope —
 it is never exposed as a knob, and no constructor parameter names it.
 

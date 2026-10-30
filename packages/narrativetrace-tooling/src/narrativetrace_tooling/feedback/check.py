@@ -5,7 +5,7 @@
 """The hard gate: every :class:`~narrativetrace_tooling.feedback.rules.ValueFreeRule` over every
 field of a report, before anything exists that a person could file.
 
-Ports Java ``ValueFreeCheck``. INTENT: with no private inbox, a filed report is public from the
+INTENT: with no private inbox, a filed report is public from the
 first second — so the check runs BEFORE the draft, the URL and the body file exist, and the verb
 refuses to produce any of them while a violation stands. A gate that ran afterwards would be a
 warning, and a warning on this path is a leak with a note attached.
@@ -37,8 +37,8 @@ DOCTOR_REPORT_FIELD: Final = "doctor report"
 The doctor's check vocabulary NAMES the redaction marker: ``trap.redaction-proof`` is the check "a
 test asserts the literal ``[REDACTED]``", and its message, its fix AND its pass message all quote
 that literal. So one rule, read against this one field, refused every report from every project
-that has NarrativeTrace installed at all, and the verb could draft nothing. Found in Java's
-milestone 2 by running the real verb against a real project, after 654 green tests missed it — the
+that has NarrativeTrace installed at all, and the verb could draft nothing. Found by running the
+real verb against a real project, after 654 green tests missed it — the
 hand-written doctor report every test started from paraphrased the finding, and a paraphrase has no
 marker in it.
 

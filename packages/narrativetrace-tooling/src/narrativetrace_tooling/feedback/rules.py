@@ -5,7 +5,7 @@
 """The hard gate between a problem report and a leaked secret: one named rule per shape of runtime
 value that must never reach a public issue.
 
-Ports Java ``ValueFreeRule``. INTENT: a report drafted by an agent is PUBLIC from the first second —
+INTENT: a report drafted by an agent is PUBLIC from the first second —
 there is no private inbox to triage it first — so the only thing standing between a pasted trace and
 somebody's credential is a check the verb runs before it will build a URL or a body file. Each rule
 carries a stable ``vf.*`` id because a refusal has to name what to fix, not just say no.

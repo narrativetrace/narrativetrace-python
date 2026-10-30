@@ -184,12 +184,13 @@ def scan_source(source: str, module_path: str, glossary: Glossary) -> tuple[Harv
         Harvested candidates in file order; unsorted and unaggregated (:func:`scan_paths`
         aggregates and totally orders the whole run).
 
-    A syntactically invalid file yields no candidates rather than raising — a build-time scan must
+    A syntactically invalid file (or one ``ast.parse`` rejects with ``ValueError``, such as a null
+    byte on an older interpreter) yields no candidates rather than raising — a build-time scan must
     survive one unparseable file, matching :func:`narrativetrace_clarity.scanner.scan_paths`.
     """
     try:
         module = ast.parse(source)
-    except SyntaxError:
+    except (SyntaxError, ValueError):
         return ()
     context = resolve_context(glossary, module_path)
     bound = _bound_names(module)
@@ -235,6 +236,9 @@ def scan_paths(
     or is named ``test_*.py``/``*_test.py`` — the same convention
     :func:`narrativetrace_clarity.scanner.scan_paths` and this repository's own test layout use.
 
+    A file that cannot be read or decoded as UTF-8 is skipped, like a syntactically invalid one:
+    one bad file never aborts the scan of the rest.
+
     Returns:
         Aggregated candidates ordered by ``(context, phrase, kind, site, identifier)`` — the same
         total order :func:`~narrativetrace_glossary.harvester.harvest_traces` produces, so a
@@ -246,7 +250,7 @@ def scan_paths(
         for file in _iter_py_files(root_path):
             try:
                 source = file.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             raw.extend(scan_source(source, _module_path(file, root_path), glossary))
     return _aggregate(raw)

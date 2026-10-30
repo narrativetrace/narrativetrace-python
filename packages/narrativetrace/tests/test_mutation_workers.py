@@ -14,13 +14,18 @@ count on a quota'd host.
 
 from __future__ import annotations
 
+import resource
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from scripts import mutation_workers
 from scripts.mutation_workers import (
+    MEMORY_ENV_VAR,
+    MEMORY_FLOOR_BYTES,
     WORKERS_ENV_VAR,
+    memory_limit_bytes,
     mutmut_command,
     resolve_worker_count,
     worker_count,
@@ -89,6 +94,123 @@ class TestTheCommandTheTasksRun:
         ]
 
 
+def _platform_enforces_data_limit() -> str | None:
+    """``None`` when this platform lets a process LOWER its ``RLIMIT_DATA``, else the refusal.
+
+    A real probe, not a platform name, and the real operation: macOS accepts re-setting the
+    current (unlimited) value but refuses every lowering with ``EINVAL``, so only an attempt to
+    lower tells the truth. It runs in a child so the test process keeps its own limits.
+    """
+    code = (
+        "import resource\n"
+        "resource.setrlimit(resource.RLIMIT_DATA, (200 * 1024 * 1024, 200 * 1024 * 1024))\n"
+    )
+    done = subprocess.run(  # nosec B603 - this interpreter, a fixed snippet, no shell
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if done.returncode == 0:
+        return None
+    stderr = done.stderr.strip()
+    return stderr.splitlines()[-1] if stderr else f"exit {done.returncode}"
+
+
+class TestPerProcessMemoryLimit:
+    """B-218 (2026-10-28 nightly): a runaway mutant (`i += 1` -> `i = 1` in `line_diff._render`)
+    grew until the container's cgroup OOM killer ended the run, taking a bystander (the mutmut
+    parent) with it. Every mutmut process gets a limit below its share of `memory.max`, so the
+    runaway dies of `MemoryError` alone."""
+
+    def test_the_limit_is_the_cgroup_cap_shared_by_the_workers_and_the_parent(self) -> None:
+        assert memory_limit_bytes({}, "8589934592\n", workers=3) == 8589934592 // 4
+
+    def test_a_share_below_the_floor_is_raised_to_the_floor(self) -> None:
+        assert memory_limit_bytes({}, "1572864000\n", workers=4) == MEMORY_FLOOR_BYTES
+
+    @pytest.mark.parametrize("cgroup_memory_max", ["max\n", None, "garbage\n", "0\n", "-5\n", ""])
+    def test_no_usable_cgroup_cap_means_no_limit(self, cgroup_memory_max: str | None) -> None:
+        assert memory_limit_bytes({}, cgroup_memory_max, workers=4) is None
+
+    def test_the_override_in_megabytes_wins_over_the_cgroup_cap(self) -> None:
+        env = {MEMORY_ENV_VAR: "700"}
+        assert memory_limit_bytes(env, "1572864000\n", workers=4) == 700 * 1024 * 1024
+
+    def test_the_override_applies_even_without_a_cgroup_cap(self) -> None:
+        assert memory_limit_bytes({MEMORY_ENV_VAR: "700"}, None, workers=4) == 700 * 1024 * 1024
+
+    def test_a_blank_override_falls_through_to_the_cgroup_cap(self) -> None:
+        assert memory_limit_bytes({MEMORY_ENV_VAR: " "}, "8589934592\n", workers=3) == 2147483648
+
+    @pytest.mark.parametrize("raw", ["lots", "0", "-1", "1.5"])
+    def test_a_malformed_override_is_an_error_never_a_silent_fallback(self, raw: str) -> None:
+        with pytest.raises(ValueError, match=r"\ANT_MUTATION_MEMORY_MB must be a positive integer"):
+            memory_limit_bytes({MEMORY_ENV_VAR: raw}, "1572864000\n", workers=4)
+
+    @pytest.mark.parametrize("refusal", [ValueError, OSError])
+    def test_a_platform_that_refuses_the_limit_gets_one_diagnostic_never_a_crash(
+        self,
+        refusal: type[Exception],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def refuse(which: int, limits: tuple[int, int]) -> None:
+            raise refusal("current limit exceeds maximum limit")
+
+        monkeypatch.setattr(resource, "setrlimit", refuse)
+        mutation_workers.apply_memory_limit(200 * 1024 * 1024)
+        assert capsys.readouterr().out == (
+            "mutation-workers: memory limit 200 MiB not enforceable on this platform "
+            "(current limit exceeds maximum limit), running unbounded\n"
+        )
+
+    def test_the_limit_really_stops_a_runaway_allocation_with_memory_error(self) -> None:
+        """The setter is proven against a real process: past the limit the allocation raises
+        `MemoryError` inside that process instead of growing until something else kills it."""
+        reason = _platform_enforces_data_limit()
+        if reason is not None:
+            pytest.skip(f"this platform refuses RLIMIT_DATA: {reason}")
+        root = Path(mutation_workers.__file__).resolve().parent.parent
+        code = (
+            "from scripts.mutation_workers import apply_memory_limit\n"
+            "apply_memory_limit(200 * 1024 * 1024)\n"
+            "try:\n"
+            "    bytearray(3 * 1024 * 1024 * 1024)\n"
+            "except MemoryError:\n"
+            "    print('bounded')\n"
+        )
+        done = subprocess.run(  # nosec B603 - this interpreter, a fixed snippet, no shell
+            [sys.executable, "-c", code],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert (done.returncode, done.stdout.strip()) == (0, "bounded")
+
+    def test_no_limit_leaves_the_process_unbounded(self) -> None:
+        root = Path(mutation_workers.__file__).resolve().parent.parent
+        code = (
+            "import resource\n"
+            "from scripts.mutation_workers import apply_memory_limit\n"
+            "before = resource.getrlimit(resource.RLIMIT_DATA)\n"
+            "apply_memory_limit(None)\n"
+            "print(before == resource.getrlimit(resource.RLIMIT_DATA))\n"
+        )
+        done = subprocess.run(  # nosec B603 - this interpreter, a fixed snippet, no shell
+            [sys.executable, "-c", code],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        assert done.stdout.strip() == "True"
+
+
 class TestResolvingAgainstTheRealFilesystem:
     """`worker_count` is pure; these cover the two reads that feed it, so a container's quota
     file is proven to be read rather than merely parsed (release rule 2)."""
@@ -110,6 +232,20 @@ class TestResolvingAgainstTheRealFilesystem:
         monkeypatch.setattr(mutation_workers, "CGROUP_CPU_MAX", tmp_path / "absent")
         monkeypatch.delenv(WORKERS_ENV_VAR, raising=False)
         assert resolve_worker_count() >= 1
+
+    def test_the_cgroup_memory_file_is_read_when_it_exists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        memory_max = tmp_path / "memory.max"
+        memory_max.write_text("1572864000\n", encoding="utf-8")
+        monkeypatch.setattr(mutation_workers, "CGROUP_MEMORY_MAX", memory_max)
+        assert mutation_workers.resolve_memory_limit({}, workers=4) == MEMORY_FLOOR_BYTES
+
+    def test_an_absent_cgroup_memory_file_means_no_limit(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mutation_workers, "CGROUP_MEMORY_MAX", tmp_path / "absent")
+        assert mutation_workers.resolve_memory_limit({}, workers=4) is None
 
 
 class TestTheLauncher:
@@ -133,3 +269,53 @@ class TestTheLauncher:
             f"mutation-workers: running mutmut with --max-children 3 (from {WORKERS_ENV_VAR})"
             in capsys.readouterr().out
         )
+
+    def test_main_applies_the_memory_limit_before_launching_mutmut(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The limit is set in the launcher so every process mutmut forks inherits it; applied
+        after the launch it would bound nothing."""
+        events: list[object] = []
+        memory_max = tmp_path / "memory.max"
+        memory_max.write_text("1572864000\n", encoding="utf-8")
+        monkeypatch.setattr(mutation_workers, "CGROUP_MEMORY_MAX", memory_max)
+
+        def _launch(argv: list[str]) -> int:
+            events.append("launch")
+            return 0
+
+        monkeypatch.setattr(mutation_workers, "run_guarded", _launch)
+        monkeypatch.setenv(WORKERS_ENV_VAR, "4")
+        monkeypatch.delenv(MEMORY_ENV_VAR, raising=False)
+
+        def _record_limit(limit: int | None) -> None:
+            events.append(limit)
+
+        assert mutation_workers.main([], limit_setter=_record_limit) == 0
+        assert events == [MEMORY_FLOOR_BYTES, "launch"]
+
+    def test_main_passes_no_limit_when_the_container_has_no_cap(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        events: list[object] = []
+        monkeypatch.setattr(mutation_workers, "CGROUP_MEMORY_MAX", tmp_path / "absent")
+        monkeypatch.setattr(mutation_workers, "run_guarded", lambda argv: 0)
+        monkeypatch.setenv(WORKERS_ENV_VAR, "4")
+        monkeypatch.delenv(MEMORY_ENV_VAR, raising=False)
+
+        def _record_limit(limit: int | None) -> None:
+            events.append(limit)
+
+        mutation_workers.main([], limit_setter=_record_limit)
+        assert events == [None]
+
+    def test_main_rejects_a_malformed_memory_override_before_launching(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        launched: list[object] = []
+        monkeypatch.setattr(mutation_workers, "run_guarded", launched.append)
+        monkeypatch.setenv(WORKERS_ENV_VAR, "4")
+        monkeypatch.setenv(MEMORY_ENV_VAR, "lots")
+        with pytest.raises(ValueError, match=r"\ANT_MUTATION_MEMORY_MB"):
+            mutation_workers.main([], limit_setter=lambda limit: None)
+        assert launched == []

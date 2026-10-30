@@ -9,7 +9,7 @@
 Both halves of a path are sanitized here, and neither is trusted to arrive safe: ``TraceArtifact``
 callers are not all deriving names from ``Class.getName()``/a test-method name -- a scenario name
 or an HTTP route reaches these functions in real integrations, so a name is data, not an
-identifier. Mirrors Java's ``OutputDirectoryResolver``.
+identifier.
 """
 
 from __future__ import annotations
@@ -110,23 +110,23 @@ _UINT32_MASK = 0xFFFFFFFF
 
 
 def _java_string_hash(text: str) -> int:
-    """Java's specified ``String.hashCode()``: ``h = 31*h + c`` over UTF-16 *code units*, as an
-    unsigned 32-bit value (Java's signed overflow and this mask produce the same bit pattern, and
+    """The family-wide ``String.hashCode()`` formula: ``h = 31*h + c`` over UTF-16 *code units*, as
+    an unsigned 32-bit value (signed overflow and this mask produce the same bit pattern, and
     that bit pattern -- not its signed value -- is what gets formatted as hex below).
 
     Not Python's built-in ``hash()``: string hashing is salted per-process by default
     (``PYTHONHASHSEED``), and this disambiguator must be stable across runs so the same name
-    always resolves to the same artifact. Java's formula has no such randomization and is
+    always resolves to the same artifact. The formula has no such randomization and is
     specified to give the same result forever, which is why the family standardized on
     reimplementing it here rather than each runtime inventing its own stable hash -- one hashing
     scheme, not one per port (dotnet reimplements the same formula for the same reason: ``.NET``
     also randomizes ``string.GetHashCode()`` per process).
 
     A Python ``str`` iterates by Unicode code point, not UTF-16 code unit, so a supplementary
-    character (a code point at or above U+10000, one Java ``char`` cannot hold) is expanded to
-    the surrogate pair Java's own UTF-16-backed ``String`` would already store it as. A code
+    character (a code point at or above U+10000, one UTF-16 code unit cannot hold) is expanded to
+    the surrogate pair a UTF-16 string would store it as. A code
     point already at or below U+FFFF -- including a lone surrogate, which Python permits as a
-    scalar value and Java permits as an unpaired ``char`` -- is one code unit in both, so it is
+    scalar value and UTF-16 permits as an unpaired code unit -- is one code unit in both, so it is
     hashed directly with no pairing.
     """
     digest = 0
@@ -218,8 +218,8 @@ def file_slug(name: str, invocation_index: int = 0, invocation_label: str = "") 
 def extension_for_format(fmt: str) -> str:
     """Maps a format name to its extension, case-insensitively (``markdown``/unknown → ``.md``).
 
-    Case folding matches Java ``TraceTestSupport.extensionForFormat``, which switches on
-    ``format.toLowerCase()`` — so an env value of ``PlantUML`` resolves like ``plantuml``.
+    Case folding is the same in every runtime (the format name is lower-cased) — so an env value of
+    ``PlantUML`` resolves like ``plantuml``.
     """
     return _EXTENSIONS.get(fmt.lower(), ".md")
 

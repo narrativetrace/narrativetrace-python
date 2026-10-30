@@ -5,8 +5,8 @@
 """``config.<framework>-*`` — one framework-table row, observed from manifests and source: the
 framework is present but its integration distribution is not declared, or the distribution is
 declared but its wiring is never applied. A row whose framework has no integration shipped is
-REPORTED (a pass, nothing to fix) so an agent leaves it alone instead of guessing. Mirrors Java's
-``FrameworkWiringCheck``; one generic check built per row, never a class per framework.
+REPORTED (a pass, nothing to fix) so an agent leaves it alone instead of guessing.
+One generic check is built per row, never a class per framework.
 
 INTENT: the ``add-narrative-tracing`` skill lists no framework; its framework step runs the doctor
 and applies every ``config.<framework>-*`` fix in order. So every failing fix here is complete on

@@ -56,9 +56,19 @@ _C_RUNTIME_CALLABLES: tuple[type, ...] = (
 _FUNCTOOLS_FORWARDERS: tuple[type, ...] = (functools.partial, functools.partialmethod)
 
 
+def module_name_of(cls: type) -> str | None:
+    """The module that defines ``cls``; ``None`` when it has none, is not a ``str``, or the lookup
+    raises (a hostile metaclass). Wrapping a target never throws into the host."""
+    try:
+        module = getattr(cls, "__module__", None)
+    except Exception:
+        return None
+    return module if isinstance(module, str) else None
+
+
 def is_generated_target(target: object) -> bool:
     """True when ``target`` itself is never a business boundary (see the module docstring)."""
-    return type(target).__module__ == "builtins" or isinstance(target, _FUNCTOOLS_FORWARDERS)
+    return module_name_of(type(target)) == "builtins" or isinstance(target, _FUNCTOOLS_FORWARDERS)
 
 
 def is_generated_member(name: str, member: object) -> bool:

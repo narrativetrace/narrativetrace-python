@@ -5,7 +5,7 @@
 """Where a Python problem report is filed, the one form it is filed through, and the labels triage
 sorts on.
 
-Ports Java ``PublicRepository``. INTENT: one place, so the issue-form URL and the ``gh`` line
+INTENT: one place, so the issue-form URL and the ``gh`` line
 cannot name different repositories or different templates. Every runtime in the family has its own
 repository and the SAME form file name — the form is a cross-runtime artifact, the repository is
 not.

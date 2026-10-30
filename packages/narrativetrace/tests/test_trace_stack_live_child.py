@@ -12,10 +12,12 @@ directly through the same test seam Java uses — a lowered ceiling.
 from __future__ import annotations
 
 import gc
+import threading
 
 import pytest
 
-from narrativetrace.context import _TraceStack
+from narrativetrace import context
+from narrativetrace.context import MAX_LIVE_CHILD_DEPTH, _TraceStack
 from narrativetrace.ids import SpanId
 
 
@@ -226,3 +228,58 @@ class TestRegistrationCeiling:
         origin.unregister_live_child(None)
 
         assert len(origin.live_child_span_ids()) == 1
+
+
+class TestRegistrationDepthCeiling:
+    """B-198: a registered chain is never longer than MAX_LIVE_CHILD_DEPTH."""
+
+    @staticmethod
+    def _chain(links: int) -> list[_TraceStack]:
+        stacks = [_stack(10)]
+        for _ in range(links):
+            child = _stack(10)
+            child.push_active(SpanId.generate())
+            stacks[-1].register_live_child(child)
+            stacks.append(child)
+        return stacks
+
+    def test_a_chain_at_the_cap_is_visible_whole(self) -> None:
+        stacks = self._chain(MAX_LIVE_CHILD_DEPTH)
+
+        assert len(stacks[0].live_child_span_ids()) == MAX_LIVE_CHILD_DEPTH
+        assert stacks[-1].live_depth == MAX_LIVE_CHILD_DEPTH
+
+    def test_the_link_past_the_cap_is_refused_without_a_throw_or_a_count(self) -> None:
+        stacks = self._chain(MAX_LIVE_CHILD_DEPTH)
+        past = _stack(10)
+
+        assert stacks[-1].register_live_child(past) is None
+
+        assert len(stacks[0].live_child_span_ids()) == MAX_LIVE_CHILD_DEPTH
+        assert stacks[-1].refused_scopes == 0
+        assert stacks[-1].refused_spans == 0
+
+    def test_everything_below_a_refused_link_is_refused_too(self) -> None:
+        stacks = self._chain(MAX_LIVE_CHILD_DEPTH)
+        past = _stack(10)
+        stacks[-1].register_live_child(past)
+
+        assert past.register_live_child(_stack(10)) is None
+
+    def test_the_link_just_under_the_cap_still_registers(self) -> None:
+        stacks = self._chain(MAX_LIVE_CHILD_DEPTH - 1)
+
+        assert stacks[-1].register_live_child(_stack(10)) is not None
+
+    def test_the_first_refusal_writes_one_diagnostic_line(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(context, "_depth_cap_reported", threading.Event())
+        stacks = self._chain(MAX_LIVE_CHILD_DEPTH)
+
+        stacks[-1].register_live_child(_stack(10))
+        stacks[-1].register_live_child(_stack(10))
+
+        err = capsys.readouterr().err
+        assert err.count("narrative-trace:") == 1
+        assert "live-child depth cap" in err

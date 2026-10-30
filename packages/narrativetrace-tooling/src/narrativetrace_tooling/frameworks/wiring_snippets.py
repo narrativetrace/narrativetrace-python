@@ -10,7 +10,7 @@ typed — they are a fixture's the suite runs. The resource holds one ``## <row 
 each wrapping a fenced block in the same ``<!-- snippet: path region=… -->`` markers the
 documentation uses, so ``poe snippet-sync`` writes the fixture's current text into it and ``poe
 snippet-check`` fails the build when the two drift. The wheel then carries the text to wherever the
-doctor runs, with no repository in sight. Mirrors Java's ``WiringSnippets``.
+doctor runs, with no repository in sight.
 """
 
 from __future__ import annotations

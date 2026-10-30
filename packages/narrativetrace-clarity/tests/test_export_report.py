@@ -74,3 +74,36 @@ class TestReport:
 
 def _issue() -> ClarityIssue:
     return ClarityIssue("method-name", "A.do", "use a verb", Severity.HIGH, 1, 3.0)
+
+
+class TestReportCellsStayInTheirTable:
+    """B-226: a scenario name or issue field with a pipe or a line break must not forge a cell or
+    a row of the suite report's tables."""
+
+    def test_a_pipe_and_a_newline_in_a_scenario_name_stay_in_one_row(self) -> None:
+        report = render_suite_report([("a | b\n| forged | 9.99 |", _result(0.95))])
+        rows = [line for line in report.splitlines() if line.startswith("| a")]
+        assert rows == [r"| a \| b \| forged \| 9.99 \| | 0.95 |"]
+
+    def test_a_pipe_and_a_newline_in_an_issue_element_stay_in_one_row(self) -> None:
+        issue = ClarityIssue("cat", "x|y\nz", "do it", Severity.HIGH, 1, 3.0)
+        report = render("S", _result(0.4, [issue]))
+        assert [line for line in report.splitlines() if line.startswith("| HIGH")] == [
+            "| HIGH | cat | `x\\|y z` | do it |"
+        ]
+
+    def test_a_pipe_and_a_newline_in_a_suggestion_and_category_stay_in_one_row(self) -> None:
+        issue = ClarityIssue("c|at\negory", "e", "su|gg\r\nest", Severity.LOW, 2, 1.0)
+        report = render("S", _result(0.4, [issue]))
+        assert [line for line in report.splitlines() if line.startswith("| LOW")] == [
+            "| LOW | c\\|at egory | `e` (x2) | su\\|gg est |"
+        ]
+
+    def test_a_newline_in_a_scenario_name_stays_in_the_single_report_and_detail_headings(
+        self,
+    ) -> None:
+        issue = ClarityIssue("c", "e", "s", Severity.LOW, 1, 1.0)
+        single = render("one\n## forged", _result(0.4, [issue]))
+        suite = render_suite_report([("one\n## forged", _result(0.4, [issue]))])
+        assert single.splitlines()[0] == "# Clarity Report: one ## forged"
+        assert "### one ## forged" in suite.splitlines()

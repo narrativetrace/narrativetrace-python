@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from narrativetrace import exception_message
-from narrativetrace.redaction import REDACTED_MARKER
+from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
 
 # Public test PAN, not a real credential; the shape policy recognises these bytes.
 _PAN = "4111111111111111"
@@ -36,6 +38,17 @@ class TestOf:
         assert exception_message.of(_Unreadable()) == "<error>"
 
 
+class TestShapeScanFailure:
+    def test_a_value_shape_scan_that_raises_degrades_to_the_error_literal(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def broken(self: RedactionPolicy, value: str) -> bool:
+            raise ValueError("shape bug")
+
+        monkeypatch.setattr(RedactionPolicy, "should_redact_value", broken)
+        assert exception_message.of(ValueError("boom")) == "<error>"
+
+
 class TestText:
     def test_text_is_the_message(self) -> None:
         assert exception_message.text(ValueError("boom")) == "boom"
@@ -45,3 +58,25 @@ class TestText:
 
     def test_text_redacts_too(self) -> None:
         assert exception_message.text(ValueError(_PAN)) == REDACTED_MARKER
+
+
+# Public test vectors, not real credentials; the shape policy recognises each of these bytes.
+_CPF = "52998224725"
+_SET_COOKIE = "sid=abc123; Path=/; HttpOnly"
+_JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl"
+
+
+class TestEveryValueShapeOnTheMessageChannel:
+    """The value-shape axis is the only axis that applies here, so each of its four arms must
+    answer on this channel -- not just the card number the B-174 tests above pin."""
+
+    @pytest.mark.parametrize("message", [_JWT, _CPF, _SET_COOKIE])
+    def test_a_credential_shaped_message_is_replaced_whole_by_the_marker(
+        self, message: str
+    ) -> None:
+        assert exception_message.of(ValueError(message)) == REDACTED_MARKER
+
+    def test_an_order_number_that_fails_luhn_still_reaches_the_reader(self) -> None:
+        assert exception_message.of(ValueError("order 4111111111111112 not found")) == (
+            "order 4111111111111112 not found"
+        )

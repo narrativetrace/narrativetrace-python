@@ -9,9 +9,8 @@ INTENT: the same envelope shape this runtime's doctor already emits — ``{findi
 there, ``{carrier, actions[], exit_code}`` here, snake_case, two-space indent — so a skill that
 gates on one can gate on the other without learning a second format.
 
-**@llmNote** The JSON goes through :func:`json.dumps`, exactly as the doctor's renderer does. The
-Java port hand-writes it because the JDK ships no JSON writer; doing that here would be a second
-escaping implementation to get wrong.
+**@llmNote** The JSON goes through :func:`json.dumps`, exactly as the doctor's renderer does.
+Hand-writing the JSON would be a second escaping implementation to get wrong.
 
 **@llmNote** Paths are emitted with ``/`` on every platform, so a report is the same text wherever
 it ran.

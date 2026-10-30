@@ -6,20 +6,21 @@
 
 ``Slf4jTraceEventListener``. :class:`LoggingTraceConsumer` is an event consumer
 (attach it as a :class:`~narrativetrace.pipeline.dual_path.DualPathPipeline` sync listener) that
-logs enter/return at DEBUG (Java TRACE has no stdlib analog — plan decision point 3), exceptions
+logs enter/return at DEBUG (the stdlib has no TRACE level), exceptions
 at WARNING as ``!! {type}: {message} [{error_context}]`` (control-sanitised), and fork/join/
 fire-and-forget lifecycle lines.
 
 :class:`NarrativeContextFilter` is the MDC analog: a logging ``Filter`` that stamps the canonical
-keys of the current (innermost) traced span onto *every* record. Keys adopt Java's vocabulary:
-``nt.class``/``nt.method``/``nt.depth`` and ``traceId``/``traceName``/``spanId``/``parentSpanId``/
+keys of the current (innermost) traced span onto *every* record. Keys use the vocabulary shared by
+every runtime: ``nt.class``/``nt.method``/``nt.depth`` and
+``traceId``/``traceName``/``spanId``/``parentSpanId``/
 ``service.name``/``service.version``/``service.environment``. :func:`set_run_name` (the pytest
-plugin's session hook calls it, mirroring Java's ``RunListener`` SPI attaching to MDC) adds
-``runName`` -- the enclosing test-suite run's own three-word phrase, not a per-trace key at all
-(2026-09-13 ruling, item 2) -- to every one of them for the run's whole duration, so one grep finds
-one run's log lines the way ``traceId``/``traceName`` already let one grep find one trace's.
-``traceName``/``runName`` are always present once :class:`NarrativeContextFilter` has touched a
-record, defaulting to ``""`` when no trace/run is active -- see :data:`_ALWAYS_PRESENT_KEYS`.
+plugin's session hook calls it) adds ``runName`` -- the enclosing test-suite run's own three-word
+phrase, not a per-trace key at all (2026-09-13 ruling, item 2) -- to every one of them for the
+run's whole duration, so one grep finds one run's log lines the way ``traceId``/``traceName``
+already let one grep find one trace's. ``traceName``/``runName`` are always present once
+:class:`NarrativeContextFilter` has touched a record, defaulting to ``""`` when no trace/run is
+active -- see :data:`_ALWAYS_PRESENT_KEYS`.
 
 **One consumer per event stream, many handlers.** Two :class:`LoggingTraceConsumer` instances
 processing the *same* event stream (e.g. both attached as listeners on one pipeline) used to

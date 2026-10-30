@@ -66,7 +66,7 @@ class HarvestCandidate:
 
 
 _KIND_ORDER = {kind: position for position, kind in enumerate(TermKind)}
-"""Declaration order of :class:`TermKind`, so candidate ordering matches the Java enum ordinal."""
+"""Declaration order of :class:`TermKind`, so candidate ordering follows it."""
 
 _Observations = dict[HarvestCandidate, int]
 """Distinct observations mapped to how often each was seen; the key carries ``occurrences=1``."""

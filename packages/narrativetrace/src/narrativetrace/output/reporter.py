@@ -5,7 +5,7 @@
 """Console summary formatting for the pytest plugin.
 
 ``ConsoleSummaryReporter``. Keeps the plugin free of formatting details while producing
-stable, golden-testable summary strings. Percentages use Java ``Math.round`` (half-up) semantics,
+stable, golden-testable summary strings. Percentages round half-up,
 and an empty clarity list yields the ``0% high | 0% moderate | 0% low`` invariant.
 """
 

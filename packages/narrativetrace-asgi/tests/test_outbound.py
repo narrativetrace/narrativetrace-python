@@ -19,8 +19,14 @@ from narrativetrace_asgi.outbound import (
 from narrativetrace_asgi.traceparent import parse_traceparent
 
 from narrativetrace.context import ContextVarNarrativeContext
+from narrativetrace.events import EnterEvent
 from narrativetrace.ids import SpanId, TraceId
 from narrativetrace.signature import MethodSignature
+
+
+def _in_a_span(context: ContextVarNarrativeContext) -> None:
+    """Opens a span so the request has a calling span to name as the header's parent."""
+    context.enter_method(MethodSignature("PaymentService", "charge", []))
 
 
 def _request() -> httpx.Request:
@@ -33,6 +39,7 @@ class TestTraceparentHeader:
 
     def test_uses_current_context_trace_id(self) -> None:
         context = ContextVarNarrativeContext()
+        _in_a_span(context)
         token = _CURRENT_CONTEXT.set(context)
         try:
             header = traceparent_header()
@@ -66,18 +73,37 @@ class TestTraceparentHeader:
         finally:
             _CURRENT_CONTEXT.reset(token)
 
-    def test_outside_any_span_without_a_remote_parent_still_yields_a_valid_header(self) -> None:
+    def test_outside_any_span_without_a_remote_parent_returns_none(self) -> None:
         context = ContextVarNarrativeContext()
         token = _CURRENT_CONTEXT.set(context)
         try:
-            assert parse_traceparent(traceparent_header()) is not None
+            assert traceparent_header() is None
         finally:
             _CURRENT_CONTEXT.reset(token)
+
+    def test_a_header_that_returns_none_does_not_arm_the_trace_for_the_next_root(self) -> None:
+        context = ContextVarNarrativeContext()
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            context.enter_method(MethodSignature("Svc", "first", []))
+            context.exit_method_with_return('"done"')
+            assert traceparent_header() is None
+            context.enter_method(MethodSignature("Svc", "second", []))
+            context.exit_method_with_return('"done"')
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+        roots = [
+            e
+            for e in context._store.events()
+            if isinstance(e, EnterEvent) and e.span_context.parent_span_id is None
+        ]
+        assert roots[0].span_context.trace_id != roots[1].span_context.trace_id
 
 
 class TestAttach:
     def test_injects_header_when_context_present(self) -> None:
         context = ContextVarNarrativeContext()
+        _in_a_span(context)
         token = _CURRENT_CONTEXT.set(context)
         try:
             request = _request()
@@ -107,6 +133,7 @@ class TestAttach:
 
     def test_async_hook_injects_header(self) -> None:
         context = ContextVarNarrativeContext()
+        _in_a_span(context)
         token = _CURRENT_CONTEXT.set(context)
         try:
             request = _request()
@@ -134,6 +161,7 @@ class TestDocumentedEventHooksRecipe:
 
     def test_sync_client_event_hooks_matches_the_documented_recipe(self) -> None:
         context = ContextVarNarrativeContext()
+        _in_a_span(context)
         token = _CURRENT_CONTEXT.set(context)
         transport, captured = self._mock_transport()
         try:
@@ -158,6 +186,7 @@ class TestDocumentedEventHooksRecipe:
         # `context.trace_id()` lazily generates a fresh id per contextvars scope, so the expected
         # id must be read from *inside* this same task, not from the outer sync scope afterward.
         async def make_request() -> tuple[httpx.Response, TraceId]:
+            _in_a_span(context)
             async with httpx.AsyncClient(
                 event_hooks={"request": [attach_traceparent_async]}, transport=transport
             ) as client:

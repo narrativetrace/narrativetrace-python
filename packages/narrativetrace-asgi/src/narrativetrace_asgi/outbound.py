@@ -31,7 +31,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from narrativetrace.ids import SpanId
 from narrativetrace_asgi.accessor import get_narrative_context
 from narrativetrace_asgi.traceparent import format_traceparent
 
@@ -39,16 +38,22 @@ _HEADER = "traceparent"
 
 
 def traceparent_header() -> str | None:
-    """Builds a ``traceparent`` value for the current request context, or ``None`` outside one.
+    """Builds a ``traceparent`` value for the current request context, or ``None`` without a parent.
 
     The parent-id field names the span making the call (the context's current span), so the
     callee's root links to it. Outside any span it carries the remote parent the request itself
-    adopted, and when there is none either, a fresh id: the header cannot omit the field.
+    adopted. Returns ``None`` outside a request, and inside one when there is neither an open span
+    nor an adopted remote parent: the header cannot omit the field and none is invented. The
+    context's trace id is read only when a header is returned, so a ``None`` leaves the trace
+    untouched and the next root starts its own rather than continuing the previous one (B-217).
     """
     context = get_narrative_context()
     if context is None:
         return None
-    return format_traceparent(context.trace_id(), context.current_span_id() or SpanId.generate())
+    parent = context.current_span_id()
+    if parent is None:
+        return None
+    return format_traceparent(context.trace_id(), parent)
 
 
 def attach_traceparent(request: Any) -> None:

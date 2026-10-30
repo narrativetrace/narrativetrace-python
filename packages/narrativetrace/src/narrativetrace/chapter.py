@@ -56,8 +56,8 @@ def _message(title: str, duration_millis: int, outcome: str) -> str:
 def _timestamp(clock: Callable[[], datetime] | None) -> str:
     """Formats the clock reading as UTC ISO-8601 with fixed millisecond precision.
 
-    Unlike Java's ``Instant.toString()`` (which varies the fractional width), the width here is
-    always three digits so chapter timestamps sort and diff as plain strings.
+    The width is always three digits (never a varying fractional width) so chapter timestamps sort
+    and diff as plain strings.
     """
     reading = clock() if clock is not None else datetime.now(UTC)
     if reading.tzinfo is None or reading.tzinfo.utcoffset(reading) is None:

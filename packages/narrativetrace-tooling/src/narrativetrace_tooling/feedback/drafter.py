@@ -5,7 +5,7 @@
 """Turns a gathered report into something that may be shown to a person — or into a refusal that
 names what is in the way.
 
-Ports Java ``FeedbackDrafter``. INTENT: three things in one place, in this order, because the order
+INTENT: three things in one place, in this order, because the order
 is the safety property. Normalise what can be normalised (a home path becomes ``~``); run every
 value-free rule over every field that would be filed; render the two texts ONLY if nothing refused.
 A caller cannot reach a URL or a body file past a violation, because

@@ -7,12 +7,11 @@
 ``JsonExporter``. Each node becomes two events — an ``enter`` and a matching
 ``exit`` — with parent-child structure preserved through span ids and ``parentId`` rather than
 nested objects. Consumers parse fields, so this builds Python dicts and serialises with
-:func:`json.dumps` (``ensure_ascii=False`` keeps unicode while still escaping control characters,
-matching Java's ``JsonEscape``).
+:func:`json.dumps` (``ensure_ascii=False`` keeps unicode while still escaping control characters).
 
-The richer per-service *chapter* schema (``nt.entryType`` / ``schemaVersion`` / story/chapter ids,
-Java ``ChapterExporter`` / ``CanonicalEntry``) is a follow-up; this module ports the trace-file
-event-stream form used by the pytest ``.json`` companion.
+The richer per-service *chapter* schema (``nt.entryType`` / ``schemaVersion`` / story/chapter ids)
+is a follow-up; this module writes the trace-file event-stream form used by the pytest ``.json``
+companion.
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ def _param_object(param: ParameterCapture) -> dict[str, Any]:
     Below DETAIL the capture holds an empty rendered value. Emitting ``null`` for it — which this
     did until the writer-validated conformance test caught it — breaks
     ``chapter-tree.schema.json``, where ``value`` is a required string. An empty string says the
-    same thing and stays in contract, matching Java's ``JsonExporter``.
+    same thing and stays in contract.
     """
     if param.redacted:
         return {"name": param.name, "value": "[REDACTED]", "redacted": True}

@@ -5,7 +5,7 @@
 """Whether a file is a structural trace — the one artifact a report may attach, because it is the
 one artifact that carries no runtime value by construction.
 
-Ports Java ``StructuralTrace``, against this runtime's own ``.nt`` grammar
+Read against this runtime's own ``.nt`` grammar
 (``documentation/structural-trace-format.md``). INTENT: defence in depth over the value-free rules,
 not a substitute for them. The rules decide about TEXT; this decides about a FILE's claim to be a
 ``.nt``. A rendered narrative copied to a ``.nt`` name is caught by the rules anyway — it is full of

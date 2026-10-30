@@ -63,8 +63,8 @@ class StructuralDelta:
 
     def _count_changes(self) -> dict[str, int]:
         """Signature → net count, in first-seen order (``current`` before ``baseline``) so an
-        added signature is listed before a purely-removed one — mirrors a Java ``LinkedHashMap``
-        merged in that same order."""
+        added signature is listed before a purely-removed one — insertion order of a dict
+        filled in that same order."""
         counts: dict[str, int] = {}
         for signature in _call_signatures(self.current):
             counts[signature] = counts.get(signature, 0) + 1

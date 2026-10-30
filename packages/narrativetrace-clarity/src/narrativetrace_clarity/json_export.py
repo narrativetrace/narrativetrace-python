@@ -5,7 +5,7 @@
 """Byte-compatible JSON export for clarity results.
 
 ``ClarityJsonExporter`` — a hand-rolled compact emitter the quality gate parses instead
-of Markdown. Scores are 2-dp (HALF_UP, matching Java's ``String.format("%.2f")``), severities are
+of Markdown. Scores are 2-dp (HALF_UP, the same in every NarrativeTrace runtime), severities are
 upper-case, and duplicate scenario names are preserved as separate array entries.
 """
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob fc9fcea7ca8d | translated: 2026-10-20 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob 8b4000cc757c | translated: 2026-10-28 | reviewed: 2026-09-03 -->
 
 # Eligiendo una integración
 
@@ -102,7 +102,15 @@ que esta página no necesita volver a litigar.
   `async def` resuelve el padre a través de la pila de llamadas síncrona, que ahí está vacía, así que
   los hijos lanzados de esa manera aparecen como nuevas raíces en lugar de anidarse bajo el llamador
   `async` — haz fork desde un método síncrono, o desde un grupo de hilos, para conservar el
-  anidamiento.
+  anidamiento. En un hilo de un grupo o una tarea de asyncio a la que nadie entrega contexto y que
+  nadie reinicia, la siguiente unidad de trabajo no relacionada sigue obteniendo una traza nueva —
+  salvo que su primer acto sea `trace_id()` o `snapshot()` antes de cualquier llamada trazada: en
+  ese caso lleva la traza que dejó la unidad anterior, porque no hay ninguna señal que distinga una
+  entrega deliberada (el trabajo en curso pidiendo su propia identidad) de una tarea no relacionada
+  que simplemente preguntó primero. El `traceparent_header()` de ASGI no se ve afectado: sin ningún
+  span abierto y sin un padre remoto adoptado devuelve `None` y deja la traza intacta. Entrega el
+  trabajo mediante `snapshot().wrap(...)` para que lleve su propia traza desde el principio, o llama
+  a `reset()` al comienzo de cada unidad de trabajo antes de leer nada.
 - **`narrativetrace-otel`** — requiere `opentelemetry-api>=1.20`; tiende un puente entre un
   `TraceTree` ya capturado y los spans de OTel (exportador por lotes), o bien escucha en vivo — no
   reemplaza la configuración propia del SDK/exportador de OpenTelemetry.

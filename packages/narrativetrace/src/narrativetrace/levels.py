@@ -11,7 +11,7 @@ config value must never take capture down with it.
 Where the value comes from is :mod:`narrativetrace.config`'s concern:
 :meth:`NarrativeTraceConfig.resolve` reads the ``level`` key through a
 :class:`~narrativetrace.config.ConfigResolver`, so the environment beats a config file which beats
-the default, mirroring Java's system-property-beats-properties-file chain.
+the default.
 """
 
 from __future__ import annotations

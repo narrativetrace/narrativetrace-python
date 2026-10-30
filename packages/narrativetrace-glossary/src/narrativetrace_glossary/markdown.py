@@ -11,8 +11,11 @@ regenerated on every harvest and never edited — the JSON is the single editabl
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 
+from narrativetrace.escape import collapse_line_breaks as _inline
+from narrativetrace.escape import markdown_table_cell as _cell
 from narrativetrace_glossary.models import (
     BoundedContext,
     Glossary,
@@ -43,14 +46,47 @@ _KIND_HEADINGS = {
 }
 
 
-def _inline(text: str) -> str:
-    """Collapses line breaks so one value stays one Markdown line."""
-    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+_HEADING_RUN = re.compile(r"#+")
+_FENCE_OPENER = re.compile(r"(`{3,}|~{3,})")
+_LIST_MARKER = re.compile(r"([-*+]|\d+[.)])(?=\s|$)")
 
 
-def _cell(text: str) -> str:
-    """Escapes table-breaking characters: pipes are escaped, line breaks collapse to spaces."""
-    return _inline(text.replace("|", r"\|"))
+def _escape_line_start(line: str) -> str:
+    """Backslash-escapes a leading construct that would open block structure at this line."""
+    indent = line[: len(line) - len(line.lstrip())]
+    body = line[len(indent) :]
+    heading = _HEADING_RUN.match(body)
+    if heading:
+        return indent + "".join("\\" + char for char in heading.group()) + body[heading.end() :]
+    fence = _FENCE_OPENER.match(body)
+    if fence:
+        return indent + "\\" + body
+    marker = _LIST_MARKER.match(body)
+    if marker:
+        return indent + "\\" + body
+    if body.startswith("|"):
+        return indent + "\\" + body
+    return line
+
+
+def prose(text: str) -> str:
+    """Neutralises free text interpolated as a paragraph so it cannot forge block structure.
+
+    Line by line, a leading ``#`` run (one backslash per character), a leading code fence
+    (three or more backticks or tildes), a list marker, or a leading ``|`` is backslash-escaped,
+    so a description can neither add a heading, leave a fence open, nor start a list or table row.
+    Line breaks are kept: a description may legitimately span paragraphs.
+    """
+    return "\n".join(_escape_line_start(line) for line in text.splitlines())
+
+
+def inline_code(text: str) -> str:
+    """Wraps ``text`` in one backtick span, percent-encoding any embedded backtick as ``%60``.
+
+    The same convention as ``%7C`` for a pipe in a table cell: the span can never be closed early
+    by the text it holds.
+    """
+    return "`" + _inline(text).replace("`", "%60") + "`"
 
 
 def _render_abbreviations(abbreviations: Mapping[str, str]) -> str:
@@ -104,13 +140,13 @@ def _terms_of(glossary: Glossary, context: str, kind: TermKind) -> list[Glossary
 
 
 def _render_prose(context: BoundedContext) -> str:
-    prose = f"\n## {_cell(context.name)}\n"
+    text = f"\n## {_cell(context.name)}\n"
     if context.description is not None:
-        prose += f"\n{context.description}\n"
+        text += f"\n{prose(context.description)}\n"
     if context.packages:
-        declared = ", ".join(f"`{prefix}`" for prefix in context.packages)
-        prose += f"\nPackages: {declared}\n"
-    return prose
+        declared = ", ".join(inline_code(prefix) for prefix in context.packages)
+        text += f"\nPackages: {declared}\n"
+    return text
 
 
 def _render_context(glossary: Glossary, context: BoundedContext) -> str:

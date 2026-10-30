@@ -231,6 +231,9 @@ class TestStoryChapter:
         assert ctx.chapter_id() == "OrderService.placeOrder"
 
     def test_story_id_set_once(self, ctx: ContextVarNarrativeContext) -> None:
+        # A claimed execution context is one story between resets. One nothing claims starts a new
+        # trace, and so a new story, at each root (B-211) -- pinned in test_unowned_span_release.
+        ctx.reset()
         ctx.enter_method(_sig("A", "first"))
         ctx.exit_method_with_return(None)
         ctx.enter_method(_sig("B", "second"))

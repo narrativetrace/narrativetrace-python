@@ -26,14 +26,32 @@ the caller's own working directory, so each ``poe mutate*`` task keeps its own `
 therefore its own ``[tool.mutmut]`` config) — wrapped in ``scripts/tree_writes_guard.py``, so a
 test that rewrites a tracked file under mutation fails the run instead of dirtying the tree
 silently.
+
+B-218 (2026-10-28 nightly): a runaway mutant (``i += 1`` -> ``i = 1`` in
+``narrativetrace.output.line_diff._render``, an endless loop appending to a list) grew until the
+container's cgroup OOM killer fired, and the killer chose BYSTANDERS — the mutmut parent among
+them — so the gate stopped at mutant 1859/8323 with no score. mutmut records a worker's ``-9``
+and carries on; it cannot survive losing its parent. The launcher therefore sets a data-segment
+limit (``RLIMIT_DATA``) on itself before starting mutmut, inherited by every process mutmut forks:
+``memory.max / (workers + 1)``, floored at :data:`MEMORY_FLOOR_BYTES` (512 MiB: a clean test
+run, hypothesis included, measured too big for the 300 MiB share a 1.5 GB cap gives four
+workers), so the runaway dies of ``MemoryError`` inside its own test (counted killed) and the
+cgroup never reaches its cap.
+``RLIMIT_AS`` was tried first and is unusable: it counts reserved virtual ranges, and the test
+stack's native extensions (``rpds``) fail to map their segments under a 300 MB address-space cap.
+``RLIMIT_DATA`` (private writable mappings, Linux 4.7+) bounds heap growth without that. An
+unlimited or absent ``memory.max`` (macOS, a bare host) sets no limit; ``NT_MUTATION_MEMORY_MB``
+(a positive integer, megabytes per process) overrides the derivation, and a malformed value is an
+error, never a silent fallback.
 """
 
 from __future__ import annotations
 
 import math
 import os
+import resource
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -41,7 +59,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.tree_writes_guard import run_guarded
 
 CGROUP_CPU_MAX = Path("/sys/fs/cgroup/cpu.max")
+CGROUP_MEMORY_MAX = Path("/sys/fs/cgroup/memory.max")
 WORKERS_ENV_VAR = "NT_MUTATION_WORKERS"
+MEMORY_ENV_VAR = "NT_MUTATION_MEMORY_MB"
+MEMORY_FLOOR_BYTES = 512 * 1024 * 1024
 
 
 def _explicit_count(raw: str) -> int:
@@ -101,12 +122,77 @@ def _source(env: Mapping[str, str], cgroup_cpu_max: str | None) -> str:
     return "runtime CPU count"
 
 
+def _explicit_megabytes(raw: str) -> int:
+    try:
+        megabytes = int(raw)
+    except ValueError:
+        megabytes = 0
+    if megabytes < 1:
+        raise ValueError(f"{MEMORY_ENV_VAR} must be a positive integer, got {raw!r}")
+    return megabytes * 1024 * 1024
+
+
+def _cgroup_share(cgroup_memory_max: str | None, workers: int) -> int | None:
+    """Each process's share of a cgroup v2 ``memory.max`` (workers plus the parent), floored."""
+    try:
+        cap = int((cgroup_memory_max or "").strip())
+    except ValueError:
+        return None
+    if cap < 1:
+        return None
+    return max(MEMORY_FLOOR_BYTES, cap // (workers + 1))
+
+
+def memory_limit_bytes(
+    env: Mapping[str, str], cgroup_memory_max: str | None, workers: int
+) -> int | None:
+    """The per-process data-segment limit in bytes, or ``None`` for no limit. Pure."""
+    explicit = env.get(MEMORY_ENV_VAR, "").strip()
+    if explicit:
+        return _explicit_megabytes(explicit)
+    return _cgroup_share(cgroup_memory_max, workers)
+
+
+def _read_cgroup_memory_max() -> str | None:
+    try:
+        return CGROUP_MEMORY_MAX.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def resolve_memory_limit(env: Mapping[str, str], workers: int) -> int | None:
+    """:func:`memory_limit_bytes` against this machine's real ``memory.max``."""
+    return memory_limit_bytes(env, _read_cgroup_memory_max(), workers)
+
+
+def apply_memory_limit(limit: int | None) -> None:
+    """Cap this process's data segment (soft and hard); children inherit it. ``None`` is a no-op.
+
+    Where the kernel refuses the limit (macOS rejects every ``RLIMIT_DATA`` change with
+    ``EINVAL``, which CPython raises as ``ValueError``), nothing is raised: one line naming the
+    limit and the refusal goes to stdout and the run continues unbounded.
+    """
+    if limit is None:
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_DATA, (limit, limit))
+    except (ValueError, OSError) as refusal:
+        print(
+            f"mutation-workers: memory limit {limit // (1024 * 1024)} MiB not enforceable "
+            f"on this platform ({refusal}), running unbounded",
+            flush=True,
+        )
+
+
 def mutmut_command(workers: int, extra_args: Sequence[str] = ()) -> list[str]:
     """The mutmut invocation for ``workers`` workers, plus any mutant-name arguments."""
     return [sys.executable, "-m", "mutmut", "run", "--max-children", str(workers), *extra_args]
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    limit_setter: Callable[[int | None], None] = apply_memory_limit,
+) -> int:
     extra_args = list(sys.argv[1:] if argv is None else argv)
     cgroup_cpu_max = _read_cgroup_cpu_max()
     workers = worker_count(os.environ, cgroup_cpu_max, os.cpu_count())
@@ -115,6 +201,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"(from {_source(os.environ, cgroup_cpu_max)})",
         flush=True,
     )
+    limit_setter(resolve_memory_limit(os.environ, workers))
     return run_guarded(mutmut_command(workers, extra_args))
 
 

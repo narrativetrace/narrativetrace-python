@@ -5,7 +5,7 @@
 """``narrativetrace feedback`` — drafts a problem report about NarrativeTrace itself, checks it
 carries no values, and shows the person how to file it.
 
-Ports Java's ``FeedbackArguments``/``FeedbackVerb`` over the same tooling library. INTENT: the whole
+The verb and its arguments are the same in every runtime. INTENT: the whole
 decision is the user's, and this verb is built so that it cannot be anybody else's. It writes two
 files and prints text. It opens no browser, runs no ``gh``, and makes no request of its own — the
 only outward-facing thing it does is ask an already-installed ``gh`` whether it is signed in, and

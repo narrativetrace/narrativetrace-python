@@ -103,7 +103,7 @@ def _render_primary(
     diagram_renderer: Callable[[TraceTree], str] | None,
     plantuml_renderer: Callable[[TraceTree], str] | None,
 ) -> str:
-    """Selects the renderer named by ``fmt`` (Java ``TraceTestSupport.renderForFormat``).
+    """Selects the renderer named by ``fmt``.
 
     ``fmt`` is expected already case-folded — :func:`write_trace` lowercases once at the boundary.
     """
@@ -161,6 +161,7 @@ def write_trace(
     directory = trace_directory(artifact.base_dir, artifact.class_name)
     directory.mkdir(parents=True, exist_ok=True)
     primary = directory / f"{slug}{extension_for_format(fmt)}"
+    _remove_other_formats(artifact, slug, primary)
     content = _render_primary(tree, metadata, fmt, diagram_renderer, plantuml_renderer)
     primary.write_text(content, encoding="utf-8", errors="replace")
     written = [primary]
@@ -179,6 +180,43 @@ def write_trace(
     trace_text = IndentedTextRenderer().render(tree)
     echo = f"{frame(metadata.scenario)}\n\nExecution trace:\n{trace_text}\nTrace written: {primary}"
     return WriteResult(written, echo, delta)
+
+
+_TRACE_SUFFIXES = tuple(
+    extension_for_format(fmt) for fmt in ("markdown", "text", "mermaid", "plantuml")
+)
+
+
+def _remove_other_formats(artifact: TraceArtifact, slug: str, primary: Path) -> None:
+    """Deletes this test identity's artifacts left by a run in another format, so the manifest
+    row and the console pointer describe only this run (B-224).
+
+    Every other format's trace file goes, and so do the JSON and Mermaid-diagram companions: a
+    Markdown run that supplies the hook rewrites them afterwards, one that does not must not leave
+    an earlier run's copy behind. A non-Markdown write also drops the structural ``.nt``.
+    Confined to this identity's slug under the output directory's
+    ``traces``/``diagrams``/``structural`` trees -- never another test's files or the approval
+    baselines (a separate tree).
+
+    The opt-in ``.canonical.json`` entry array is removed on every write, whatever the format:
+    ``artifact.canonical`` is a flag, and the manifest lists a role the first time it finds a
+    file for it on disk without knowing which run wrote it. Removing the array here, before
+    ``write_trace`` rewrites it when this run's flag is on, keeps an array from outliving a flag
+    that went from on to off. This is why ``write_trace`` must keep the canonical write AFTER
+    this removal.
+    """
+    directory = primary.parent
+    stale = [directory / f"{slug}{suffix}" for suffix in _TRACE_SUFFIXES]
+    stale.append(directory / f"{slug}.canonical.json")
+    stale += [
+        directory / f"{slug}.json",
+        diagram_file_for(artifact.base_dir, artifact.class_name, slug),
+    ]
+    if primary.suffix != ".md":
+        stale.append(structural_file(artifact.base_dir, artifact.class_name, slug))
+    for file in stale:
+        if file != primary:
+            file.unlink(missing_ok=True)
 
 
 def _write_canonical(tree: TraceTree, directory: Path, slug: str) -> Path:

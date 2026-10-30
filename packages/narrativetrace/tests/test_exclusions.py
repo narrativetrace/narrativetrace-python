@@ -296,3 +296,34 @@ class TestReporting:
         type(service).__module__ = None  # type: ignore[assignment]
         trace_object(service, ctx, exclude="acme").work()  # type: ignore[attr-defined]
         assert [n.signature.method_name for n in ctx.capture_trace().roots] == ["work"]
+
+    def test_adv_2026_10_29_3_a_type_whose_module_is_not_a_string_is_traced(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        """ADV-2026-10-29-3 -- wrapping a target never raises into the host: a `__module__` that
+        is not a string is "no module name", exactly as `None` already is."""
+        service = _service_in("acme")
+        type(service).__module__ = 123  # type: ignore[assignment]
+        trace_object(service, ctx, exclude="acme").work()  # type: ignore[attr-defined]
+        assert [n.signature.method_name for n in ctx.capture_trace().roots] == ["work"]
+
+    def test_adv_2026_10_29_3_a_metaclass_whose_module_lookup_raises_is_traced(
+        self, ctx: ContextVarNarrativeContext
+    ) -> None:
+        """ADV-2026-10-29-3 -- a `__module__` lookup that raises anything is "no module name"."""
+
+        class Hostile(type):
+            @property
+            def __module__(cls) -> str:  # type: ignore[override]
+                raise RuntimeError("hostile module")
+
+        def work(self: object) -> int:
+            return 1
+
+        service = Hostile("Service", (), {"work": work})()
+        trace_object(service, ctx, exclude="acme").work()
+        assert [n.signature.method_name for n in ctx.capture_trace().roots] == ["work"]
+
+    def test_adv_2026_10_29_3_a_module_that_is_not_a_string_matches_no_prefix(self) -> None:
+        """ADV-2026-10-29-3 -- the matcher answers for every module value it is handed."""
+        assert ExcludedModules.parse("acme").match(123) is None  # type: ignore[arg-type]

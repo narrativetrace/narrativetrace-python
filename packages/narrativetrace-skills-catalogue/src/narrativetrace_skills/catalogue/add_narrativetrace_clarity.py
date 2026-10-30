@@ -3,11 +3,9 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """Adding NarrativeTrace Clarity -- the naming-clarity gate -- to a Python project, reading its
-report, and renaming what it flags until the gate is clean. Mirrors the Java reference's
-``add-narrativetrace-clarity``, adapted to this runtime's gate.
+report, and renaming what it flags until the gate is clean.
 
-**@llmNote** Where the Java skill has a static scan AND a test-runner path (JUnit 5 extension, JUnit
-4 rule), this runtime has ONE gate: the ``narrativetrace-clarity`` console script, which parses
+**@llmNote** This runtime has ONE gate: the ``narrativetrace-clarity`` console script, which parses
 Python SOURCE and scores each public class by its method and parameter names. There is no
 test-runner reporter and no traced path, so the skill has no framework branch. Tracing itself being
 broken is ``narrativetrace-doctor``'s job, which the description says.

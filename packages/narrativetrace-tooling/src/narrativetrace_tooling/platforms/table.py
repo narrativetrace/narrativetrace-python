@@ -4,9 +4,9 @@
 # Copyright (c) 2026 Empower Agile
 """The platform table — Phase 8, platform pointers: ONE committed registry of the agent platforms
 NarrativeTrace is used from, how a project proves it is on one, which pointer ``init`` writes for
-it, how a stranger installs the skills, and which evidence lane exercises it. Mirrors Java's
-``PlatformTable``; the row shape, the row ids and the lane ids are the cross-port contract, the
-install paths are this runtime's own.
+it, how a stranger installs the skills, and which evidence lane exercises it. The row
+shape, the row ids and the lane ids are the same in every NarrativeTrace runtime; the install
+paths are this runtime's own.
 
 INTENT: the framework table's sibling, same shape. ``init``'s plan, ``uninstall``, the doctor's
 ``config.skills-installed``, the Cursor plugin manifest and ``documentation/use-with-your-agent.md``

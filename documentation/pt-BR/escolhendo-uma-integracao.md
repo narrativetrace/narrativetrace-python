@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob fc9fcea7ca8d | translated: 2026-10-20 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob 8b4000cc757c | translated: 2026-10-28 | reviewed: 2026-09-03 -->
 
 # Escolhendo uma integração
 
@@ -96,7 +96,16 @@ design, uma decisão interna (PY-001, PY-004, PY-005) que esta página não prec
   conhecida: fazer fork diretamente dentro de um método traçado `async def` resolve o pai através da
   pilha de chamadas síncrona, que está vazia ali, então filhos lançados dessa forma aparecem como
   novas raízes em vez de aninhados sob o chamador `async` — faça fork a partir de um método síncrono,
-  ou de um thread pool, para manter o aninhamento.
+  ou de um thread pool, para manter o aninhamento. Em uma thread de pool ou em uma task asyncio que
+  ninguém recebe por entrega e ninguém reinicia, a próxima unidade de trabalho não relacionada
+  continua recebendo um trace novo — a menos que seu primeiro ato seja `trace_id()` ou `snapshot()`
+  antes de qualquer chamada traçada: nesse caso ela carrega o trace que a unidade anterior deixou,
+  porque não há sinal que distinga uma entrega deliberada (o trabalho em mãos pedindo a própria
+  identidade) de uma tarefa não relacionada que simplesmente perguntou primeiro. O
+  `traceparent_header()` do ASGI não é afetado: sem nenhum span aberto e sem um pai remoto adotado,
+  ele retorna `None` e deixa o trace intacto. Entregue o trabalho por `snapshot().wrap(...)` para
+  que ele carregue o próprio trace desde o início, ou chame `reset()` no começo de cada unidade de
+  trabalho antes de ler qualquer coisa.
 - **`narrativetrace-otel`** — requer `opentelemetry-api>=1.20`; ele conecta uma `TraceTree` já
   capturada a spans do OTel (exportador em lote) ou escuta ao vivo — ele não substitui a própria
   configuração de SDK/exportador do OpenTelemetry.

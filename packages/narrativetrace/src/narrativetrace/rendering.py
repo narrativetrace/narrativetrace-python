@@ -35,8 +35,8 @@ a top-level standard-library package (``sys.stdlib_module_names``), or whose C i
 not a heap type at all (a genuine interpreter built-in), is trusted; a user subclass of a platform
 type is not, because a subclass's own ``__module__`` is wherever *it* was defined, never inherited
 from its base. A user class that merely shares a platform type's name is not trusted either -- the
-identity test never looks at the name. Same reasoning as Java's ``PLATFORM_DEFINED`` (keyed on
-defining class loader) and .NET's (keyed on defining assembly); the trusted text is still
+identity test never looks at the name. Other runtimes key the same decision on the defining
+class loader or assembly; the trusted text is still
 scanned, escaped and capped, and still redacted by field NAME first -- a field or parameter named
 ``token`` typed ``pathlib.Path`` still renders ``[REDACTED]``.
 
@@ -60,7 +60,7 @@ beyond it renders as ``<max-depth>`` -- unreached, so a redacted component past 
 printed, not even partially.
 
 ``NamedTuple`` is introspected by field name rather than rendered as an anonymous positional
-collection (the template-resolution family, Java's wrapper-``toString()`` bug class applied to a
+collection (the template-resolution family, applied to a
 Python-only shape): being a ``tuple`` subclass, it would otherwise reach ``_render_collection``
 first and print every field's raw value with no redaction check at all, since a collection
 element carries no name to redact by.
@@ -134,6 +134,10 @@ point at, and reads better repeated."""
 
 _TRUSTED_NUMERIC_TYPES = (int, float)
 
+_NUMERIC_SCAN_MIN_LENGTH = 12
+"""Shortest number text worth a value-shape scan (B-206): no card number is shorter. Same value in
+every runtime."""
+
 _HEAP_TYPE_FLAG = 1 << 9
 """``Py_TPFLAGS_HEAPTYPE``: set on every ordinary Python class, clear only on a type allocated
 statically inside the interpreter (``int``, ``str``, ``datetime.datetime``, ...). A stable CPython
@@ -143,10 +147,10 @@ _RENDERING: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "narrativetrace_rendering", default=False
 )
 """Marks that a :class:`ValueRenderer` public entry point is executing right now, on the current
-thread or asyncio task (cross-port finding, Java's ``RenderingGuard``).
+thread or asyncio task (a render reentrancy guard).
 
-Java's bug: reflectively invoking a *woven* record accessor during parameter/return capture ran
-that accessor's own instrumented bytecode, opening a span for a call the application never made.
+The hazard: rendering must not open a span for a call the application never made (for example by
+reflectively invoking an instrumented accessor during parameter/return capture).
 Python has no bytecode weaving -- tracing here is entirely :func:`~narrativetrace.trace_object
 .trace_object`'s proxy -- but the same shape of hazard reaches it differently: a value being
 rendered exposes a hook that runs arbitrary application code (the ``@narrative_summary`` method,
@@ -169,13 +173,13 @@ own BODY makes are unaffected: the flag is only ever set for the duration of a
 A :class:`contextvars.ContextVar`, not a plain module global or a bare ``threading.local``: a
 fresh thread gets its own copy for free (Python threads do not share a ``Context`` by default),
 and an asyncio task gets an isolated copy of whatever was set at the moment it was created --
-never a mutation a concurrently scheduled sibling task makes afterwards. It nests (B-186, Java's
-depth counter): the narrative-summary hook is a sanctioned door into user code, and what it reaches
-may render a value of its own -- another :class:`ValueRenderer`, a ``{obj.prop}`` template -- each
-running its own :func:`rendering_scope` pair inside the outer one. :func:`rendering_scope` resets by
-token, so an inner exit restores exactly what the inner entry found and the guard stays up for the
-rest of the outer walk; only the outermost exit clears it. The variable is a plain ``bool`` because
-the token carries the nesting, not a stored count.
+never a mutation a concurrently scheduled sibling task makes afterwards. It nests (a depth
+counter): the narrative-summary hook is a sanctioned door into user code, and what it reaches may
+render a value of its own -- another :class:`ValueRenderer`, a ``{obj.prop}`` template -- each
+running its own :func:`rendering_scope` pair inside the outer one. :func:`rendering_scope` resets
+by token, so an inner exit restores exactly what the inner entry found and the guard stays up for
+the rest of the outer walk; only the outermost exit clears it. The variable is a plain ``bool``
+because the token carries the nesting, not a stored count.
 """
 
 
@@ -302,8 +306,30 @@ def _repeat_marker(value: object) -> str:
     return f"<repeat: {type(value).__name__}>"
 
 
+def _report_clamped_limits(**limits: int) -> None:
+    """Says once on stderr which limits were below zero and so behave as zero (B-207).
+
+    One line per renderer, naming every clamped limit; a renderer with valid limits says nothing.
+    The depth cap and the node budget are fixed constants, never options, so never named here.
+    """
+    clamped = [f"{name}={value}" for name, value in limits.items() if value < 0]
+    if not clamped:
+        return
+    try:
+        print(
+            "narrative-trace: renderer limits below zero are clamped to 0: " + ", ".join(clamped),
+            file=sys.stderr,
+        )
+    except (OSError, ValueError):
+        pass
+
+
 class ValueRenderer:
-    """Renders live values to flat strings and structured :class:`RenderedValue`s."""
+    """Renders live values to flat strings and structured :class:`RenderedValue`s.
+
+    A negative limit is never trusted: the renderer behaves exactly as if it were 0 and writes one
+    line naming each limit it clamped, when it is constructed.
+    """
 
     MAX_DEPTH: ClassVar[int] = 32
     """Recursion cap for nested containers/objects (a security fuzz suite finding)."""
@@ -315,9 +341,14 @@ class ValueRenderer:
         max_object_fields: int = _DEFAULT_MAX_OBJECT_FIELDS,
         redaction_policy: RedactionPolicy | None = None,
     ) -> None:
-        self.max_string_length = max_string_length
-        self.max_collection_items = max_collection_items
-        self.max_object_fields = max_object_fields
+        _report_clamped_limits(
+            max_string_length=max_string_length,
+            max_collection_items=max_collection_items,
+            max_object_fields=max_object_fields,
+        )
+        self.max_string_length = max(0, max_string_length)
+        self.max_collection_items = max(0, max_collection_items)
+        self.max_object_fields = max(0, max_object_fields)
         self.redaction_policy = (
             redaction_policy if redaction_policy is not None else RedactionPolicy.DEFAULT
         )
@@ -381,10 +412,18 @@ class ValueRenderer:
         # Extending int says nothing about what a value holds: only the exact platform type is a
         # scalar here. Returning None (not IntVal/StringVal) is "not a scalar", the same "not
         # mine" idiom every other fast path in this class uses to hand off to the walk below.
-        return IntVal(value) if _is_trusted_numeric(value) else None
+        if not _is_trusted_numeric(value):
+            return None
+        if self.numeric_text_is_secret(str(value)):
+            return StringVal(REDACTED_MARKER)
+        return IntVal(value)
 
     def _render_structured_float(self, value: float) -> RenderedValue | None:
-        return FloatVal(value) if _is_trusted_numeric(value) else None
+        if not _is_trusted_numeric(value):
+            return None
+        if self.numeric_text_is_secret(str(value)):
+            return StringVal(REDACTED_MARKER)
+        return FloatVal(value)
 
     def _render_number(self, value: int | float) -> str | None:
         """``value``'s own text, or ``None`` when ``value`` is not the exact platform type.
@@ -398,7 +437,23 @@ class ValueRenderer:
         ``None`` hands every other case to :meth:`_render_complex`, where a composite belongs, on
         both this channel and the structured one alike (see :func:`_shape_of`).
         """
-        return str(value) if _is_trusted_numeric(value) else None
+        if not _is_trusted_numeric(value):
+            return None
+        text = str(value)
+        return REDACTED_MARKER if self.numeric_text_is_secret(text) else text
+
+    def numeric_text_is_secret(self, text: str) -> bool:
+        """Whether a number's own text is a secret by shape (B-206, the numeric contract).
+
+        Twelve or more characters -- no card number is shorter, so the common small number never
+        pays for the scan -- that the value-shape axis recognises, which for digits means a
+        Luhn-valid card number. A 16-digit PAN held as an ``int`` is the same secret as the same
+        digits in a ``str``: the shape axis asks what the bytes say, not which type holds them.
+        The flat and structured numeric branches and the narration scalar all ask this one
+        method, so the paths cannot drift."""
+        return len(text) >= _NUMERIC_SCAN_MIN_LENGTH and self.redaction_policy.should_redact_value(
+            text
+        )
 
     def _render_string(self, value: str) -> str:
         if self.redaction_policy.should_redact_value(value):
@@ -586,9 +641,21 @@ class ValueRenderer:
 
     def _render_with_str(self, value: object) -> str:
         try:
-            safe = control_sanitize(str(value))
+            return self.scanned(str(value))
         except Exception as exc:  # a rogue __str__ may raise anything
             return _error_marker(exc)
+
+    def scanned(self, text: str) -> str:
+        """The one ladder every native-text site shares (B-206, the B-174 contract): redact by
+        SHAPE on the raw text first and replace the whole text by the marker on a match, else
+        control-sanitise, then cap. The sites: a leaf's own ``str()`` and an enum's text
+        (:meth:`_render_with_str`, flat and structured), a ``@narrative_summary`` hook's result
+        (:meth:`_render_summary`, both paths), a narration scalar's text
+        (:func:`~narrativetrace.template._scalar_text`) and a dict key's text (a key renders
+        through :meth:`_render`, so it reaches here via those same sites)."""
+        if self.redaction_policy.should_redact_value(text):
+            return REDACTED_MARKER
+        safe = control_sanitize(text)
         if len(safe) > self.max_string_length:
             return f"{safe[: self.max_string_length]}…"
         return safe
@@ -624,7 +691,7 @@ class ValueRenderer:
         if cached is not None:
             return cached
         try:
-            text = str(method(value))
+            text = self.scanned(str(method(value)))
         except Exception as exc:  # a broken summary is an error, not a silent fallback
             text = _error_marker(exc)
         walk.cache_summary(value, text)
@@ -1135,9 +1202,8 @@ def _is_platform_type(cls: type) -> bool:
     (its ``__module__`` is never a standard-library top-level package) both correctly fail this
     test -- a name or a prefix comparison would get both wrong. The second branch (no heap-type
     flag) catches a genuine interpreter built-in whose reported ``__module__`` is ``"builtins"``
-    all the same, and is what Java's identical carve-out reaches by identity of the *defining class
-    loader* rather than a module name -- CPython has no loader for a type the interpreter itself
-    allocates, so the heap-type flag is the analogous identity signal here.
+    all the same, and is an identity signal rather than a module name -- CPython has no
+    loader for a type the interpreter itself allocates, so the heap-type flag is that signal here.
 
     A type that NAMES an origin is judged by that origin alone; the heap-type flag decides only for
     a type that names none. A third-party C extension can perfectly well allocate its types

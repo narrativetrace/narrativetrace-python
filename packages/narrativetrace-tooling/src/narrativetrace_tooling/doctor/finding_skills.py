@@ -4,8 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """Which catalogue skill fixes each class of doctor finding — the table
 :func:`~narrativetrace_tooling.doctor.finding.passed`/:func:`~narrativetrace_tooling.doctor.finding.failed`
-read to fill in :attr:`~narrativetrace_tooling.doctor.types.Finding.skill`. Mirrors the Java port's
-``FindingSkills``.
+read to fill in :attr:`~narrativetrace_tooling.doctor.types.Finding.skill`.
 
 INTENT: a finding tells a person what is wrong and how to fix it; an agent with the skills installed
 can also be told WHICH tested procedure to follow next, by name, instead of improvising one. That

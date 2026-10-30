@@ -57,7 +57,6 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
 
-from narrativetrace.escape import control_sanitize
 from narrativetrace.redacted_paths import redacts
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
 from narrativetrace.rendering import (
@@ -228,7 +227,7 @@ def _scalar_text(value: object) -> str:
     @llmNote Degrades to the same ``<TypeName>`` marker ``ValueRenderer._render_with_str`` uses
     for this hazard: the two renderers must agree, because a value safe to capture must also be
     safe to narrate. ``except Exception`` is the right width here — ``RecursionError`` (a deeply
-    recursive ``__str__``, Java's ``StackOverflowError``) and ``TypeError`` (a ``__str__``
+    recursive ``__str__``) and ``TypeError`` (a ``__str__``
     returning a non-``str``) are both ``Exception`` subclasses, while ``BaseException`` would
     swallow ``KeyboardInterrupt``.
 
@@ -245,8 +244,11 @@ def _scalar_text(value: object) -> str:
     except Exception:  # a rogue __str__ may raise anything
         return f"<{type(value).__name__}>"
     if _is_trusted_builtin_scalar(value):
+        # A number is shape-scanned like a string (B-206): a card number held as an int is withheld.
+        if isinstance(value, (int, float)) and _SAFE.numeric_text_is_secret(text):
+            return REDACTED_MARKER
         return text
-    return control_sanitize(text)  # an Enum constant's own text, the last branch that reads it
+    return _SAFE.scanned(text)  # an Enum constant's own text, the last branch that reads it
 
 
 _MAX_CACHED_TEMPLATES = 512

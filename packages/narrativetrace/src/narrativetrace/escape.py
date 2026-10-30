@@ -40,16 +40,15 @@ def control_sanitize(text: str) -> str:
     quotes/backslashes intact.
 
     Common controls map to ``\\n``/``\\r``/``\\t``/``\\b``/``\\f`` mnemonics; every other ISO
-    control code point, every surrogate code point (a security fuzz suite finding, mirrors
-    Java's ``ControlEscape`` fix), and the Unicode line and paragraph separators U+2028/U+2029
-    map to ``\\uXXXX``. Quotes and backslashes are legitimate
-    value content and pass through unchanged.
+    control code point, every surrogate code point (a security fuzz suite finding), and the Unicode
+    line and paragraph separators U+2028/U+2029 map to ``\\uXXXX``. Quotes and backslashes are
+    legitimate value content and pass through unchanged.
 
-    A surrogate is not a control character, but no UTF-8 sink can encode it either -- and unlike
-    Java's UTF-16-backed ``String``, a Python ``str`` never holds a well-formed astral character
-    as an adjacent surrogate pair (``json.loads`` already merges one into a single code point at
-    parse time), so every surrogate this function sees is escaped unconditionally; there is no
-    paired-surrogate case to special-case around.
+    A surrogate is not a control character, but no UTF-8 sink can encode it either -- and a Python
+    ``str`` never holds a well-formed astral character as an adjacent surrogate pair
+    (``json.loads`` already merges one into a single code point at parse time), so every surrogate
+    this function sees is escaped unconditionally; there is no paired-surrogate case to
+    special-case around.
     """
     out: list[str] = []
     for char in text:
@@ -74,8 +73,7 @@ def markdown_text(text: str) -> str:
 
     Control characters are sanitised first (security fuzz suite finding: an exception message
     carrying a raw newline plus a frontmatter/fence delimiter added extra ``---``/```` ``` ````
-    lines to the document -- structure the injection-containment oracle forbids), mirroring
-    Java's ``MarkdownEscape.text()``.
+    lines to the document -- structure the injection-containment oracle forbids).
     """
     safe = control_sanitize(text)
     return safe.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -107,3 +105,27 @@ def markdown_code(content: str) -> str:
         return f"`{content}`"
     fence = "`" * (max_run + 1)
     return f"{fence} {content} {fence}"
+
+
+def collapse_line_breaks(text: str) -> str:
+    """Replaces each ``\\r\\n``, ``\\n`` or ``\\r`` with one space, so one value stays one line.
+
+    The prose form of the shared Markdown cell escape: headings, header lines and console
+    pointers use it directly; table cells use :func:`markdown_table_cell`.
+    """
+    return text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+
+def markdown_table_cell(text: str) -> str:
+    """Escapes ``|`` and collapses line breaks so ``text`` stays inside one table cell.
+
+    The one table-cell escape for every Markdown table NarrativeTrace writes (the glossary view
+    and the clarity report).
+    """
+    return collapse_line_breaks(text.replace("|", "\\|"))
+
+
+def markdown_code_span_cell(text: str) -> str:
+    """:func:`markdown_table_cell` for content shown as a code span: line breaks collapse, ``|`` is
+    escaped, and the span's fence outgrows any backtick run."""
+    return markdown_code(markdown_table_cell(text))

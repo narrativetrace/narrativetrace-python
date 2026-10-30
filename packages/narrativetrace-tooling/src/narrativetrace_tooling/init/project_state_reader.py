@@ -191,8 +191,8 @@ def _is_directory_not_a_link(path: Path) -> bool:
 
     **@llmNote** ``Path.is_dir()`` follows links, and ``follow_symlinks=False`` only arrived in 3.13
     while this library supports 3.12 — so the test is spelled with ``lstat``. This is the one thing
-    the cross-port note calls not optional: the Java port's own first version used the
-    follow-by-default test here, and a linked skill directory then read back as a real one.
+    that is not optional: the follow-by-default test reads a linked skill directory back as a
+    real one.
     """
     try:
         return stat.S_ISDIR(path.lstat().st_mode)

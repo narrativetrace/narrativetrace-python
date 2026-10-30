@@ -2,7 +2,7 @@
 # Licensed under the Business Source License 1.1 (see LICENSE); Change Date: four
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
-"""Shared 2-dp formatting matching Java's ``String.format("%.2f")`` (HALF_UP rounding)."""
+"""Shared 2-dp formatting identical in every NarrativeTrace runtime (HALF_UP rounding)."""
 
 from __future__ import annotations
 

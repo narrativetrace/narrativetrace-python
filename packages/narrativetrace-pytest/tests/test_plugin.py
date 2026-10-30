@@ -975,3 +975,24 @@ def test_a_failing_checkout_test_gets_its_own_narrative_showing_the_failure(
     assert "Payment.charge" in text
     assert "ValueError" in text
     assert "Orders.save" not in text
+
+
+@pytest.mark.parametrize(
+    "committed",
+    [b"<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> other\n", b'{"contexts": "\xff\xfe"}'],
+    ids=["conflict-markers", "invalid-utf8"],
+)
+def test_an_unreadable_committed_glossary_skips_harvesting_and_keeps_the_exit_status(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, committed: bytes
+) -> None:
+    monkeypatch.setenv("NARRATIVETRACE_GLOSSARY_DIR", str(pytester.path))
+    monkeypatch.setenv("NARRATIVETRACE_GLOSSARY", "on")
+    (pytester.path / "glossary.json").write_bytes(committed)
+    pytester.makepyfile(_TRANCHE_TEST)
+
+    result = pytester.runpytest_subprocess("-s")
+
+    assert result.ret == 0
+    result.assert_outcomes(passed=1)
+    result.stdout.fnmatch_lines(["*glossary harvest failed, skipped*"])
+    assert (pytester.path / "glossary.json").read_bytes() == committed

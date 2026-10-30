@@ -47,11 +47,13 @@ import re
 _RUT = re.compile(r"(?:\d{1,2}\.\d{3}\.\d{3}|\d{7,8})-[0-9kK]")
 """Chile: 7-8 digits, optional thousands dots, and a mod-11 verifier that may be ``K``."""
 
-_CPF = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11}")
-"""Brazil: 11 digits, written bare or as ``NNN.NNN.NNN-NN``."""
+_CPF = re.compile(r"[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}|[0-9]{11}")
+"""Brazil: 11 ASCII digits (a value in another script is not a candidate), written bare or as
+``NNN.NNN.NNN-NN``."""
 
-_CNPJ = re.compile(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}|\d{14}")
-"""Brazil: 14 digits, written bare or as ``NN.NNN.NNN/NNNN-NN``."""
+_CNPJ = re.compile(r"[0-9]{2}\.[0-9]{3}\.[0-9]{3}/[0-9]{4}-[0-9]{2}|[0-9]{14}")
+"""Brazil: 14 ASCII digits (a value in another script is not a candidate), written bare or as
+``NN.NNN.NNN/NNNN-NN``."""
 
 _SPANISH_ID = re.compile(r"(?:[XYZ]\d{7}|\d{8})-?[A-Z]", re.IGNORECASE)
 """Spain: a DNI is 8 digits plus a letter; a NIE swaps the leading digit for ``X``/``Y``/``Z``."""
@@ -63,8 +65,9 @@ non-numeric, and only as Corsica's ``2A``/``2B``."""
 _CHINESE_ID = re.compile(r"\d{17}[0-9Xx]")
 """China: the post-1999 resident identity card, 17 digits and a check character."""
 
-_US_SSN = re.compile(r"\d{3}-\d{2}-\d{4}")
-"""United States: area-group-serial, dashes required -- see the module docstring for why bare
+_US_SSN = re.compile(r"[0-9]{3}-[0-9]{2}-[0-9]{4}")
+"""United States: area-group-serial in ASCII digits (a value in another script is not a
+candidate), dashes required -- see the module docstring for why bare
 digits are never accepted and why the reserved area/group/serial values below stand in for the
 checksum this scheme does not have."""
 

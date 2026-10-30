@@ -65,6 +65,10 @@ def verify(
     """Verifies the scenario's structure against its committed approved trace.
 
     Raises:
+        ValueError: ``approved_path`` is not named ``*.approved.nt``. Refused before any read or
+            write: the received/incomplete sibling is derived by renaming that suffix, so any other
+            name makes received == approved -- a failing run would overwrite the baseline and a
+            passing run would delete it.
         AssertionError: no approved trace exists yet (the current render is written as the
             received trace to review and approve), or the structure differs from it (a received
             trace is written, and the message carries the readable diff).
@@ -74,6 +78,10 @@ def verify(
         was clean and matched exactly. A lossy pass is weaker evidence than an exact match and
         must not be reported as "unchanged".
     """
+    if not approved_path.name.endswith(_APPROVED_SUFFIX):
+        raise ValueError(
+            f"approved baseline must be named *{_APPROVED_SUFFIX}, got {approved_path.name!r}"
+        )
     loss = loss if loss is not None else TraceLoss.none()
     current = StructuralTraceRenderer().render_document(tree, scenario)
     received_path = (

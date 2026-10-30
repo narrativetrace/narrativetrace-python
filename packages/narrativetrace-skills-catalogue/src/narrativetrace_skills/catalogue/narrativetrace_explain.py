@@ -3,8 +3,8 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """``narrativetrace-explain`` — explains what an application actually does by running one scenario
-and reading its trace, for a user who has not thought of tracing at all. Mirrors Java's
-``NarrativeTraceExplainSkill`` on this runtime's capture (the pytest plugin's ``narrative_trace``
+and reading its trace, for a user who has not thought of tracing at all.
+This skill works on this runtime's capture (the pytest plugin's ``narrative_trace``
 fixture) and artifacts (``narrative-traces/``).
 
 The other skills answer somebody who already wants tracing, is verifying a change, or is chasing a

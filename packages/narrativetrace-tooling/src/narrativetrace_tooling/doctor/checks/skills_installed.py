@@ -9,7 +9,7 @@ Reads what the installer's own :class:`~narrativetrace_tooling.init.project_stat
 reader found — a page counts as ours only when it carries the provenance line ``init`` writes — so
 the doctor and the installer can never disagree about which directory belongs to whom.
 
-**@llmNote** Unlike the Java port, this runtime's core distribution always bundles a fallback
+**@llmNote** This runtime's core distribution always bundles a fallback
 carrier as package data (Phase 3 milestone 1) — the running process IS a dependency of every
 consumer, so a carrier is essentially always resolvable. "Cannot tell" is therefore gated on the
 PROJECT'S resolved release instead of on carrier resolution: a project with no readable

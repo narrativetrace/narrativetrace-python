@@ -3,7 +3,6 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """How to read a trace — the reference text every skill that reads one renders, written once.
-Mirrors Java's ``TraceReading``.
 
 INTENT: the verify skill reads a trace to check a change, the debug skill to find a defect; both
 need the same answer to "which artifact answers which question" and the same list of shapes that

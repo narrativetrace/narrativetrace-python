@@ -13,6 +13,8 @@ import pytest
 from narrativetrace.loss import TraceLoss
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Returned, Threw
+from narrativetrace.output.artifact_identity import ArtifactIdentity
+from narrativetrace.output.manifest import entry_for
 from narrativetrace.output.paths import (
     _java_string_hash,
     extension_for_format,
@@ -500,3 +502,173 @@ class TestErrorCounts:
             tree, TraceMetadata("s", ScenarioResult.ERROR), TraceArtifact(tmp_path, "T", "m")
         )
         assert "error_count: 1" in result.files[0].read_text(encoding="utf-8")
+
+
+class TestScenarioHeaderStaysOnOneLine:
+    """B-222/B-223: a line break in a test's display name must not forge a line of the text-format
+    header or of the console echo that points at the trace."""
+
+    def _write(self, tmp_path: Path, fmt: str) -> tuple[str, str]:
+        tree = TraceTree([TraceNode(MethodSignature("Svc", "run", []), [], Returned("ok"))])
+        result = write_trace(
+            tree,
+            TraceMetadata("pays\n| forged | row |\r\n--> end", ScenarioResult.SUCCESS),
+            TraceArtifact(tmp_path, "T", "runIt", fmt),
+        )
+        return result.files[0].read_text(encoding="utf-8"), result.console_echo
+
+    def test_text_format_header_is_one_line(self, tmp_path: Path) -> None:
+        text, _ = self._write(tmp_path, "text")
+        assert text.splitlines()[0] == "Scenario: pays | forged | row | --> end"
+
+    def test_console_echo_header_is_one_line(self, tmp_path: Path) -> None:
+        _, echo = self._write(tmp_path, "markdown")
+        assert echo.splitlines()[0] == "Scenario: pays | forged | row | --> end"
+
+    def test_markdown_header_keeps_the_arrow_inert_and_on_one_line(self, tmp_path: Path) -> None:
+        md, _ = self._write(tmp_path, "markdown")
+        assert "**Scenario:** pays\\n| forged | row |\\r\\n--&gt; end\n" in md
+        assert '\nscenario: "pays\\n| forged | row |\\r\\n--> end"\n' in md
+
+
+class TestFormatSwitchLeavesOnlyThisRunsArtifacts:
+    """B-224: a run in another format must not leave the previous format's files beside it, or the
+    manifest row, ``INDEX``-style listings and the console pointer describe the wrong run."""
+
+    def _write(self, base: Path, fmt: str, method: str = "runIt") -> list[Path]:
+        tree = TraceTree([TraceNode(MethodSignature("Svc", "run", []), [], Returned("ok"))])
+        return write_trace(
+            tree,
+            TraceMetadata("s", ScenarioResult.SUCCESS),
+            TraceArtifact(base, "T", method, fmt),
+            json_exporter=lambda _t: "{}",
+            diagram_renderer=lambda _t: "sequenceDiagram",
+            plantuml_renderer=lambda _t: "@startuml\n@enduml",
+        ).files
+
+    def test_switching_markdown_to_text_removes_every_markdown_artifact(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, "markdown")
+        self._write(tmp_path, "text")
+        left = sorted(
+            p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()
+        )
+        assert left == ["traces/T/run_it.txt"]
+
+    def test_switching_text_to_markdown_removes_the_text_trace(self, tmp_path: Path) -> None:
+        self._write(tmp_path, "text")
+        self._write(tmp_path, "markdown")
+        assert not (tmp_path / "traces" / "T" / "run_it.txt").exists()
+        assert (tmp_path / "traces" / "T" / "run_it.md").is_file()
+
+    def test_switching_to_plantuml_leaves_the_manifest_row_naming_only_the_puml(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, "markdown")
+        self._write(tmp_path, "plantuml")
+        identity = ArtifactIdentity.of_method("T", "runIt")
+        assert entry_for(tmp_path, identity, "s").artifacts == {"trace": "traces/T/run_it.puml"}
+
+    def test_another_tests_files_and_the_approved_baselines_survive(self, tmp_path: Path) -> None:
+        self._write(tmp_path, "markdown", "runItToo")
+        self._write(tmp_path, "markdown", "run")
+        approved = tmp_path / "approved" / "T" / "run_it.approved.nt"
+        approved.parent.mkdir(parents=True)
+        approved.write_text("scenario: s\n", encoding="utf-8")
+        self._write(tmp_path, "markdown")
+        self._write(tmp_path, "text")
+        assert approved.read_text(encoding="utf-8") == "scenario: s\n"
+        assert (tmp_path / "traces" / "T" / "run_it_too.md").is_file()
+        assert (tmp_path / "structural" / "T" / "run.nt").is_file()
+        assert (tmp_path / "traces" / "T" / "run.md").is_file()
+
+
+class TestEntryArrayDoesNotOutliveItsFlag:
+    """B-227: the opt-in ``.canonical.json`` entry array is written only while its flag is on, but
+    the manifest lists a role by probing the disk, so a run with the flag off must not leave the
+    earlier run's array behind to be claimed as its own."""
+
+    def _write(self, base: Path, *, canonical: bool) -> list[Path]:
+        tree = TraceTree([TraceNode(MethodSignature("Svc", "run", []), [], Returned("ok"))])
+        return write_trace(
+            tree,
+            TraceMetadata("s", ScenarioResult.SUCCESS),
+            TraceArtifact(base, "T", "runIt", "markdown", canonical=canonical),
+        ).files
+
+    def test_flag_on_then_off_removes_the_canonical_array_and_its_manifest_role(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, canonical=True)
+        self._write(tmp_path, canonical=False)
+        identity = ArtifactIdentity.of_method("T", "runIt")
+        assert not (tmp_path / "traces" / "T" / "run_it.canonical.json").exists()
+        assert "canonicalJson" not in entry_for(tmp_path, identity, "s").artifacts
+
+    def test_flag_on_still_lists_the_canonical_array(self, tmp_path: Path) -> None:
+        self._write(tmp_path, canonical=True)
+        self._write(tmp_path, canonical=True)
+        identity = ArtifactIdentity.of_method("T", "runIt")
+        assert entry_for(tmp_path, identity, "s").artifacts["canonicalJson"] == (
+            "traces/T/run_it.canonical.json"
+        )
+
+
+class TestMarkdownCompanionsDoNotOutliveTheirHook:
+    """ADV-2026-10-29-2 -- the manifest lists what is on disk, so a Markdown run whose optional
+    JSON or diagram hook is no longer supplied must not leave the earlier run's companion behind
+    to be claimed as this run's output."""
+
+    def _write(self, base: Path, *, hooks: bool) -> None:
+        tree = TraceTree([TraceNode(MethodSignature("Svc", "run", []), [], Returned("ok"))])
+        metadata = TraceMetadata("s", ScenarioResult.SUCCESS)
+        artifact = TraceArtifact(base, "T", "runIt", "markdown")
+        if hooks:
+            write_trace(
+                tree,
+                metadata,
+                artifact,
+                json_exporter=lambda _t: "{}",
+                diagram_renderer=lambda _t: "sequenceDiagram",
+            )
+        else:
+            write_trace(tree, metadata, artifact)
+
+    def test_adv_2026_10_29_2_a_run_without_the_json_hook_removes_the_earlier_export(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, hooks=True)
+        self._write(tmp_path, hooks=False)
+        assert not (tmp_path / "traces" / "T" / "run_it.json").exists()
+
+    def test_adv_2026_10_29_2_a_run_without_the_diagram_hook_removes_the_earlier_diagram(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, hooks=True)
+        self._write(tmp_path, hooks=False)
+        assert not (tmp_path / "diagrams" / "T" / "run_it.mmd").exists()
+
+    def test_adv_2026_10_29_2_the_manifest_row_names_only_what_this_run_wrote(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, hooks=True)
+        self._write(tmp_path, hooks=False)
+        identity = ArtifactIdentity.of_method("T", "runIt")
+        assert entry_for(tmp_path, identity, "s").artifacts == {
+            "trace": "traces/T/run_it.md",
+            "structural": "structural/T/run_it.nt",
+        }
+
+    def test_adv_2026_10_29_2_a_run_that_still_has_its_hooks_keeps_both_companions(
+        self, tmp_path: Path
+    ) -> None:
+        self._write(tmp_path, hooks=True)
+        self._write(tmp_path, hooks=True)
+        identity = ArtifactIdentity.of_method("T", "runIt")
+        assert entry_for(tmp_path, identity, "s").artifacts == {
+            "trace": "traces/T/run_it.md",
+            "json": "traces/T/run_it.json",
+            "diagram": "diagrams/T/run_it.mmd",
+            "structural": "structural/T/run_it.nt",
+        }

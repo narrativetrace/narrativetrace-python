@@ -4,7 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """The approval gate every skill uses before it turns something it SHOWED into something durable or
 public: show the whole artifact, ask once and end the turn on the question, act only on what was
-shown. Mirrors Java's ``ApprovalGate``.
+shown.
 
 INTENT: the feedback skill files a public issue, and the verify and debug skills promote a
 committed approval baseline; each is a person's decision, made on an artifact they read, in a turn

@@ -5,7 +5,7 @@
 """The names and the credential shapes the value-free gate refuses — the DATA half of the name and
 shape rules.
 
-Ports Java ``SecretVocabulary``. INTENT: the runtime's own deny-list
+INTENT: the runtime's own deny-list
 (``narrativetrace.redaction.RedactionPolicy``, multilingual, always on) is the authority on what a
 sensitive field is called. This library declares zero dependencies and may never link against that
 runtime, so the vocabulary is restated here as data and ``narrativetrace-security-tests`` — the one

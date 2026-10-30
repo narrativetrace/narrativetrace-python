@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 from narrativetrace_clarity import Severity, analyze
+from narrativetrace_clarity.vocabulary import DomainVocabulary
 
 from narrativetrace.nodes import TraceNode
 from narrativetrace.outcomes import Returned
@@ -99,12 +100,44 @@ class TestIssues:
         impacts = [i.impact_score for i in result.issues]
         assert impacts == sorted(impacts, reverse=True)
 
-    def test_collocation_issue_for_non_preferred_verb(self) -> None:
-        result = analyze(_tree(_node("LedgerService", "checkLedger")))
+    def test_collocation_issue_for_generic_verb_on_a_noun_with_candidates(self) -> None:
+        result = analyze(_tree(_node("OrderService", "handleOrder")))
         collocation = next(i for i in result.issues if i.category == "collocation")
-        assert collocation.element == "LedgerService.checkLedger"
-        assert "reconcileLedger" in collocation.suggestion
+        assert collocation.element == "OrderService.handleOrder"
+        assert collocation.suggestion == (
+            "Consider: backorderOrder, cancelOrder, fulfillOrder, "
+            "placeOrder, returnOrder, shipOrder"
+        )
         assert collocation.severity is Severity.LOW
+
+    def test_collocation_issue_for_unknown_verb_shaped_first_token(self) -> None:
+        result = analyze(_tree(_node("OrderService", "frobnicateOrder")))
+        assert [i.element for i in result.issues if i.category == "collocation"] == [
+            "OrderService.frobnicateOrder"
+        ]
+
+    def test_standard_verb_missing_from_the_preferred_sample_is_not_a_collocation_issue(
+        self,
+    ) -> None:
+        # "check" is a standard verb and "ledger" has a preferred sample that lacks it: a verb
+        # absent from the sample is never evidence against the name.
+        result = analyze(_tree(_node("LedgerService", "checkLedger")))
+        assert [i for i in result.issues if i.category == "collocation"] == []
+
+    def test_domain_declared_generic_verb_is_not_a_collocation_issue(self) -> None:
+        vocabulary = DomainVocabulary.of(["handle"], [])
+        result = analyze(_tree(_node("OrderService", "handleOrder")), vocabulary)
+        assert [i for i in result.issues if i.category == "collocation"] == []
+
+    def test_unknown_first_token_that_is_not_verb_shaped_is_not_a_collocation_issue(
+        self,
+    ) -> None:
+        result = analyze(_tree(_node("LedgerService", "leafLedger")))
+        assert [i for i in result.issues if i.category == "collocation"] == []
+
+    def test_snake_case_standard_verb_is_not_a_collocation_issue(self) -> None:
+        result = analyze(_tree(_node("LedgerService", "check_ledger")))
+        assert [i for i in result.issues if i.category == "collocation"] == []
 
     def test_high_severity_for_very_poor_name(self) -> None:
         # "do" is GENERIC → single-token method score 0.10 (<= 0.20 → HIGH).

@@ -5,8 +5,8 @@
 """Classifies verbs as domain-specific, standard, generic, or boolean prefixes.
 
 ``VerbDictionary``. The domain set is the union of 34 industry/technical category sets
-(828 unique verbs). Generic∩Domain = ∅ and Boolean∩Domain = ∅ are enforced at import, mirroring
-Java's static guard. Dictionary data is byte-identical to the Java source (see ``_verbs_data``).
+(828 unique verbs). Generic∩Domain = ∅ and Boolean∩Domain = ∅ are enforced at import.
+Dictionary data is byte-identical in every NarrativeTrace runtime (see ``_verbs_data``).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from narrativetrace_clarity.vocabulary import EMPTY, DomainVocabulary
 
 
 class Category(Enum):
-    """Verb categories in Java's priority order."""
+    """Verb categories, in priority order."""
 
     DOMAIN = "DOMAIN"
     STANDARD = "STANDARD"
@@ -34,7 +34,7 @@ STANDARD_VERBS: frozenset[str] = frozenset(_data.STANDARD_VERBS)
 GENERIC_VERBS: frozenset[str] = frozenset(_data.GENERIC_VERBS)
 BOOLEAN_PREFIXES: frozenset[str] = frozenset(_data.BOOLEAN_PREFIXES)
 
-# Java size-floor guards: fail loudly if the extracted data ever shrinks.
+# Size-floor guards: fail loudly if the extracted data ever shrinks.
 assert len(_data.DOMAIN_CATEGORIES) == 34
 assert len(DOMAIN_VERBS) == 828
 assert len(STANDARD_VERBS) == 197
@@ -57,7 +57,7 @@ _enforce_no_overlap("GENERIC_VERBS", GENERIC_VERBS, STANDARD_VERBS)
 
 
 def categorize(verb: str, vocabulary: DomainVocabulary = EMPTY) -> tuple[Category, float]:
-    """Returns the (category, score) for a verb, in Java's precedence order.
+    """Returns the (category, score) for a verb, in precedence order.
 
     Boolean prefixes, built-in domain verbs and generic verbs are decided first, so a project
     cannot promote ``process`` or ``is`` by committing them to its glossary — generic stays

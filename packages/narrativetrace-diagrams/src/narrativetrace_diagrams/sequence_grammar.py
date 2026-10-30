@@ -19,11 +19,10 @@ class name into a label, through the label-mapping function each renderer suppli
 hook here is called. ``limited_note``'s ``reason`` is the one exception: it is never trace-derived
 (it is one of :mod:`narrativetrace.tree_walk`'s own fixed markers), so it is typed as
 ``LimitReason`` -- a distinct nominal type from ``str`` -- rather than a
-:class:`~narrativetrace_diagrams.diagram_label.DiagramLabel`, mirroring the Java reference's
-``TreeWalk.Reason`` exception in its own shape test.
+:class:`~narrativetrace_diagrams.diagram_label.DiagramLabel`.
 
-``activate``/``deactivate`` have no counterpart in the Java reference: they exist only for
-PlantUML's optional lifelines (a Python-only extra) and are no-ops in Mermaid's grammar.
+``activate``/``deactivate`` exist only for PlantUML's optional lifelines and are no-ops in
+Mermaid's grammar.
 """
 
 from __future__ import annotations

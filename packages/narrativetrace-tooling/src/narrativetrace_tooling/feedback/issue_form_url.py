@@ -5,7 +5,7 @@
 """The pre-filled issue-form URL — the default way a report is filed, and the only one that needs no
 tool installed and no credential held by anybody but the person clicking it.
 
-Ports Java ``IssueFormUrl``. INTENT (design D1 as ruled): the user opens this in their own browser,
+INTENT (design D1 as ruled): the user opens this in their own browser,
 where they are already signed in, and submits it themselves. That click is the approval and the
 authentication at once, which is why there is no endpoint, no token and nothing for an agent to
 hold. The agent prints the URL; it never opens it.

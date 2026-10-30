@@ -10,10 +10,9 @@ value — every page is in memory, so nothing downstream holds a file handle or 
 change under it mid-install.
 
 Three ways in, all local, none of them a network call: an unpacked directory, a built wheel, or an
-installed distribution resolved through :mod:`importlib.metadata`. That last one is the analogue of
-the Java port's classloader lookup: it reads an installed distribution's own files WITHOUT importing
-it, which is what lets this library read the copy the runtime bundles while never importing the
-runtime.
+installed distribution resolved through :mod:`importlib.metadata`. That last one reads an installed
+distribution's own files WITHOUT importing it, which is what lets this library read the copy the
+runtime bundles while never importing the runtime.
 
 **@llmNote** The preference order matters and is the ruled one: the ``narrativetrace-skills``
 distribution the PROJECT resolves comes first, so the installed pages are at the project's own

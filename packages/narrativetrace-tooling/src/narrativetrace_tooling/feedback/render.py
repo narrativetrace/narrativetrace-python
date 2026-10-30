@@ -5,7 +5,7 @@
 """The two texts a cleared report becomes: the body that gets filed, and the draft a person reads
 before deciding to file it.
 
-Ports Java ``FeedbackRender``. INTENT: one renderer, so the draft cannot say something the body does
+INTENT: one renderer, so the draft cannot say something the body does
 not. The draft CONTAINS the body verbatim — :class:`~narrativetrace_tooling.feedback.draft.Drafted`
 refuses to exist otherwise — because approving a draft has to mean approving what is filed, byte for
 byte, and a summary is not that.

@@ -208,3 +208,22 @@ class TestLossyRuns:
 
         assert promoted == []
         assert not approved.exists()
+
+
+class TestOffSchemeBaseline:
+    """B-221: a baseline not named ``*.approved.nt`` makes received == approved, so a failing run
+    would overwrite the baseline and a passing run would delete it."""
+
+    @pytest.mark.parametrize("name", ["m.nt", "m.txt", "m.approved.nt.bak", "m.received.nt", "m"])
+    def test_refused_before_any_read_or_write(self, tmp_path: Path, name: str) -> None:
+        baseline = tmp_path / name
+        baseline.write_text("scenario: keep me\n", encoding="utf-8")
+        with pytest.raises(ValueError, match=r"\.approved\.nt"):
+            approval.verify(_tree("run"), "scenario", baseline)
+        assert baseline.read_text(encoding="utf-8") == "scenario: keep me\n"
+        assert [p.name for p in tmp_path.iterdir()] == [name]
+
+    def test_refused_even_when_the_file_does_not_exist(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match=r"\.approved\.nt"):
+            approval.verify(_tree("run"), "scenario", tmp_path / "m.nt")
+        assert list(tmp_path.iterdir()) == []

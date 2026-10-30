@@ -15,17 +15,18 @@ patterns, both scoped to `packages/*/src/**/*.py` -- never `tests/`, `scripts/`,
 - `HISTORY_PATTERN`: an audit-ledger citation surviving in a comment or docstring -- an
   owner-ruling reference, a `ruled 20YY-...` phrase, a bare `(20YY-MM-DD)` audit date, or
   shipped-release wording (`, unreleased)`).
-- `PORT_FRAMING_PATTERN`: language that frames this runtime as secondary to a Java implementation,
-  inside a comment a reader of this runtime alone would see -- "golden source", "the Java
-  repo/runtime/implementation", "mirrors Java", "as in Java", "replaced by the Java", "Java
-  builder". Framing this runtime as one of a family ("same as every NarrativeTrace runtime") is
-  fine; naming Java specifically as the one true source is not.
+- `PORT_FRAMING_PATTERN`: language that frames this runtime as secondary to another one, inside a
+  comment a reader of this runtime alone would see -- "golden source", "the Java
+  repo/runtime/implementation", a framing verb before Java ("mirrors", "matches", "ported from",
+  "like", "follows", ...), "Java's", or a Java class or ledger citation used as the reference
+  (``Java `X` ``, "(Java X", "Java B-123"). Case-insensitive for the phrases, case-sensitive for the
+  cross-references. A genuine cross-runtime contract is stated as a family contract ("the same in
+  every NarrativeTrace runtime"); `Java` alone (a JVM-interop fact, `JavaScript`) is not flagged.
 
-Structurally a Python-idiomatic mirror of the TS reference implementation
-(`../narrative-trace-ts/tools/comment-hygiene.ts`, read-only, not shared code): walk each package's
-own `src`, collect hits, excuse exactly the files a JSON allowlist (file -> reason) names, and flag
-an allowlist entry whose file no longer has any hit as stale -- the allowlist is meant to shrink,
-one package's wave at a time, never to accumulate entries nobody has to remove.
+The walk is plain: visit each package's own `src`, collect hits, excuse exactly the files a JSON
+allowlist (file -> reason) names, and flag an allowlist entry whose file no longer has any hit as
+stale -- the allowlist is meant to shrink, one package's wave at a time, never to accumulate
+entries nobody has to remove.
 """
 
 from __future__ import annotations
@@ -44,10 +45,32 @@ ALLOWLIST_PATH: Final = REPO_ROOT / "scripts" / "comment-hygiene-allowlist.json"
 HISTORY_PATTERN: Final = re.compile(
     r"owner ruling|ruled 20\d\d|\(20\d\d-\d\d-\d\d\)|, unreleased\)"
 )
-PORT_FRAMING_PATTERN: Final = re.compile(
-    r"golden source|the Java (repo|runtime|implementation)|mirrors Java|as in Java|"
-    r"replaced by the Java|Java builder"
+_PORT_FRAMING_PHRASES: Final = re.compile(
+    r"golden (source|copy)|reference implementation|"
+    r"the Java (repo|runtime|implementation|reference|version|port|edition)|"
+    r"the JVM edition|matching the JVM|Java builder|"
+    r"(mirrors?|mirroring|matches|matching|ported from|port of|same as|like|as in|replaced by|"
+    r"follows?|following|tracks?|tracking|copied from) (the )?Java\b(?!Script)|"
+    r"\bJava's\b",
+    re.IGNORECASE,
 )
+# Case-sensitive on purpose: under IGNORECASE `[A-Z]` matches lowercase and "Java virtual machine"
+# would become a hit.
+_PORT_FRAMING_CROSS_REFERENCES: Final = re.compile(
+    r"Java `|\(Java [A-Z]|Java B-\d+|Java [A-Z][a-z]+[A-Z]"
+)
+
+
+class _PortFramingPattern:
+    """The port-framing check as one `search`-able object: a case-insensitive phrase/verb regex
+    plus a case-sensitive cross-reference regex (a Java class or ledger citation used as the
+    reference). `search` returns the first match of either, or `None`."""
+
+    def search(self, text: str) -> re.Match[str] | None:
+        return _PORT_FRAMING_PHRASES.search(text) or _PORT_FRAMING_CROSS_REFERENCES.search(text)
+
+
+PORT_FRAMING_PATTERN: Final = _PortFramingPattern()
 
 
 @dataclass(frozen=True)

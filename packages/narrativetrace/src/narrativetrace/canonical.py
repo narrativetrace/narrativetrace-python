@@ -325,7 +325,7 @@ def entry_from_event(event: TraceEvent, *, anchor: MonotonicAnchor) -> Canonical
     raise TypeError(f"unknown TraceEvent type: {type(event).__name__}")
 
 
-# Attribute → schema key, in Java ``CanonicalEntrySerializer``'s emission order: universal
+# Attribute → schema key, in the canonical-entry emission order: universal
 # fields, then OTel semantic conventions, then the ``nt.*`` extensions.
 _FIELD_ORDER: tuple[tuple[str, str], ...] = (
     ("timestamp", "timestamp"),

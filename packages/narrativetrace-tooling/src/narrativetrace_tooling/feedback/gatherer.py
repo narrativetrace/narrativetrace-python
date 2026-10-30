@@ -5,7 +5,7 @@
 """What the verb can learn about a project without being told: which NarrativeTrace it resolved, and
 which structural trace is safe to attach.
 
-Ports Java ``FeedbackGatherer``. INTENT: the two facts triage needs most are the two a reporter is
+INTENT: the two facts triage needs most are the two a reporter is
 least likely to get right by hand. The install coordinate decides whether a defect is already fixed;
 the structural trace shows the shape of the call that misbehaved. Both are read from the doctor's
 own snapshot, so the report and the doctor cannot disagree about the project they describe.

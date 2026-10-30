@@ -172,9 +172,9 @@ _MARK_CATEGORIES = ("Mn", "Mc", "Me")
 def _canonical(text: str) -> str:
     """Case- and accent-folds ``text`` the way the deny-list matches it: lower-cased, and (only
     when it carries a non-ASCII character) NFD-normalised with combining marks stripped, so the
-    accented and unaccented spellings of a word are one pattern rather than two. Mirrors Java's
-    ``SecretValueShapes.canonical`` -- Python's stdlib ``re`` has no ``\\p{M}`` Unicode-category
-    escape, so combining marks are dropped by :func:`unicodedata.category` instead of a regex."""
+    accented and unaccented spellings of a word are one pattern rather than two. Python's stdlib
+    ``re`` has no ``\\p{M}`` Unicode-category escape, so combining marks are dropped by
+    :func:`unicodedata.category` instead of a regex."""
     lower = text.lower()
     if lower.isascii():
         return lower
@@ -196,7 +196,7 @@ def _parse_additions(raw: str | None) -> frozenset[str]:
 def configured_additions(environ: Mapping[str, str] | None = None) -> frozenset[str]:
     """The operator-supplied deny-list additions, read from :data:`ADDITIONAL_PATTERNS_VARIABLE`.
 
-    Mirrors Java's ``AdditionalRedactionPatterns``: the point of the knob is that whoever *deploys*
+    The point of the knob is that whoever *deploys*
     the service can widen redaction without rebuilding it, so the only source is the environment --
     never ``narrativetrace.toml`` or ``pyproject.toml``. ``environ`` defaults to ``os.environ`` and
     exists so a test can hand the lookup in. Additions are plain substring patterns, matched
@@ -214,11 +214,11 @@ def _identifier_tokens(name: str) -> frozenset[str]:
     ASCII-boundary splitting by design: every :data:`_TOKEN_BOUNDARY_PATTERNS` entry is itself
     plain ASCII (the non-English words earned token-boundary treatment for being *short*, not
     for being non-Latin script), so a CJK or accented compound never needs splitting -- a
-    Chinese or Spanish deny-list word is matched as a whole-string substring instead, in both
-    this runtime and the Java original, which is what :data:`_DEFAULT_PATTERNS` is for. A field
-    named exactly ``密码`` or ``contraseña`` -- legal Python identifiers, unlike Java's ASCII-only
-    convention -- still matches, through the substring pass in :meth:`RedactionPolicy.should_redact`
-    below, before this function is ever called.
+    Chinese or Spanish deny-list word is matched as a whole-string substring instead, in every
+    NarrativeTrace runtime, which is what :data:`_DEFAULT_PATTERNS` is for. A field
+    named exactly ``密码`` or ``contraseña`` -- legal Python identifiers, not only ASCII names --
+    still matches, through the substring pass in :meth:`RedactionPolicy.should_redact` below,
+    before this function is ever called.
     """
     tokens: list[str] = []
     for part in _NON_ALNUM.split(name):

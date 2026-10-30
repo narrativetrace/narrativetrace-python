@@ -4,7 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """The pin — a structural trace promoted to a committed ``.approved.nt`` behind the user's yes — as
 the four steps every skill that pins renders: approval mode on, run the suite and show, ask and
-stop, promote. Mirrors Java's ``BaselinePin``.
+stop, promote.
 
 INTENT: the verify skill pins a flow it checked and the debug skill pins the regression it fixed;
 it is the same act on the same artifact behind the same gate
@@ -13,7 +13,7 @@ written once.
 
 **@llmNote** The approval run is the WHOLE suite, never the one test the skill ran: approval mode
 compares every traced test, so a one-test run leaves every other traced test without a baseline
-and the suite red (found by Java's trials; cross-port item 1 of Phase 7 milestone 2).
+and the suite red (found by trial runs).
 """
 
 from __future__ import annotations

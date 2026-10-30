@@ -353,3 +353,52 @@ def test_render_state_is_reusable_across_multiple_traces_sequentially() -> None:
     second = view.render_entry(_enter("s1", None, "X", "open"), state)  # span id reused, new trace
 
     assert first == second == "X.abre (open)\n"
+
+
+def _narrated(parameters: list[ParameterEntry], template: str) -> str:
+    view = TraceTranslationView(
+        _billing_glossary(_term(template, "billing", TermKind.TEMPLATE, {"es": template}))
+    )
+    entry = _enter(
+        "s1", None, "Billing", "charge", parameters=parameters, narration_template=template
+    )
+    line = view.render_entry(entry, view.new_render_state("es"))
+    return line.splitlines()[-1]
+
+
+def test_a_parameter_value_that_looks_like_a_placeholder_survives_verbatim() -> None:
+    line = _narrated(
+        [ParameterEntry("amount", "{customerId}"), ParameterEntry("customerId", "C-1")],
+        "Cobrando {customerId} a {amount}",
+    )
+
+    assert "// Cobrando C-1 a {customerId}" in line
+
+
+def test_the_capture_order_of_parameters_does_not_change_the_narration() -> None:
+    forward = _narrated(
+        [ParameterEntry("amount", "{customerId}"), ParameterEntry("customerId", "C-1")],
+        "Cobrando {customerId} a {amount}",
+    )
+    backward = _narrated(
+        [ParameterEntry("customerId", "C-1"), ParameterEntry("amount", "{customerId}")],
+        "Cobrando {customerId} a {amount}",
+    )
+
+    assert forward == backward
+
+
+def test_a_placeholder_the_template_never_names_never_reveals_its_parameter() -> None:
+    line = _narrated(
+        [ParameterEntry("note", "{card_number}"), ParameterEntry("card_number", "4111")],
+        "Nota: {note}",
+    )
+
+    assert "4111" not in line
+    assert "// Nota: {card_number}" in line
+
+
+def test_an_unknown_placeholder_stays_literal() -> None:
+    line = _narrated([ParameterEntry("a", "1")], "Valor {a} y {missing}")
+
+    assert "// Valor 1 y {missing}" in line

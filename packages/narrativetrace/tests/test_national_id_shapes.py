@@ -144,3 +144,49 @@ class TestUsSocialSecurityNumbersByStructuralRule:
     )
     def test_a_never_issued_area_group_or_serial_stays_visible(self, value: str) -> None:
         assert not is_national_id(value)
+
+
+_ARABIC_INDIC_ZERO = 0x0660
+
+
+def _in_arabic_indic_digits(value: str) -> str:
+    """The same string with every ASCII digit swapped for its Arabic-Indic counterpart. ``re``'s
+    ``\\d`` matches category Nd, so these reach every matcher's arithmetic unchanged."""
+    return "".join(
+        chr(_ARABIC_INDIC_ZERO + int(char)) if char.isdigit() else char for char in value
+    )
+
+
+class TestReservedValuesInANonAsciiDigitScript:
+    """ADV-2026-10-29-4 -- the SSA's never-issued values stand in for the checksum this scheme
+    does not have, so they must reject in every digit script the matcher's own regex accepts."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "000-12-3456",  # area 000, never issued
+            "666-12-3456",  # area 666, never issued
+            "900-12-3456",  # area 900-999, reserved for ITINs
+            "123-00-4567",  # group 00, never issued
+            "123-45-0000",  # serial 0000, never issued
+            "000-00-0000",  # the placeholder every fixture and redacted form uses
+        ],
+    )
+    def test_adv_2026_10_29_4_a_never_issued_value_stays_visible_in_arabic_indic_digits(
+        self, value: str
+    ) -> None:
+        assert not is_national_id(_in_arabic_indic_digits(value))
+
+
+class TestRepeatedDigitsInAMixedDigitScript:
+    """ADV-2026-10-29-4 -- the Brazilian schemes reject a repeated-digit number by comparing
+    characters, so a number mixing digit scripts must not slip past that comparison."""
+
+    @pytest.mark.parametrize(
+        "zeros", ["0" + chr(_ARABIC_INDIC_ZERO) * 10, "0" * 5 + chr(_ARABIC_INDIC_ZERO) * 6]
+    )
+    def test_adv_2026_10_29_4_a_cpf_of_zeros_in_two_scripts_stays_visible(self, zeros: str) -> None:
+        assert not is_national_id(zeros)
+
+    def test_adv_2026_10_29_4_a_cnpj_of_zeros_in_two_scripts_stays_visible(self) -> None:
+        assert not is_national_id("0" + chr(_ARABIC_INDIC_ZERO) * 13)

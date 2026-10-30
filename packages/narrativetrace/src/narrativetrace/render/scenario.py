@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import re
 
+from narrativetrace.escape import collapse_line_breaks
+
 _TRAILING_PARENS = re.compile(r"\([^)]*\)$")
 _CAMEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
 
@@ -28,5 +30,6 @@ def humanize(display_name: str) -> str:
 
 
 def frame(display_name: str) -> str:
-    """Returns ``"Scenario: " + humanize(display_name)``."""
-    return "Scenario: " + humanize(display_name)
+    """Returns ``"Scenario: " + humanize(display_name)``, line breaks collapsed to spaces so the
+    header (and the console echo that repeats it) is always exactly one line."""
+    return "Scenario: " + collapse_line_breaks(humanize(display_name))

@@ -8,8 +8,8 @@ Standard library only, zero network, and — by contract — no import of ``narr
 This library reads a project's configuration, source tree and rendered output as text, and reads a
 skills carrier through :mod:`importlib.metadata`, which resolves an installed distribution's own
 files without importing it. That is what lets the ``narrativetrace`` console script sit *above* this
-library and depend on it with no cycle, mirroring the Java port, where the CLI and the build plugin
-both embed the same tooling library and neither depends on the other.
+library and depend on it with no cycle: the CLI and any other tool both embed the same tooling
+library and neither depends on the other.
 
 Two subpackages, each with its own entry in the architecture test that pins the rule above:
 

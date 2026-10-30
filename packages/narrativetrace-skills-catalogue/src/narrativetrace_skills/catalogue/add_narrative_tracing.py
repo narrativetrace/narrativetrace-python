@@ -5,8 +5,7 @@
 """Getting a project from zero to a first trace, then to a real logger. Diagnosing an install that
 is already wired up but not working is ``narrativetrace-doctor``'s job, not this skill's -- this
 skill hands off to it, then ends by previewing the agent-skills install so the next session finds
-them without being told about them (Phase 3 milestone 5, mirrors the Java reference's own last
-step).
+them without being told about them (Phase 3 milestone 5, the last step).
 
 The install, from zero (B-87): the page ADDS the distribution the first-trace snippet imports --
 ``uv add narrativetrace`` -- and keeps ``uv sync``

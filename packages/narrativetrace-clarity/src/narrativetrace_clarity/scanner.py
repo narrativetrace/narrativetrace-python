@@ -4,14 +4,13 @@
 # Copyright (c) 2026 Empower Agile
 """Static clarity scanner over Python sources via :mod:`ast`.
 
-The Python form of the reflection-based ``ClarityScanner``: instead of loading compiled
-classes, it parses ``.py`` sources and, for each class, builds a synthetic one-level trace tree
-whose roots are the class's public methods (each a depth-1 node carrying that method's parameters,
+The static ``ClarityScanner``: instead of loading compiled classes, it parses ``.py`` sources
+and, for each class, builds a synthetic one-level trace tree whose roots are the class's
+public methods (each a depth-1 node carrying that method's parameters,
 ``self``/``cls`` excluded). Results are keyed by class name. Unparseable files are skipped rather
-than failing the whole scan, mirroring Java's "skip unloadable classes" behaviour.
+than failing the whole scan.
 
-**Documented divergence:** Java is class-only (the JVM has no free functions); this scanner scores
-classes for parity. Module-level functions have no Java counterpart and are not scored.
+Only classes are scored: module-level functions are not scored.
 """
 
 from __future__ import annotations
@@ -68,7 +67,7 @@ def scan_paths(
 
 
 def _class_defs(module: ast.Module) -> list[ast.ClassDef]:
-    # Java scans public classes only; the Python analogue skips underscore-prefixed classes.
+    # Only public classes are scored: underscore-prefixed classes are skipped.
     return [
         node
         for node in ast.walk(module)

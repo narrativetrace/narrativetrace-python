@@ -4,7 +4,7 @@
 # Copyright (c) 2026 Empower Agile
 """The exact ``gh issue create`` line that files this report — PRINTED, never run.
 
-Ports Java ``GhCommandLine``. INTENT (design D1 as ruled): the second yes-path, offered only when
+INTENT (design D1 as ruled): the second yes-path, offered only when
 ``gh`` is present AND authenticated. It saves the browser step for people who already live in that
 tool, and it is a convenience rather than the foundation: ``gh`` ships on hosted runners and is
 absent from most ordinary machines, which is why the pre-filled URL is the default and this is not.

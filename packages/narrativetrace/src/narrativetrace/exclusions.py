@@ -33,6 +33,7 @@ import sys
 import threading
 from collections.abc import Sequence
 
+from narrativetrace._generated import module_name_of
 from narrativetrace.config import ConfigResolver, DuplicateConfigurationError
 
 EXCLUDE_REASONS: dict[str, str] = {
@@ -114,8 +115,9 @@ class ExcludedModules:
         return _explicit(option if isinstance(option, str) else ";".join(option))
 
     def match(self, module: str | None) -> str | None:
-        """The first prefix that excludes ``module`` (delimiter-aware), else ``None``."""
-        if not module:
+        """The first prefix that excludes ``module`` (delimiter-aware), else ``None``.
+        Anything but a non-empty ``str`` is "no module name" and matches no prefix."""
+        if not isinstance(module, str) or not module:
             return None
         for prefix in self._prefixes:
             if module == prefix or module.startswith(prefix + "."):
@@ -125,10 +127,11 @@ class ExcludedModules:
     def excludes(self, target: object) -> bool:
         """True when the module defining ``type(target)`` is excluded (reports each prefix once)."""
         cls = type(target)
-        prefix = self.match(getattr(cls, "__module__", None))
+        module = module_name_of(cls)
+        prefix = self.match(module)
         if prefix is None:
             return False
-        self._report_once(prefix, f"{cls.__module__}.{cls.__name__}")
+        self._report_once(prefix, f"{module}.{cls.__name__}")
         return True
 
     def _report_once(self, prefix: str, class_path: str) -> None:

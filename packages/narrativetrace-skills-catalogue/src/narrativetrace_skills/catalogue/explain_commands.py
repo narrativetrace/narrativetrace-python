@@ -3,7 +3,7 @@
 # years from publication; Change License: Apache-2.0
 # Copyright (c) 2026 Empower Agile
 """The command of ``narrativetrace-explain`` that is its own, in the closed ``uv``/``git``
-vocabulary. Mirrors Java's ``ExplainCommands``.
+vocabulary.
 
 It is what an ADOPTER runs in their own project; ``tests/test_replay_fixture.py`` maps it onto the
 ``examples/sixty_seconds`` fixture for Tier A2 replay. The two trace-listing commands the explain

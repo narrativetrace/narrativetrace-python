@@ -286,7 +286,7 @@ def _trace_phrase_prefix(tree: TraceTree) -> str:
 
 def _render_param(param: ParameterCapture, refs: ValueReferenceIndex) -> str:
     # A redacted capture keeps its marker without ever entering the reference index; only real
-    # captured values are deduplicated (Java ValueReferenceIndex._count_node skips redacted).
+    # captured values are deduplicated (the reference index skips redacted values).
     name = markdown_text(param.name)
     if param.redacted:
         return f"{name}: `[REDACTED]`"

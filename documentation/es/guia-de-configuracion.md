@@ -1,4 +1,4 @@
-<!-- source: documentation/guides/configuration.md blob 4e3ceec743da | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/guides/configuration.md blob 1c2f344b6d61 | translated: 2026-10-20 | reviewed: - -->
 
 # Configuración
 
@@ -377,3 +377,19 @@ ampliación de un despliegue. `RedactionPolicy.DISABLED` las ignora. Contrato co
 > **Las adiciones son patrones de subcadena**, comparados exactamente como el vocabulario de
 > subcadenas integrado. Una corta arrastra la trampa que las palabras por token evitan: añadir `id`
 > oculta todos los identificadores de la traza.
+
+## Límites del renderizador
+
+Un `ValueRenderer` acota lo que puede costar un valor con cuatro límites. Tres
+son argumentos del constructor; uno es fijo.
+
+| Límite | Valor por defecto | Contrato |
+|---|---|---|
+| Tope de cadena (`max_string_length`) | 200 | Una cadena más larga se corta en el tope y termina con puntos suspensivos; un tope negativo se fija en 0. |
+| Tope de elementos (`max_collection_items`) | 5 | Una colección o mapa más largo muestra los primeros elementos y puntos suspensivos; un tope negativo se fija en 0. |
+| Tope de campos (`max_object_fields`) | 5 | Un objeto muestra los primeros campos y puntos suspensivos; un tope negativo se fija en 0. |
+| Profundidad (`ValueRenderer.MAX_DEPTH`) | 32 (fijo) | El anidamiento más allá de ese valor se muestra como `<max-depth>`; no es configurable, así que no puede ser negativo. |
+
+Un límite negativo nunca se da por bueno: el renderizador se comporta exactamente
+como si fuera 0 y escribe una línea en la salida de error estándar, con el nombre
+de cada límite que ajustó, cuando se construye.

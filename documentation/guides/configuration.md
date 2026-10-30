@@ -365,3 +365,19 @@ deployment's widening. `RedactionPolicy.DISABLED` ignores them. Full contract:
 > **Additions are substring patterns**, matched exactly as the built-in substring vocabulary is. A
 > short one carries the trap the token-matched words avoid: adding `id` blanks every identifier in
 > the trace.
+
+## Renderer limits
+
+A `ValueRenderer` bounds what one value may cost with four limits. Three are
+constructor arguments; one is fixed.
+
+| Limit | Default | Contract |
+|---|---|---|
+| String cap (`max_string_length`) | 200 | A longer string is cut at the cap and ends with an ellipsis; a negative cap is clamped to 0. |
+| Element cap (`max_collection_items`) | 5 | A longer collection or map shows the first elements and an ellipsis; a negative cap is clamped to 0. |
+| Field cap (`max_object_fields`) | 5 | An object shows the first fields and an ellipsis; a negative cap is clamped to 0. |
+| Depth (`ValueRenderer.MAX_DEPTH`) | 32 (fixed) | Nesting past it renders `<max-depth>`; it cannot be configured, so it cannot be negative. |
+
+A negative limit is never trusted: the renderer behaves exactly as if it were 0
+and writes one line to standard error, naming each limit it clamped, when it is
+constructed.

@@ -15,7 +15,7 @@ Guarantees pinned here (proxy-render §TS-PROXY-6, §TS-PIPE-3):
 * **fail-safe capture** — a throwing renderer/exit recorder (or capture setup) never masks the
   business result or the business exception, for both sync and ``async`` methods (the TypeScript
   runtime turned a success into a throw — this does not).
-* **render reentrancy guard** (cross-port finding, Java's ``RenderingGuard``) — a call made *by*
+* **render reentrancy guard** (cross-runtime finding) — a call made *by*
   :class:`~narrativetrace.rendering.ValueRenderer` while rendering some other call's parameter or
   return value (a ``@narrative_summary`` hook, or a stateless leaf's own ``__str__``, reaching a
   method on an object that is itself a :func:`trace_object` proxy) also takes the fast path:
@@ -36,7 +36,7 @@ from inspect import Parameter, Signature
 from typing import Any
 
 from narrativetrace._boundary import PROPAGATED_EXCEPTIONS
-from narrativetrace._generated import is_generated_member, is_generated_target
+from narrativetrace._generated import is_generated_member, is_generated_target, module_name_of
 from narrativetrace.context import NarrativeContext
 from narrativetrace.decorators import MethodMetadata, read_method_metadata, resolve_error_context
 from narrativetrace.exclusions import ExcludedModules, _say
@@ -107,8 +107,7 @@ class _MethodSpec:
     things ``MethodMetadata`` alone does not carry: the full parameter-name vocabulary (from
     ``sig``/``traced_names``) and the policy in force (``renderer.redaction_policy``, which a
     caller can replace) -- both already live in ``_MethodSpec``, computed once when a method is
-    first wrapped (:meth:`_TracedProxy._wrap`) and reused for every subsequent call. Mirrors
-    Java's cached ``RedactionPolicy.DEFAULT.isRedacted(name, wasAnnotated)`` widening: the per-call
+    first wrapped (:meth:`_TracedProxy._wrap`) and reused for every subsequent call. The per-call
     cost is one frozenset lookup, not a policy evaluation. Unlike the ``@narrated``/``@on_error``
     template path (a documented narrowness -- see ``template.py``), this honours whichever policy
     the caller's own ``ValueRenderer`` carries -- unioned with, never in place of, the built-in
@@ -130,7 +129,7 @@ class _TracedProxy:
         object.__setattr__(self, "_nt_class_name", class_name or type(target).__name__)
         # Read off the real type even when the caller renamed the class: `class_name` is a display
         # choice, the package is identity, and mixing the two would misattribute the call.
-        object.__setattr__(self, "_nt_package_name", getattr(type(target), "__module__", None))
+        object.__setattr__(self, "_nt_package_name", module_name_of(type(target)))
         object.__setattr__(self, "_nt_renderer", renderer)
         object.__setattr__(self, "_nt_cache", {})
 
@@ -208,8 +207,8 @@ class _TracedProxy:
 def _type_name(annotation: object) -> str | None:
     """Formats one annotation as the canonical schema's declared-type string.
 
-    A class renders fully qualified (``builtins.str``, ``acme.billing.Invoice``), matching Java's
-    ``Class.getTypeName()`` — a bare ``str`` would not distinguish two same-named classes, which is
+    A class renders fully qualified (``builtins.str``, ``acme.billing.Invoice``), the same
+    form in every runtime — a bare ``str`` would not distinguish two same-named classes, which is
     the whole reason the field exists. Everything else renders as written: a generic alias
     (``list[int]``), a union (``int | None``), or a PEP 563 string annotation left unevaluated.
 
@@ -222,7 +221,7 @@ def _type_name(annotation: object) -> str | None:
     if annotation is Parameter.empty or annotation is Signature.empty:
         return None
     if annotation is None:
-        return "None"  # Python's `-> None`, the analogue of Java's `void`
+        return "None"  # Python's `-> None`, no return value
     if isinstance(annotation, str):
         return annotation
     if isinstance(annotation, type):

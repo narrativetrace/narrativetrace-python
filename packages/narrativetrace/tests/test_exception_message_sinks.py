@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 
 import pytest
 
+from narrativetrace import exception_message
 from narrativetrace.canonical import MonotonicAnchor, entry_from_event
 from narrativetrace.events import ExitEvent
 from narrativetrace.export import export
@@ -112,3 +114,47 @@ class TestJsonExporter:
         text = export(TraceTree([node]))
         assert _PAN not in text
         assert json.loads(text)["events"][1]["errorMessage"] == REDACTED_MARKER
+
+
+# Sixteen SUPERSCRIPT TWO: `str.isdigit()` says digit, `int()` refuses. The shared reading runs
+# the value-shape scan unguarded, so what the scan raises is what the emitter raises.
+_NON_DECIMAL_DIGIT_MESSAGE = "²" * 16
+
+
+class TestNonDecimalDigitMessage:
+    """ADV-2026-10-29-1 -- an emitter degrades on a hostile exception message and never raises:
+    an observability failure must not become an application failure."""
+
+    def test_adv_2026_10_29_1_the_shared_reading_answers_the_message(self) -> None:
+        assert exception_message.of(ValueError(_NON_DECIMAL_DIGIT_MESSAGE)) == (
+            _NON_DECIMAL_DIGIT_MESSAGE
+        )
+
+    @pytest.mark.parametrize(
+        "render",
+        [IndentedTextRenderer().render, ProseRenderer().render, MarkdownRenderer().render],
+    )
+    def test_adv_2026_10_29_1_every_renderer_writes_the_message(
+        self, render: Callable[[TraceTree], str]
+    ) -> None:
+        for tree in _threw_leaf_and_nested(ValueError(_NON_DECIMAL_DIGIT_MESSAGE)):
+            assert _NON_DECIMAL_DIGIT_MESSAGE in render(tree)
+
+    def test_adv_2026_10_29_1_the_json_exporter_writes_the_message(self) -> None:
+        node = TraceNode(
+            MethodSignature("Svc", "run", []),
+            [],
+            Threw(ValueError(_NON_DECIMAL_DIGIT_MESSAGE)),
+            span_context=_span(),
+        )
+        exported = json.loads(export(TraceTree([node])))
+        assert exported["events"][1]["errorMessage"] == _NON_DECIMAL_DIGIT_MESSAGE
+
+    def test_adv_2026_10_29_1_the_logging_bridge_logs_the_message(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.DEBUG, logger="narrativetrace")
+        LoggingTraceConsumer().accept(
+            ExitEvent(_span(), 10, Threw(ValueError(_NON_DECIMAL_DIGIT_MESSAGE)))
+        )
+        assert caplog.records[-1].getMessage() == (f"!! ValueError: {_NON_DECIMAL_DIGIT_MESSAGE}")

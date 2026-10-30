@@ -5,7 +5,7 @@
 """Value model of ``glossary.json``: contexts, terms, and their identity.
 
 ``TermKind`` / ``TermStatus`` / ``SynonymAlias`` / ``TermKey`` / ``BoundedContext`` /
-``GlossaryTerm`` / ``Glossary``. Java's ``jsonName()`` methods are folded into the enum *values*, so
+``GlossaryTerm`` / ``Glossary``. The JSON names are the enum *values*, so
 a label round-trips through ``TermKind(label)`` / ``kind.value`` without a lookup helper.
 """
 
@@ -252,8 +252,7 @@ class Glossary:
     with no identity of its own, and its context mapping cannot be hashed. Compare glossaries with
     ``==``; put terms, not glossaries, in a set.
 
-    Divergence from Java: the misfiled-context check is new here — Java's record accepts a context
-    map whose key disagrees with the context's own name.
+    A context map whose key disagrees with the context's own name is rejected as misfiled.
     """
 
     contexts: Mapping[str, BoundedContext] = _NO_CONTEXTS

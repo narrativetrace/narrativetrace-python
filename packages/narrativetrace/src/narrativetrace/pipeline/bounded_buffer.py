@@ -4,17 +4,16 @@
 # Copyright (c) 2026 Empower Agile
 """Bounded ring buffer for trace events (overwrites oldest on overflow).
 
-``BoundedEventBuffer``. Java uses a lock-free MPSC ring with cache-line padding backed
-by an eagerly-allocated ``Slot[]`` sized to capacity; on CPython the GIL makes the lock-free part
-moot, so this is a lock-guarded :class:`collections.deque` with a ``maxlen`` — appending past
-capacity discards the oldest event, matching Java's "under backpressure you see the most recent
-activity, not stale history" contract.
+``BoundedEventBuffer``. On CPython the GIL makes a lock-free MPSC ring pointless, so this is a
+lock-guarded :class:`collections.deque` with a ``maxlen`` — appending past
+capacity discards the oldest event, so under backpressure you see the most recent
+activity, not stale history.
 
 The cross-runtime buffered-consumer defaults contract (owner, 2026-08-31) fixes the buffer at
 ``capacity`` and never grows it; that is the only public commitment. How the underlying memory is
 allocated over time is an implementation detail, not a feature: ``deque(maxlen=...)`` happens to
 grow its backing linked blocks incrementally as items are appended rather than pre-allocating
-``capacity`` slots up front (unlike Java's array-backed ring buffer), so a `BoundedEventBuffer`
+``capacity`` slots up front (unlike an array-backed ring buffer), so a `BoundedEventBuffer`
 sized to the 65,536-event default costs nothing until events actually arrive — but nothing here
 exposes that timing as a knob, and there is no ``initial_capacity`` parameter anywhere in the
 pipeline.
@@ -41,8 +40,7 @@ class BoundedEventBuffer:
     def put(self, event: TraceEvent) -> None:
         """Enqueues an event; overwrites the oldest when full. Always succeeds.
 
-        An overwrite is counted (a bug-hunt finding: Java's ``BoundedEventBuffer`` advanced past
-        a full ring without counting what it skipped, so ``TraceLoss`` silently underreported —
+        An overwrite is counted (otherwise ``TraceLoss`` would silently underreport:
         ``deque(maxlen=...)``'s automatic oldest-eviction has the identical blind spot unless the
         eviction is detected and counted here, before it happens).
         """

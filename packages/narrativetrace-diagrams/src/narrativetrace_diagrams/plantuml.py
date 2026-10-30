@@ -26,8 +26,8 @@ class PlantUmlSequenceGrammar:
     """PlantUML grammar: ``->`` call arrows, ``-->`` returns, ``-[#red]->`` throws, ``hnote
     over`` for an in-flight outcome or a walk limit.
 
-    ``lifelines`` is a Python-only extra with no counterpart in the Java reference this mirrors:
-    when set, ``activate``/``deactivate`` emit real lifeline lines instead of the empty string.
+    ``lifelines`` is an optional extra: when set, ``activate``/``deactivate`` emit real lifeline
+    lines instead of the empty string.
     Because that flag is per-instance, unlike Mermaid's grammar this one is not a shared
     singleton -- each renderer constructs its own.
     """

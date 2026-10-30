@@ -97,6 +97,7 @@ from __future__ import annotations
 
 import collections.abc
 import dataclasses
+import enum
 import pathlib
 import time
 import uuid
@@ -643,6 +644,47 @@ def declared_elements(sentinel: str) -> list[object]:
     ]
 
 
+JWT_SHAPE = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZGEifQ.c2lnbmF0dXJl"
+"""A bearer token in the shape of a signed JWT; obviously not a real credential."""
+
+CARD_SHAPE = "4111111111111111"
+"""A card number that passes the Luhn checksum; the well-known test number."""
+
+
+class _SecretTextConstant(enum.Enum):
+    """An enum member whose own text is a bearer-token shape. A Python member name is an
+    identifier and the default text is prefixed with the class name, so neither can match; the
+    text comes from the ``__str__`` an enum body may supply (Java's per-constant ``toString``)."""
+
+    SIGNED = 1
+
+    def __str__(self) -> str:
+        return JWT_SHAPE
+
+
+class _SecretSummary:
+    """A type whose ``@narrative_summary`` hook returns a bearer-token shape."""
+
+    @narrative_summary
+    def describe(self) -> str:
+        return JWT_SHAPE
+
+
+def native_text_secret_leaves() -> list[object]:
+    """The ``native-text-secret-leaf`` row: five leaves whose OWN text is a credential shape, in
+    this order -- a platform leaf whose native text is a JWT, one whose native text is a card
+    number, an enum member whose text is a JWT, a type whose summary hook returns a JWT, and an
+    ``int`` holding the card number. No field name or annotation can match any of them, so the
+    value-shape scan is the only defence; each must render as the marker on both paths."""
+    return [
+        pathlib.PurePosixPath(JWT_SHAPE),
+        pathlib.PurePosixPath(CARD_SHAPE),
+        _SecretTextConstant.SIGNED,
+        _SecretSummary(),
+        int(CARD_SHAPE),
+    ]
+
+
 def user_subclass_ancestor_state(sentinel: str) -> list[object]:
     """The ``structured-path-user-subclass-ancestor-state`` row: a list holding a user ``list``
     subclass and a user ``dict`` subclass, in that order."""
@@ -813,6 +855,7 @@ _KIND_BUILDERS: dict[str, Callable[[GraphCase, object], object]] = {
     "platformSubclass": lambda c, p: _SubclassedUUID(p),
     "declaredElements": lambda c, p: declared_elements(_secret_text(p)),
     "userSubclassAncestorState": lambda c, p: user_subclass_ancestor_state(_secret_text(p)),
+    "nativeTextSecretLeaf": lambda c, p: native_text_secret_leaves(),
 }
 
 

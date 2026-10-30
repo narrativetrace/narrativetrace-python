@@ -9,7 +9,14 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from narrativetrace.escape import control_sanitize, markdown_code, markdown_text
+from narrativetrace.escape import (
+    collapse_line_breaks,
+    control_sanitize,
+    markdown_code,
+    markdown_code_span_cell,
+    markdown_table_cell,
+    markdown_text,
+)
 
 
 class TestControlSanitize:
@@ -126,3 +133,21 @@ class TestMarkdownCode:
     def test_no_raw_control_character_survives(self, content: str) -> None:
         rendered = markdown_code(content)
         assert not any(ord(c) <= 0x1F or 0x7F <= ord(c) <= 0x9F for c in rendered)
+
+
+class TestMarkdownTableCell:
+    def test_each_line_break_form_collapses_to_one_space(self) -> None:
+        assert collapse_line_breaks("a\r\nb\nc\rd") == "a b c d"
+
+    def test_a_pipe_is_escaped_and_line_breaks_collapse(self) -> None:
+        assert markdown_table_cell("a|b\nc") == "a\\|b c"
+
+    def test_a_code_span_cell_escapes_the_pipe_and_outgrows_a_backtick_run(self) -> None:
+        assert markdown_code_span_cell("x|`y\nz") == "`` x\\|`y z ``"
+
+    @given(st.text())
+    def test_no_cell_holds_a_raw_line_break_or_an_unescaped_pipe(self, text: str) -> None:
+        cell = markdown_table_cell(text)
+        assert "\n" not in cell
+        assert "\r" not in cell
+        assert "|" not in cell.replace("\\|", "")

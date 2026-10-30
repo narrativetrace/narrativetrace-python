@@ -5,9 +5,9 @@
 """Lookup from ``(context, normalized alias)`` to the canonical term that deprecates it.
 
 ``AliasIndex``, whose three methods collapse into one function returning a read-only
-mapping: ``key in index`` answers Java's ``isAlias`` and ``index.get(key)`` answers its
-``canonicalFor``. INTENT: harvesting and violation reporting both ask the same question, so the
-answer is precomputed once per glossary.
+mapping: ``key in index`` answers "is this an alias" and ``index.get(key)`` answers
+"which canonical term". INTENT: harvesting and violation reporting both ask the same
+question, so the answer is precomputed once per glossary.
 """
 
 from __future__ import annotations

@@ -17,6 +17,8 @@ approval" rule (:mod:`narrativetrace_glossary.vocabulary`).
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -58,12 +60,30 @@ def _read_existing(glossary_dir: Path) -> tuple[Glossary, bool]:
     return read_glossary_json(path.read_text(encoding="utf-8")), True
 
 
+def _write_atomically(target: Path, content: str) -> None:
+    """Temp file beside ``target``, then an atomic rename; no temp file survives a failure."""
+    handle, name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+    temporary = Path(name)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="") as stream:
+            stream.write(content)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _write_glossary(glossary_dir: Path, glossary: Glossary) -> None:
+    """Writes the generated view, then the committed source of truth, each atomically.
+
+    Both documents are rendered before anything touches disk, and ``glossary.json`` is written
+    last: a failure on either file leaves the committed ``glossary.json`` byte-identical to what
+    it was, never a half-written source of truth beside a stale view.
+    """
+    json_text = write_glossary_json(glossary)
+    markdown_text = render_glossary_markdown(glossary)
     glossary_dir.mkdir(parents=True, exist_ok=True)
-    (glossary_dir / GLOSSARY_JSON_FILE).write_text(write_glossary_json(glossary), encoding="utf-8")
-    (glossary_dir / GLOSSARY_MARKDOWN_FILE).write_text(
-        render_glossary_markdown(glossary), encoding="utf-8"
-    )
+    _write_atomically(glossary_dir / GLOSSARY_MARKDOWN_FILE, markdown_text)
+    _write_atomically(glossary_dir / GLOSSARY_JSON_FILE, json_text)
 
 
 def run_suite_harvest(
