@@ -7,11 +7,11 @@ of the same tree as package data so `init` works without this distribution insta
 distribution *is* present in a project, `init` prefers its copy at the project's own resolved
 version.
 
-Licensed Apache License, Version 2.0 — unlike every other `narrativetrace*` distribution, which is
-BUSL-1.1 (see the root `NOTICE`). This mirrors the Java port's own module split exactly:
-`narrativetrace-skills` is `open` (Apache-2.0) in `licensing.properties`, while the typed catalogue
-that renders it, [`narrativetrace-skills-catalogue`](../narrativetrace-skills-catalogue), stays
-unpublished and BUSL-1.1 like the runtime.
+Licensed Apache License, Version 2.0 — unlike the runtime distributions, which are BUSL-1.1 (see
+the root `NOTICE`). The `narrativetrace` distribution bundles a copy of these pages and declares
+both licences; the pages in it stay Apache-2.0. The typed catalogue that renders them,
+[`narrativetrace-skills-catalogue`](../narrativetrace-skills-catalogue), stays unpublished and
+BUSL-1.1 like the runtime.
 
 Built entirely as generated output of `narrativetrace-skills-catalogue`'s render step — never
 hand-edited. See that package's `README.md` for where the source of truth lives.

@@ -16,6 +16,7 @@ position, whatever it contained; a payload that broke out of its string produces
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import Any
 
 import yaml
@@ -66,14 +67,23 @@ def frontmatter_fence_count(markdown: str) -> int:
     return sum(1 for line in markdown.splitlines() if line.strip() == "---")
 
 
+_SETEXT_UNDERLINE = re.compile(r"[ ]{0,3}(=+|-+)[ ]*")
+
+
 def heading_count(markdown: str) -> int:
-    """How many ATX heading lines a Markdown document carries.
+    """How many heading lines a Markdown document carries: ATX, and setext (a non-blank line
+    followed by a line of only ``=`` or only ``-``).
 
     A heading is document structure the renderer alone may write; a value or a scenario that
     adds one has forged the document's outline (a 2026-09-08 audit in the Java spec repo caught
     exactly that through the body header's raw scenario).
     """
-    return sum(1 for line in markdown.splitlines() if _HEADING_LINE.fullmatch(line))
+    lines = markdown.splitlines()
+    atx = sum(1 for line in lines if _HEADING_LINE.fullmatch(line))
+    setext = sum(
+        1 for above, line in pairwise(lines) if above.strip() and _SETEXT_UNDERLINE.fullmatch(line)
+    )
+    return atx + setext
 
 
 def frontmatter_keys(markdown: str) -> set[str]:

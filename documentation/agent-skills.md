@@ -138,7 +138,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.5.1",
+  "carrier": "narrativetrace-skills==0.5.2",
   "actions": [
     {
       "kind": "create",
@@ -342,22 +342,26 @@ No skill is ever hand-edited.
 `.../catalogue/add_narrativetrace_clarity.py` are the
 sources of truth; `python scripts/skills_render.py --fix` regenerates each skill's
 `.claude/skills/<name>/SKILL.md`, its `.agents/skills/` Codex counterpart, this repository's own
-`AGENTS.md` section, and `.claude-plugin/marketplace.json` — the listing that makes this
-repository a Claude Code plugin marketplace — from them, and `python scripts/skills_render.py
---check` (wired into `uv run poe check`) fails the build the moment any of these drifts from the
-typed source. Every code block a rendered page shows is
+`AGENTS.md` section, `.claude-plugin/marketplace.json` — the listing that makes this
+repository a Claude Code plugin marketplace — and the plugin's own
+`.claude/.claude-plugin/plugin.json`, `icon.png` and `.claude/README.md`, which the Claude plugin
+directory reads, from them, and `python scripts/skills_render.py --check` (wired into
+`uv run poe check`) fails the build the moment any of these drifts from the typed source. Every code block a rendered page shows is
 embedded from real, tested source through the same `<!-- snippet: -->` marker convention this
 repository's other docs use — never a hand-typed example. A Tier A lint keeps private
 planning-note citations out of every page: rationale sentences ship, the citation naming the note
-does not. A second lint guards the one piece of frontmatter whose absence is a feature: a skill
-whose steps can make something public — today, `narrativetrace-feedback` — must declare no
-`allowed-tools`, because that field pre-approves its listed tools for the turn that loads the
-skill, and a reporting skill that pre-approved its own reporting command would stop the harness
-asking exactly where asking is the point. The Claude Code page of such a skill has no `allowed-tools`
-line at all, rather than an empty one. A third lint holds a skill that promotes an approval
-baseline — today, `narrativetrace-verify` and `narrativetrace-debug` — to the same rule, for the
-same reason: the promotion runs through `uv run narrativetrace-approve`, and the yes it waits for
-is yours.
+does not. The rendered Claude pages carry no `allowed-tools` line at all, because the plugin
+directory accepts that key beyond read-only tools only from verified publishers: a user gets Claude
+Code's normal permission prompt the first time a skill runs `uv` or `git`. A second lint still
+guards the command set each skill declares: a skill whose steps can make something public — today,
+`narrativetrace-feedback` — must declare no tool that would pre-approve its own reporting command,
+so a flavour that ever emits the key again cannot stop the harness asking exactly where asking is
+the point. A third lint holds a skill that promotes an approval baseline — today,
+`narrativetrace-verify` and `narrativetrace-debug` — to the same rule, for the same reason: the
+promotion runs through `uv run narrativetrace-approve`, and the yes it waits for is yours. A fourth
+lint fails the build on a pinned NarrativeTrace version in any skill (`narrativetrace==…`,
+`narrativetrace>=…`): the skills name the package alone, so `uv` resolves the newest release from
+PyPI and a release that leaves the skills alone leaves their pages unchanged.
 
 ## Evaluating them
 

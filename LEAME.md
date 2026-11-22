@@ -1,4 +1,4 @@
-<!-- source: README.md blob c5f4af18bbd5 | translated: 2026-10-11 | reviewed: - -->
+<!-- source: README.md blob 081d90592f83 | translated: 2026-11-20 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -538,9 +538,9 @@ Lo que queda local: el árbol narrativo en sí — las llamadas a métodos anida
 
 ## Licencia
 
-La API y el formato de salida de NarrativeTrace son estándares abiertos (Apache 2.0). Su runtime es
-gratuito y de código disponible (BSL 1.1, que pasa a Apache 2.0 cuatro años después de cada
-versión). Pro es comercial.
+El formato de salida de NarrativeTrace es un estándar abierto: sus esquemas JSON son Apache 2.0. Su
+runtime, incluida la API de decoradores, es gratuito y de código disponible (BSL 1.1, que pasa a
+Apache 2.0 cuatro años después de cada versión). Pro es comercial.
 
 Las distribuciones de este repositorio son ese runtime: **Business Source License 1.1** (SPDX
 `BUSL-1.1`) — el texto completo está en [`LICENSE`](LICENSE). El uso en producción está concedido
@@ -558,8 +558,8 @@ Empower Agile.
 
 ### La licencia, en palabras sencillas
 
-Todo lo instalable desde este repositorio es Business Source License 1.1 hoy; los esquemas
-JSON son Apache 2.0 (ver schema/README.md).
+El paquete de skills (`narrativetrace-skills`) y los esquemas JSON (ver schema/README.md) son
+Apache 2.0; todo lo demás instalable desde este repositorio es Business Source License 1.1 hoy.
 
 <!-- legal:plain-words:begin -->
 **Gratis para ejecutar.** El runtime es de código disponible bajo la Business
@@ -577,3 +577,31 @@ después de publicarse; la fecha exacta se imprime en el LICENSE de esa versión
 *Este resumen es una cortesía, no una licencia. El archivo LICENSE es el único
 texto vinculante; donde ambos difieran, prevalece el LICENSE.*
 <!-- legal:plain-words:end -->
+
+NarrativeTrace se ofrece tal cual: sin garantía de ningún tipo, ni de que sirva para tu propósito. Úsalo bajo tu propia responsabilidad.
+
+Las licencias lo establecen de manera formal, y su texto, en inglés, es el que vale.
+
+El runtime y sus integraciones, bajo la Business Source License 1.1 ([LICENSE](LICENSE)):
+
+> TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
+> AN “AS IS” BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
+> EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
+> MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
+> TITLE.
+
+Las skills y los esquemas JSON, bajo Apache 2.0 ([LICENSE-APACHE](LICENSE-APACHE)), sección 7:
+
+> 7. Disclaimer of Warranty. Unless required by applicable law or
+> agreed to in writing, Licensor provides the Work (and each
+> Contributor provides its Contributions) on an "AS IS" BASIS,
+> WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+> implied, including, without limitation, any warranties or conditions
+> of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+> PARTICULAR PURPOSE. You are solely responsible for determining the
+> appropriateness of using or redistributing the Work and assume any
+> risks associated with Your exercise of permissions under this License.
+
+La sección 8, "Limitation of Liability", del mismo archivo (solo en las partes con licencia Apache) limita aún más la responsabilidad.
+
+La documentación está bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), cuyo propio texto también excluye garantías.

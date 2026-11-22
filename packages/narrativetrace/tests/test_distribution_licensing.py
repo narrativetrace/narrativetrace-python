@@ -17,9 +17,10 @@ the gate fails on the wheel itself rather than on a proxy for it. Discovery runs
 pyproject's own workspace glob, so a ninth distribution is swept in the moment it is added rather
 than quietly skipped.
 
-One reviewed exception (:data:`APACHE_DISTRIBUTIONS`): ``narrativetrace-skills`` ships Apache-2.0,
-mirroring the Java carrier it is a straight port of (``licensing.properties``:
-``module.narrativetrace-skills=open``). Every other distribution stays BUSL-1.1.
+One reviewed exception (:data:`APACHE_DISTRIBUTIONS`): ``narrativetrace-skills`` ships Apache-2.0.
+One dual case: a distribution that bundles those skill pages as package data
+(:data:`BUNDLING_DISTRIBUTIONS`, ``narrativetrace``) declares ``BUSL-1.1 AND Apache-2.0`` and ships
+both licence texts. Every other distribution stays BUSL-1.1.
 """
 
 from __future__ import annotations
@@ -54,12 +55,21 @@ REPO_ROOT = _repo_root()
 ROOT_LICENSE = REPO_ROOT / "LICENSE"
 ROOT_LICENSE_APACHE = REPO_ROOT / "LICENSE-APACHE"
 
-# The one reviewed exception (Phase 3 milestone 1): narrativetrace-skills mirrors Java's
-# narrativetrace-skills module (licensing.properties: module.narrativetrace-skills=open) and ships
-# Apache-2.0 like the carrier it is, not BUSL-1.1 like the runtime it is bundled alongside. Every
-# other distribution is BUSL-1.1 -- a plain constant, not a second properties file, because one
-# exception does not earn a new mechanism.
+# The one reviewed exception (Phase 3 milestone 1): narrativetrace-skills ships Apache-2.0, not
+# BUSL-1.1 like the runtime it is bundled alongside. Every other distribution is BUSL-1.1 (or, when
+# it bundles the skill pages, BUSL-1.1 AND Apache-2.0) -- a plain constant, not a second properties
+# file, because one exception does not earn a new mechanism.
 APACHE_DISTRIBUTIONS = frozenset({"narrativetrace-skills"})
+
+
+def _expected_expression(distribution: Path) -> str:
+    if distribution.name in APACHE_DISTRIBUTIONS:
+        return "Apache-2.0"
+    return "BUSL-1.1 AND Apache-2.0" if _bundles_skill_pages(distribution) else "BUSL-1.1"
+
+
+def _expected_licence_files(distribution: Path) -> list[str]:
+    return ["LICENSE", "LICENSE-APACHE"] if _bundles_skill_pages(distribution) else ["LICENSE"]
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -82,6 +92,14 @@ def _distributions() -> list[Path]:
 
 DISTRIBUTIONS = _distributions()
 DISTRIBUTION_IDS = [path.name for path in DISTRIBUTIONS]
+
+
+def _bundles_skill_pages(distribution: Path) -> bool:
+    """True when the distribution ships the Apache-licensed skill pages as package data."""
+    return any(distribution.glob("src/*/_skills"))
+
+
+BUNDLING_DISTRIBUTIONS = [path for path in DISTRIBUTIONS if _bundles_skill_pages(path)]
 
 
 class _Artifacts(NamedTuple):
@@ -142,7 +160,7 @@ class TestTheLicenceTheDistributionsCopy:
 @pytest.mark.parametrize("distribution", DISTRIBUTIONS, ids=DISTRIBUTION_IDS)
 class TestEveryDistribution:
     def _expected_licence_expression(self, distribution: Path) -> str:
-        return "Apache-2.0" if distribution.name in APACHE_DISTRIBUTIONS else "BUSL-1.1"
+        return _expected_expression(distribution)
 
     def _expected_licence_text(self, distribution: Path) -> Path:
         return ROOT_LICENSE_APACHE if distribution.name in APACHE_DISTRIBUTIONS else ROOT_LICENSE
@@ -153,13 +171,18 @@ class TestEveryDistribution:
         expected = self._expected_licence_text(distribution)
         assert (distribution / "LICENSE").read_bytes() == expected.read_bytes()
 
+    def test_a_bundling_distribution_carries_the_apache_copy_too(self, distribution: Path) -> None:
+        if not _bundles_skill_pages(distribution):
+            pytest.skip("ships no bundled skill pages")
+        assert (distribution / "LICENSE-APACHE").read_bytes() == ROOT_LICENSE_APACHE.read_bytes()
+
     def test_declares_the_licence_expression_the_owner_fixed(self, distribution: Path) -> None:
         project = _read_toml(distribution / "pyproject.toml")["project"]
         assert project["license"] == self._expected_licence_expression(distribution)
 
     def test_tells_the_build_backend_to_ship_that_licence(self, distribution: Path) -> None:
         project = _read_toml(distribution / "pyproject.toml")["project"]
-        assert project["license-files"] == ["LICENSE"]
+        assert project["license-files"] == _expected_licence_files(distribution)
 
 
 @pytest.mark.distribution
@@ -177,7 +200,7 @@ class TestEveryBuiltArtifact:
         return ROOT_LICENSE_APACHE if distribution.name in APACHE_DISTRIBUTIONS else ROOT_LICENSE
 
     def _expected_licence_expression(self, distribution: Path) -> str:
-        return "Apache-2.0" if distribution.name in APACHE_DISTRIBUTIONS else "BUSL-1.1"
+        return _expected_expression(distribution)
 
     def test_the_wheel_contains_the_licence_text(
         self, distribution: Path, built_distributions: Path
@@ -188,6 +211,9 @@ class TestEveryBuiltArtifact:
             licence = f"{artifacts.dist_info}/licenses/LICENSE"
             assert licence in wheel.namelist()
             assert wheel.read(licence) == expected.read_bytes()
+            if _bundles_skill_pages(distribution):
+                apache = f"{artifacts.dist_info}/licenses/LICENSE-APACHE"
+                assert wheel.read(apache) == ROOT_LICENSE_APACHE.read_bytes()
 
     def test_the_wheel_metadata_records_the_licence(
         self, distribution: Path, built_distributions: Path
@@ -197,6 +223,8 @@ class TestEveryBuiltArtifact:
             headers = wheel.read(f"{artifacts.dist_info}/METADATA").decode("utf-8").splitlines()
         assert f"License-Expression: {self._expected_licence_expression(distribution)}" in headers
         assert "License-File: LICENSE" in headers
+        if _bundles_skill_pages(distribution):
+            assert "License-File: LICENSE-APACHE" in headers
 
     def test_the_sdist_contains_the_licence_text(
         self, distribution: Path, built_distributions: Path
@@ -209,3 +237,25 @@ class TestEveryBuiltArtifact:
             carried = sdist.extractfile(licence)
             assert carried is not None
             assert carried.read() == expected.read_bytes()
+            if _bundles_skill_pages(distribution):
+                apache = sdist.extractfile(f"{artifacts.sdist_root}/LICENSE-APACHE")
+                assert apache is not None
+                assert apache.read() == ROOT_LICENSE_APACHE.read_bytes()
+
+
+class TestADistributionBundlingTheSkillPagesDeclaresTheirLicence:
+    """B-350: the bundled pages are Apache-2.0, so the distribution that ships them says so."""
+
+    def test_the_sweep_finds_the_bundling_distribution(self) -> None:
+        assert "narrativetrace" in [path.name for path in BUNDLING_DISTRIBUTIONS]
+
+    @pytest.mark.parametrize(
+        "distribution", BUNDLING_DISTRIBUTIONS, ids=[p.name for p in BUNDLING_DISTRIBUTIONS]
+    )
+    def test_the_expression_includes_apache_and_an_apache_licence_file_is_listed(
+        self, distribution: Path
+    ) -> None:
+        project = _read_toml(distribution / "pyproject.toml")["project"]
+        assert "Apache-2.0" in re.split(r"[\s()]+", str(project["license"]))
+        assert "LICENSE-APACHE" in project["license-files"]
+        assert (distribution / "LICENSE-APACHE").read_bytes() == ROOT_LICENSE_APACHE.read_bytes()

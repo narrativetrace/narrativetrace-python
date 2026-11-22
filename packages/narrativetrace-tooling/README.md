@@ -14,7 +14,7 @@ Nothing here links against the runtime it diagnoses. This library never imports 
 it reads a project's configuration, source tree and rendered output as text, and it reads a skills
 carrier through `importlib.metadata`, which resolves an installed distribution's own files without
 importing it. The `narrativetrace` console script therefore sits *above* this library and depends on
-it, exactly as the Java port's CLI and Gradle plugin both embed `narrativetrace-tooling` and neither
+it, exactly as the Java runtime's CLI and Gradle plugin both embed `narrativetrace-tooling` and neither
 depends on the other.
 
 Reached through the `narrativetrace` console script, not imported by consumers.

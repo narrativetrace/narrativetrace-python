@@ -1,4 +1,4 @@
-<!-- source: documentation/feature-guide.md blob d60e1bb9d401 | translated: 2026-09-17 | reviewed: - -->
+<!-- source: documentation/feature-guide.md blob d71c201bd14b | translated: 2026-11-20 | reviewed: - -->
 
 # Guia de funcionalidades do NarrativeTrace (Python)
 
@@ -15,9 +15,10 @@ deliberadamente enxuto: registra apenas o que os pacotes Python entregam.
   definido.
 - **Planejado** — especificado, ainda não iniciado; pode mudar.
 
-**Licenciamento.** A API e o formato de saída do NarrativeTrace são padrões
-abertos (Apache 2.0). Seu runtime é gratuito e de código disponível (BSL 1.1,
-convertendo para Apache 2.0 quatro anos após cada versão). Pro é comercial.
+**Licenciamento.** O formato de saída do NarrativeTrace é um padrão aberto: seus esquemas JSON são
+Apache 2.0. Seu runtime, incluindo a API de decoradores, é gratuito e de código
+disponível (BSL 1.1, convertendo para Apache 2.0 quatro anos após cada versão).
+Pro é comercial.
 Tudo marcado como **Gratuito** aqui é esse runtime: livre para usar em
 produção, de código disponível, não open source — a [`LICENSE`](../../LICENSE) raiz é
 a autoridade.

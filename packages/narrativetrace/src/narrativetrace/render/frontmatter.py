@@ -51,14 +51,80 @@ def _escape_supplementary(text: str) -> str:
     return "".join(f"\\U{ord(c):08x}" if ord(c) > 0xFFFF else c for c in text)
 
 
+_YAML_RETYPED_WORDS = frozenset(
+    ("true", "false", "yes", "no", "on", "off", "y", "n", "null", "~", ".inf", ".nan")
+)
+"""Case-folded words a YAML 1.1 reader resolves to a boolean, null or float rather than a string."""
+
+_DIGITS = frozenset("0123456789")
+_HEX_DIGITS = frozenset("0123456789abcdef")
+_BINARY_DIGITS = frozenset("01")
+
+
+def _all_in(text: str, alphabet: frozenset[str]) -> bool:
+    return bool(text) and all(c in alphabet for c in text.replace("_", ""))
+
+
+def _is_digit_run(text: str, shortest: int, longest: int) -> bool:
+    return shortest <= len(text) <= longest and all(c in _DIGITS for c in text)
+
+
+def _is_timestamp(value: str) -> bool:
+    """``YYYY-M-D`` alone or followed by a ``T``/``t``/space time part -- a conservative cover
+    of every YAML 1.1 timestamp form. One left-to-right pass, no backtracking."""
+    year, _, rest = value.partition("-")
+    month, _, rest = rest.partition("-")
+    day_length = len(rest) - len(rest.lstrip("0123456789"))
+    day, tail = rest[:day_length], rest[day_length:]
+    return (
+        _is_digit_run(year, 4, 4)
+        and _is_digit_run(month, 1, 2)
+        and _is_digit_run(day, 1, 2)
+        and (not tail or tail[0] in "Tt \t")
+    )
+
+
+def _is_decimal_number(body: str) -> bool:
+    """An integer (decimal, leading-zero octal) or a fixed/exponent float, ``_`` allowed."""
+    mantissa, has_exponent, exponent = body.partition("e")
+    if has_exponent and not _all_in(exponent.removeprefix("+").removeprefix("-"), _DIGITS):
+        return False
+    whole, dot, fraction = mantissa.partition(".")
+    if not (whole[:1] in _DIGITS or (dot and not whole)):
+        return False
+    return _all_in(whole + fraction, _DIGITS)
+
+
+def _is_number(value: str) -> bool:
+    body = value.removeprefix("+").removeprefix("-")
+    if body[:2] in ("0x", "0b"):
+        return _all_in(body[2:], _HEX_DIGITS if body[1] == "x" else _BINARY_DIGITS)
+    return _is_decimal_number(body)
+
+
+def _resolves_to_non_string(value: str) -> bool:
+    """True when a YAML 1.1 reader would read the bare ``value`` as a boolean, null, integer,
+    float or timestamp, so the value must be quoted to stay a string."""
+    folded = value.lower()
+    body = folded.lstrip("+-") if folded[:1] in ("+", "-") else folded
+    return (
+        folded in _YAML_RETYPED_WORDS
+        or body == ".inf"
+        or _is_timestamp(folded)
+        or _is_number(folded)
+    )
+
+
 def _needs_quoting(value: str) -> bool:
     if not value or value != value.strip() or value[0] in _YAML_INDICATOR_LEADERS:
         return True
-    if any(c in value for c in ':#"\\\n'):
+    if _resolves_to_non_string(value) or any(c in value for c in ':#"\\\n'):
         return True
-    if any(c in _YAML_NONCHARACTERS for c in value):
-        return True
-    if any(ord(c) > 0xFFFF for c in value):
+    return _has_unprintable(value)
+
+
+def _has_unprintable(value: str) -> bool:
+    if any(c in _YAML_NONCHARACTERS for c in value) or any(ord(c) > 0xFFFF for c in value):
         return True
     # control_sanitize is a no-op on a string with no control character or surrogate to escape --
     # reusing it here means "does this need a \n/\uXXXX escape" never drifts from the one place
@@ -104,7 +170,7 @@ def _append_root_fields(tree: TraceTree, lines: list[str]) -> None:
     lines.append(f"duration_ms: {root.duration_millis}")
     if root.span_context is not None:
         trace_id = root.span_context.trace_id
-        lines.append(f"trace_id: {trace_id}")
+        lines.append(f"trace_id: {yaml_safe(trace_id.value)}")
         lines.append(f"trace_name: {trace_id.human_name()}")
 
 

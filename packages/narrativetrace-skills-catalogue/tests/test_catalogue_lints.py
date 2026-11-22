@@ -19,6 +19,7 @@ from narrativetrace_skills.lints import (
     catalogue_vocabulary_violations,
     citation_violations,
     listings_disagreeing_with_feature_guide,
+    pinned_narrativetrace_versions,
     promotion_not_pre_approved,
     publishing_not_pre_approved,
     unparseable_commands,
@@ -88,6 +89,9 @@ class TestCatalogueIndex:
 
     def test_every_commands_strings_first_token_is_in_the_closed_vocabulary(self) -> None:
         assert catalogue_vocabulary_violations(SKILLS) == ()
+
+    def test_no_skill_pins_a_narrativetrace_version(self) -> None:
+        assert pinned_narrativetrace_versions(SKILLS) == ()
 
     def test_every_allowed_tool_is_a_bare_vocabulary_command(self) -> None:
         assert allowed_tools_violations(SKILLS) == ()

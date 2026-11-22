@@ -7,7 +7,7 @@
 #
 # Legal text in this repository follows the canonical copies held in the reference repository
 # (see legal.properties) — this script is what "derives from" means in practice, not
-# just a comment. Three checks, all gated by the same WARN/STRICT policy below:
+# just a comment. Four checks, all gated by the same WARN/STRICT policy below:
 #
 #   (a) marker well-formedness: every `<!-- legal:<name>:begin/end -->` pair in
 #       README.md, NOTICE and the translated root READMEs (LEAME.md, LEIAME.md,
@@ -29,6 +29,8 @@
 #       region in the same file (the paraphrase is shared prose, not
 #       repo-specific — unlike the trademark sentence, which lives in per-repo
 #       prose and is marked but not content-compared).
+#   (e) the BSL disclaimer quoted in README.md and its translations equals the
+#       passage in LICENSE (whitespace-normalised)
 #
 # Policy: WARN by default (poe check runs this every commit without blocking on
 # drift someone hasn't gotten to yet); LEGAL_CHECK_STRICT=1 turns every finding
@@ -105,9 +107,10 @@ done
 # (b) packages/*/LICENSE byte-equal the root licence its own expression names #
 # --------------------------------------------------------------------------- #
 # One reviewed exception, mirrored from packages/narrativetrace/tests/test_distribution_licensing.py's
-# APACHE_DISTRIBUTIONS: narrativetrace-skills ships Apache-2.0 like the Java carrier it ports
-# (licensing.properties: module.narrativetrace-skills=open), so its LICENSE copies LICENSE-APACHE,
-# not the BUSL root LICENSE every other distribution copies.
+# APACHE_DISTRIBUTIONS: narrativetrace-skills ships Apache-2.0, so its LICENSE copies LICENSE-APACHE,
+# not the BUSL root LICENSE every other distribution copies. A distribution that bundles the skill
+# pages as package data (src/*/_skills) also carries packages/<dist>/LICENSE-APACHE, byte-identical
+# to the root LICENSE-APACHE (B-350).
 APACHE_DISTRIBUTIONS=(narrativetrace-skills)
 ROOT_LICENSE="$REPO_ROOT/LICENSE"
 ROOT_LICENSE_APACHE="$REPO_ROOT/LICENSE-APACHE"
@@ -136,6 +139,16 @@ else
         if ! cmp -s "$expected" "$lic"; then
             issue "${lic#"$REPO_ROOT"/} is not byte-identical to $expected_name"
         fi
+    done
+    for lic in "$REPO_ROOT"/packages/*/LICENSE-APACHE; do
+        [ -f "$lic" ] || continue
+        if ! cmp -s "$ROOT_LICENSE_APACHE" "$lic"; then
+            issue "${lic#"$REPO_ROOT"/} is not byte-identical to root LICENSE-APACHE"
+        fi
+    done
+    for dist in "$REPO_ROOT"/packages/*/; do
+        compgen -G "${dist}src/*/_skills" >/dev/null || continue
+        [ -f "${dist}LICENSE-APACHE" ] || issue "${dist#"$REPO_ROOT"/} bundles skill pages but has no LICENSE-APACHE"
     done
     note "packages/*/LICENSE byte-equality checked against the licence each declares ($checked distribution(s))."
 fi
@@ -216,6 +229,25 @@ PYEOF
             note "derived-LICENSE and per-language legal:plain-words regions match the reference repo."
         fi
     fi
+fi
+
+# --------------------------------------------------------------------------- #
+# (e) the BSL warranty disclaimer quoted in the READMEs equals LICENSE        #
+# --------------------------------------------------------------------------- #
+# The no-warranty notice quotes the disclaimer paragraph of LICENSE in README.md and its
+# translations. Whitespace is normalised; nothing else may differ.
+norm() { tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//'; }
+if [ -f "$ROOT_LICENSE" ]; then
+    bsl_ref="$(awk '/^TO THE EXTENT PERMITTED BY APPLICABLE LAW/{on=1} on&&/^$/{exit} on{print}' "$ROOT_LICENSE" | norm)"
+    [ -n "$bsl_ref" ] || issue "LICENSE carries no 'TO THE EXTENT PERMITTED' disclaimer paragraph"
+    for f in README.md LEAME.md LEIAME.md 自述文件.md; do
+        [ -f "$REPO_ROOT/$f" ] || continue
+        bsl_quote="$(awk '/^> TO THE EXTENT PERMITTED BY APPLICABLE LAW/{on=1} on&&!/^>/{exit} on{sub(/^> ?/,""); print}' "$REPO_ROOT/$f" | norm)"
+        if [ "$bsl_quote" != "$bsl_ref" ]; then
+            issue "$f quotes a BSL disclaimer that differs from LICENSE (or quotes none)"
+        fi
+    done
+    note "BSL disclaimer quote compared with LICENSE in README.md and its translations."
 fi
 
 # --------------------------------------------------------------------------- #

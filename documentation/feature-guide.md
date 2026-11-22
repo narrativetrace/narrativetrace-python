@@ -12,9 +12,10 @@ deliberately thin: it records only what the Python packages deliver.
 - **In development** — actively being built; the design is settled.
 - **Planned** — specified, not yet started; may change.
 
-**Licensing.** NarrativeTrace's API and output format are open standards
-(Apache 2.0). Its runtime is free and source-available (BSL 1.1, converting to
-Apache 2.0 four years after each release). Pro is commercial. Everything marked
+**Licensing.** NarrativeTrace's output format is an open standard: its JSON schemas are
+Apache 2.0. Its runtime, the decorator API included, is free and
+source-available (BSL 1.1, converting to Apache 2.0 four years after each
+release). Pro is commercial. Everything marked
 **Free** here is that runtime: free to use in production, source-available, not
 open source — the root [`LICENSE`](../LICENSE) is the authority.
 

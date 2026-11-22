@@ -18,6 +18,7 @@ from narrativetrace_glossary import (
     TermStatus,
     render_glossary_markdown,
 )
+from narrativetrace_glossary.markdown import prose
 
 FIRST_SEEN = date(2026, 8, 11)
 
@@ -192,6 +193,14 @@ def test_a_pipe_in_curated_text_is_escaped_so_it_cannot_split_the_row() -> None:
     assert r"| invoice | harvested | a \| b | x \| y |  |" in rendered
 
 
+def test_a_backslash_before_a_pipe_in_a_definition_keeps_the_row_whole() -> None:
+    entry = term("invoice", definition="a\\|b")
+
+    rendered = render_glossary_markdown(one_context(entry))
+
+    assert "| invoice | harvested | a\\\\\\|b |  |  |" in rendered
+
+
 @pytest.mark.parametrize("line_break", ["\n", "\r\n", "\r"])
 def test_a_line_break_in_curated_text_collapses_to_a_space(line_break: str) -> None:
     entry = term("invoice", definition=f"first{line_break}second")
@@ -263,3 +272,82 @@ def test_a_package_prefix_with_a_backtick_stays_inside_its_span() -> None:
     text = render_glossary_markdown(glossary)
 
     assert "Packages: `acme%60.billing`, `acme.core`\n" in text
+
+
+@pytest.mark.parametrize("text", ["***", "___", "*****", "* * *"])
+def test_a_thematic_break_line_is_escaped_in_prose(text: str) -> None:
+    assert prose(text).startswith("\\")
+
+
+def test_a_leading_blockquote_marker_is_escaped_in_prose() -> None:
+    assert prose("> injected") == "\\> injected"
+
+
+@pytest.mark.parametrize("text", ["**bold** word", "_em_ word", "a > b", "snake_case_name"])
+def test_ordinary_emphasis_and_a_mid_line_angle_bracket_are_left_alone(text: str) -> None:
+    assert prose(text) == text
+
+
+def test_a_description_cannot_forge_a_rule_or_a_quote() -> None:
+    glossary = _prose_glossary("intro\n***\n> quoted", [])
+
+    lines = render_glossary_markdown(glossary).splitlines()
+
+    assert "***" not in lines
+    assert "> quoted" not in lines
+    assert [line for line in lines if line.startswith("## ")] == ["## billing"]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("  ## h", "  \\#\\# h"),
+        (" ```py", " \\```py"),
+        ("   > q", "   \\> q"),
+        ("  - item", "  \\- item"),
+        ("  | a | b |", "  \\| a | b |"),
+        ("  ***", "  \\***"),
+    ],
+)
+def test_a_line_indented_up_to_three_spaces_is_escaped_after_its_indent(
+    text: str, expected: str
+) -> None:
+    assert prose(text) == expected
+
+
+@pytest.mark.parametrize("text", ["    ## h", "    ```", "    > q", "    - item", "     ---"])
+def test_a_line_indented_four_spaces_is_a_code_block_and_is_left_alone(text: str) -> None:
+    assert prose(text) == text
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("---", "\\---"),
+        ("--", "\\--"),
+        ("-", "\\-"),
+        ("===", "\\==="),
+        ("=", "\\="),
+        ("---   ", "\\---   "),
+        ("===  ", "\\===  "),
+        ("  ---", "  \\---"),
+        ("  ===", "  \\==="),
+    ],
+)
+def test_a_line_of_only_dashes_or_only_equals_is_escaped(text: str, expected: str) -> None:
+    assert prose(text) == expected
+
+
+@pytest.mark.parametrize("text", ["a - b", "x == y", "-- a", "=x"])
+def test_dashes_and_equals_inside_a_sentence_are_left_alone(text: str) -> None:
+    assert prose(text) == text
+
+
+@pytest.mark.parametrize("description", ["x\n===", "x\n---", "x\n--", "  ## forged"])
+def test_a_description_cannot_forge_a_heading_through_setext_or_indentation(
+    description: str,
+) -> None:
+    lines = render_glossary_markdown(_prose_glossary(description, [])).splitlines()
+
+    assert [line for line in lines if line.strip() in {"===", "---", "--"}] == []
+    assert [line for line in lines if line.strip().startswith("##")] == ["## billing"]

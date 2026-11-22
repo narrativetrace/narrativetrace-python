@@ -8,7 +8,9 @@
 as ``narrativetrace``'s own package data (``narrativetrace/_skills/**``, Phase 3 milestone 1) are
 all BUILD OUTPUT of the typed catalogue (``narrativetrace_skills``) — never hand-edited. Mirrors
 ``scripts/check_no_license_headers.py``'s --check/--fix pair: --check fails naming what drifted
-(run ``python scripts/skills_render.py --fix`` to fix it); --fix writes it. The two carrier trees
+(run ``python scripts/skills_render.py --fix`` to fix it); --fix writes it. The plugin folder's own
+manifest, icon and README (``.claude/.claude-plugin/plugin.json``, ``icon.png`` and
+``.claude/README.md``) are rendered here too. The two carrier trees
 are also checked for STRAY files: a skill the catalogue no longer lists must not leave its old
 page behind, since the whole tree is generated output with nothing hand-added.
 
@@ -25,12 +27,15 @@ import sys
 from pathlib import Path
 
 from narrativetrace_skills import (
+    CLAUDE_DIRECTORY,
     MARKETPLACE,
     OPENAI_DIRECTORY,
     PRO_LISTINGS,
     SKILLS,
     render_agents_md_snippet,
     render_carrier_files,
+    render_claude_plugin_json,
+    render_claude_plugin_readme,
     render_claude_skill,
     render_codex_skill,
     render_cursor_marketplace_json,
@@ -165,6 +170,31 @@ def _rendered_cursor_rule() -> str:
     return render_cursor_rule(pointer.text, "")
 
 
+# The Claude plugin folder's own files (the plugin directory listing): `.claude/.claude-plugin/
+# plugin.json` and `README.md` are rendered from the listing and the catalogue, and `icon.png` is
+# a byte copy of the OpenAI package's logo -- one brand asset, two copies, and this check is what
+# keeps them one. The icon's source is READ from this repository's own tree whatever `root` is,
+# like a snippet source.
+def _claude_plugin_dir(root: Path = REPO_ROOT) -> Path:
+    return root / ".claude" / ".claude-plugin"
+
+
+def _claude_plugin_json_path(root: Path = REPO_ROOT) -> Path:
+    return _claude_plugin_dir(root) / "plugin.json"
+
+
+def _claude_plugin_icon_path(root: Path = REPO_ROOT) -> Path:
+    return _claude_plugin_dir(root) / "icon.png"
+
+
+def _claude_plugin_readme_path(root: Path = REPO_ROOT) -> Path:
+    return root / ".claude" / "README.md"
+
+
+def _openai_logo_path(root: Path = REPO_ROOT) -> Path:
+    return _openai_plugin_dir(root) / "assets" / "logo.png"
+
+
 def _rendered_agents_md(root: Path = REPO_ROOT) -> str:
     path = _agents_md_path(root)
     current = path.read_text(encoding="utf-8") if path.is_file() else ""
@@ -176,6 +206,8 @@ def _rendered_files(root: Path) -> dict[Path, str]:
         **_rendered_skill_files(root),
         **_rendered_carrier_files(root),
         _marketplace_json_path(root): _rendered_marketplace_json(),
+        _claude_plugin_json_path(root): render_claude_plugin_json(CLAUDE_DIRECTORY),
+        _claude_plugin_readme_path(root): render_claude_plugin_readme(MARKETPLACE, SKILLS),
         _openai_plugin_json_path(root): _rendered_openai_plugin_json(),
         _cursor_plugin_json_path(root): render_cursor_plugin_json(MARKETPLACE),
         _cursor_marketplace_json_path(root): render_cursor_marketplace_json(MARKETPLACE),
@@ -189,6 +221,9 @@ def _check_all(root: Path = REPO_ROOT) -> list[Path]:
         for path, expected in _rendered_files(root).items()
         if not path.is_file() or path.read_text(encoding="utf-8") != expected
     ]
+    icon = _claude_plugin_icon_path(root)
+    if not icon.is_file() or icon.read_bytes() != _openai_logo_path().read_bytes():
+        drifted.append(icon)
     drifted.extend(_stray_carrier_files(root))
     agents_md = _agents_md_path(root)
     expected_agents_md = _rendered_agents_md(root)
@@ -203,6 +238,10 @@ def _fix_all(root: Path = REPO_ROOT) -> list[Path]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         written.append(path)
+    icon = _claude_plugin_icon_path(root)
+    icon.parent.mkdir(parents=True, exist_ok=True)
+    icon.write_bytes(_openai_logo_path().read_bytes())
+    written.append(icon)
     for stray in _stray_carrier_files(root):
         stray.unlink()
     agents_md = _agents_md_path(root)

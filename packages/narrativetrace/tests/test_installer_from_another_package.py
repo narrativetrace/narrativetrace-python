@@ -164,18 +164,6 @@ class TestUninstalling:
         assert plan.carrier == carrier.coordinate
 
 
-_GATED_SKILLS = frozenset(
-    {
-        "narrativetrace-feedback",
-        "narrativetrace-verify",
-        "narrativetrace-debug",
-        "narrativetrace-explain",
-    }
-)
-"""The skills that declare no allowed tools: their steps file something public or promote a
-baseline, and the harness must ask before either."""
-
-
 class TestWhatAnExistingProjectGetsBack:
     def test_refuses_an_existing_context_file_and_says_what_to_pass(
         self, carrier: Carrier, tmp_path: Path
@@ -295,9 +283,9 @@ class TestARegistryTreeFromOutsideTheLibrary:
         self, carrier: Carrier, tmp_path: Path
     ) -> None:
         """The one assertion a write through the link would fail, keyed on the vendor-only
-        frontmatter: ``when_to_use`` on every skill, and ``allowed-tools`` on every skill that
-        declares tools. The reporting skill declares none, by design -- so its vendor page must
-        carry NO ``allowed-tools`` line either, the link or no link."""
+        frontmatter: ``when_to_use``, which every skill carries. No Claude page carries an
+        ``allowed-tools`` line (the plugin directory refuses it), so neither flavour does, the
+        link or no link."""
         self.registry_tree(tmp_path, carrier)
 
         install(tmp_path, carrier, InitOptions())
@@ -311,7 +299,7 @@ class TestARegistryTreeFromOutsideTheLibrary:
             )
             assert "when_to_use:" in vendor
             assert "when_to_use:" not in open_standard
-            assert ("allowed-tools:" in vendor) == (skill.name not in _GATED_SKILLS)
+            assert "allowed-tools:" not in vendor
             assert "allowed-tools:" not in open_standard
 
     def test_the_registrys_own_lock_file_is_never_touched(

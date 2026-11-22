@@ -48,7 +48,7 @@ class TestCorpusTraceparents:
     def test_an_accepted_header_round_trips_the_identity_it_carries(self, case: HeaderCase) -> None:
         parsed = parse_traceparent(case.value)
         assert parsed is not None
-        reformatted = format_traceparent(parsed.trace_id, parsed.span_id, sampled=parsed.sampled)
+        reformatted = format_traceparent(parsed.trace_id, parsed.span_id, flags=parsed.flags)
         reparsed = parse_traceparent(reformatted)
         assert reparsed is not None
         assert reparsed.trace_id == parsed.trace_id
@@ -118,7 +118,7 @@ class TestGeneratedHeaders:
         parsed = parse_traceparent(header)
         if parsed is None:
             return
-        reformatted = format_traceparent(parsed.trace_id, parsed.span_id, sampled=parsed.sampled)
+        reformatted = format_traceparent(parsed.trace_id, parsed.span_id, flags=parsed.flags)
         reparsed = parse_traceparent(reformatted)
         assert reparsed is not None
         assert reparsed.trace_id == parsed.trace_id

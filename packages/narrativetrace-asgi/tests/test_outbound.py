@@ -81,6 +81,54 @@ class TestTraceparentHeader:
         finally:
             _CURRENT_CONTEXT.reset(token)
 
+    def test_an_unsampled_adopted_flag_survives_to_the_outbound_header(self) -> None:
+        context = ContextVarNarrativeContext()
+        context.adopt_trace_id(TraceId.generate(), SpanId.generate(), 0x00)
+        _in_a_span(context)
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            header = traceparent_header()
+            assert header is not None
+            assert header.endswith("-00")
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_the_whole_adopted_flags_byte_round_trips(self) -> None:
+        context = ContextVarNarrativeContext()
+        context.adopt_trace_id(TraceId.generate(), SpanId.generate(), 0x03)
+        _in_a_span(context)
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            header = traceparent_header()
+            assert header is not None
+            assert header.endswith("-03")
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_a_context_that_adopted_nothing_emits_the_sampled_default(self) -> None:
+        context = ContextVarNarrativeContext()
+        _in_a_span(context)
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            header = traceparent_header()
+            assert header is not None
+            assert header.endswith("-01")
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
+    def test_the_header_still_names_the_trace_id_and_current_span(self) -> None:
+        context = ContextVarNarrativeContext()
+        context.adopt_trace_id(TraceId.generate(), SpanId.generate(), 0x00)
+        token = _CURRENT_CONTEXT.set(context)
+        try:
+            span_id = context.enter_method(MethodSignature("PaymentService", "charge", []))
+            parsed = parse_traceparent(traceparent_header())
+            assert parsed is not None
+            assert parsed.trace_id == context.trace_id()
+            assert parsed.span_id == span_id
+        finally:
+            _CURRENT_CONTEXT.reset(token)
+
     def test_a_header_that_returns_none_does_not_arm_the_trace_for_the_next_root(self) -> None:
         context = ContextVarNarrativeContext()
         token = _CURRENT_CONTEXT.set(context)

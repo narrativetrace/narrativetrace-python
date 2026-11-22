@@ -2,7 +2,6 @@
 name: add-narrativetrace-clarity
 description: "Adds or verifies NarrativeTrace Clarity in a Python project. Use when you want a first naming report, per-element suggestions, or an explicit clarity quality gate. Installs narrativetrace-clarity with uv add --dev, runs the real narrativetrace-clarity scan over the project's packages, checks the report is fresh and scored at least one class, renames what it flags, and re-runs until the gate is clean, preserving any thresholds the project already has. Route tracing itself being broken to narrativetrace-doctor. Say 'add a clarity report to this project', 'run narrativetrace-clarity', 'explain our clarity scores', 'make the clarity gate fail on low scores', or 'which names make this hard to read' to invoke it."
 when_to_use: "A project has NarrativeTrace or needs a first clarity report, score explanation, or optional CI enforcement."
-allowed-tools: Bash(uv *), Bash(git *)
 ---
 
 # add-narrativetrace-clarity

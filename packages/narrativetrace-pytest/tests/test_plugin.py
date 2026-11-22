@@ -996,3 +996,43 @@ def test_an_unreadable_committed_glossary_skips_harvesting_and_keeps_the_exit_st
     result.assert_outcomes(passed=1)
     result.stdout.fnmatch_lines(["*glossary harvest failed, skipped*"])
     assert (pytester.path / "glossary.json").read_bytes() == committed
+
+
+def test_a_parametrized_case_repeated_gets_one_artifact_set_per_invocation(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two rows x two repeats is four invocations, so four artifact sets -- no file is overwritten.
+
+    A repeat plugin (``pytest-repeat``'s ``--count``/``@pytest.mark.repeat``) multiplies a
+    parametrized case by stacking one more ``parametrize`` over it, which this test does by hand
+    so it needs no plugin. The invocation index is this run's own execution order for the
+    method, so it is unique however many repeats multiply the rows.
+    """
+    out_dir = pytester.path / "nt-out"
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT", "1")
+    monkeypatch.setenv("NARRATIVETRACE_OUTPUT_DIR", str(out_dir))
+    pytester.makepyfile(
+        """
+        import pytest
+        from narrativetrace.trace_object import trace_object
+
+        class Svc:
+            def finds(self, item): return item
+
+        @pytest.mark.parametrize("repeat", [1, 2])
+        @pytest.mark.parametrize("item", ["KAYAK", "TENT"])
+        def test_finds_it(narrative_trace, item, repeat):
+            svc = trace_object(Svc(), narrative_trace)
+            svc.finds(item)
+        """
+    )
+    result = pytester.runpytest_subprocess("-s")
+    result.assert_outcomes(passed=4)
+
+    assert sorted(path.name for path in out_dir.rglob("*.nt")) == [
+        "test_finds_it-001-kayak_1.nt",
+        "test_finds_it-002-kayak_2.nt",
+        "test_finds_it-003-tent_1.nt",
+        "test_finds_it-004-tent_2.nt",
+    ]
+    assert len(list(out_dir.rglob("test_finds_it-00?-*.md"))) == 4

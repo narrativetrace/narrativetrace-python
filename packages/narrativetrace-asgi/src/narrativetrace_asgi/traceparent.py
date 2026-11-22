@@ -70,9 +70,14 @@ def parse_traceparent(header: str | None) -> Traceparent | None:
         return None
 
 
-def format_traceparent(trace_id: TraceId, span_id: SpanId, *, sampled: bool = True) -> str:
-    """Builds a ``traceparent`` header value for an outbound request."""
-    flags = SAMPLED_FLAG if sampled else 0
+def format_traceparent(trace_id: TraceId, span_id: SpanId, *, flags: int = SAMPLED_FLAG) -> str:
+    """Builds a ``traceparent`` header value for an outbound request.
+
+    ``flags`` is the whole trace-flags byte (0-255, bit 0 = sampled), written verbatim; the default
+    is the sampled flag. Raises ``ValueError`` outside 0-255, since two hex digits cannot hold it.
+    """
+    if not 0 <= flags <= 0xFF:
+        raise ValueError(f"flags must be a byte (0-255), got {flags}")
     return f"{_VERSION}-{trace_id}-{span_id}-{flags:02x}"
 
 

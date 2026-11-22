@@ -1776,6 +1776,39 @@ class TestTheSpawnersHygiene:
 
         assert out.read_text(encoding="utf-8") == "['CLAUDE_CONFIG_DIR', 'kept']\n"
 
+    def test_a_session_variable_no_list_has_named_yet_does_not_reach_the_trial_either(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The agent CLI adds session variables release by release; a background session sets a
+        job directory and a temp-dir hint the named list never knew. Every variable of the
+        launcher's agent family is withheld, so a new one cannot leak in before a list learns it.
+        Only what the trial itself sets -- its own isolated configuration -- reaches the child."""
+        for name in (
+            "CLAUDE_JOB_DIR",
+            "CLAUDE_CODE_HOST_SHORT_TEMP_DIRS",
+            "CLAUDE_CODE_A_VARIABLE_FROM_A_LATER_RELEASE",
+            "CLAUDE_CONFIG_DIR",
+        ):
+            monkeypatch.setenv(name, "the launcher's")
+        monkeypatch.setenv("NT_UNRELATED", "kept")
+        out = tmp_path / "out"
+
+        run.default_spawner(
+            [
+                sys.executable,
+                "-c",
+                "import os; print(sorted((k, v) for k, v in os.environ.items()"
+                " if k.startswith('CLAUDE')) + [os.environ['NT_UNRELATED']])",
+            ],
+            tmp_path,
+            {"CLAUDE_CONFIG_DIR": "/trial/config"},
+            out,
+        )
+
+        assert out.read_text(encoding="utf-8") == (
+            "[('CLAUDE_CONFIG_DIR', '/trial/config'), 'kept']\n"
+        )
+
 
 _CASE_DOCUMENT = (
     "# Case: c\n\n**Task prompt** (given to the agent):\n\n> the quoted words\n\n**Grading:** g\n"

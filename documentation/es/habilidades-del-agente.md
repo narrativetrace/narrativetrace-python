@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob bb3220316e6b | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 3cc0bff8fd79 | translated: 2026-10-20 | reviewed: - -->
 
 # Habilidades del agente
 
@@ -151,7 +151,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.5.1",
+  "carrier": "narrativetrace-skills==0.5.2",
   "actions": [
     {
       "kind": "create",
@@ -360,24 +360,30 @@ Ninguna habilidad se edita nunca a mano.
 `.../catalogue/add_narrativetrace_clarity.py` son las
 fuentes de verdad; `python scripts/skills_render.py --fix` regenera el
 `.claude/skills/<nombre>/SKILL.md` de cada habilidad, su equivalente de Codex en `.agents/skills/`,
-la sección propia de `AGENTS.md` de este repositorio, y `.claude-plugin/marketplace.json` — el
-listado que convierte este repositorio en un marketplace de plugins de Claude Code — a partir de
-ellas, y `python scripts/skills_render.py --check` (integrado en `uv run poe check`) hace fallar la
+la sección propia de `AGENTS.md` de este repositorio, `.claude-plugin/marketplace.json` — el
+listado que convierte este repositorio en un marketplace de plugins de Claude Code — y los propios
+`.claude/.claude-plugin/plugin.json`, `icon.png` y `.claude/README.md` del plugin, que lee el
+directorio de plugins de Claude, a partir de ellas, y `python scripts/skills_render.py --check` (integrado en `uv run poe check`) hace fallar la
 compilación en cuanto cualquiera de ellos se desincroniza de la fuente tipada. Cada bloque de
 código que muestra una página renderizada se incrusta desde código fuente real y probado, mediante
 la misma convención de marcador `<!-- snippet: -->` que usa el resto de la documentación de este
 repositorio — nunca un ejemplo escrito a mano. Una comprobación de Tier A mantiene fuera de todas
 las páginas las citas a notas de planificación privadas: las frases de justificación se publican,
-la cita que nombra la nota no. Una segunda comprobación vigila la única línea de frontmatter cuya
-ausencia es una virtud: una habilidad cuyos pasos pueden hacer algo público — hoy,
-`narrativetrace-feedback` — no debe declarar `allowed-tools`, porque ese campo preaprueba las
-herramientas listadas durante el turno que carga la habilidad, y una habilidad de informes que
-preaprobara su propio comando de informes dejaría de hacer que el arnés pregunte justo donde
-preguntar es el sentido. La página de Claude Code de una habilidad así no tiene ninguna línea
-`allowed-tools`, en lugar de una vacía. Una tercera comprobación somete a la misma regla, por la
-misma razón, a una habilidad que promueve una línea base de aprobación — hoy,
+la cita que nombra la nota no. Las páginas de Claude renderizadas no llevan ninguna línea `allowed-tools`, porque el directorio
+de plugins solo acepta esa clave más allá de las herramientas de solo lectura a editores
+verificados: el usuario recibe el aviso de permisos normal de Claude Code la primera vez que una
+habilidad ejecuta `uv` o `git`. Una segunda comprobación sigue vigilando el conjunto de comandos
+que declara cada habilidad: una habilidad cuyos pasos pueden hacer algo público — hoy,
+`narrativetrace-feedback` — no debe declarar ninguna herramienta que preapruebe su propio comando
+de informes, de modo que un flavor que algún día vuelva a emitir la clave no pueda dejar de hacer
+que el arnés pregunte justo donde preguntar es el sentido. Una tercera comprobación somete a la
+misma regla, por la misma razón, a una habilidad que promueve una línea base de aprobación — hoy,
 `narrativetrace-verify` y `narrativetrace-debug`: la promoción se ejecuta con
-`uv run narrativetrace-approve`, y el sí que espera es el tuyo.
+`uv run narrativetrace-approve`, y el sí que espera es el tuyo. Una cuarta comprobación hace
+fallar la compilación ante una versión fijada de NarrativeTrace en cualquier habilidad
+(`narrativetrace==…`, `narrativetrace>=…`): las habilidades nombran solo el paquete, así que `uv`
+resuelve la versión más reciente desde PyPI y una versión que no toca las habilidades deja sus
+páginas sin cambios.
 
 ## Evaluarlas
 

@@ -1,0 +1,16 @@
+{
+  "name": "narrativetrace-python",
+  "description": "Install NarrativeTrace in a Python project and reach a first trace, diagnose an install that traces nothing, add a naming-clarity report and gate, report a defect in NarrativeTrace itself, verify a change by reading what the code actually did, debug a wrong result by the span where its value diverged, and explain what an application actually does by reading the trace of one run.",
+  "author": {
+    "name": "NarrativeTrace"
+  },
+  "homepage": "https://narrativetrace.ai",
+  "repository": "https://github.com/narrativetrace/narrativetrace-python",
+  "license": "Apache-2.0",
+  "keywords": ["narrativetrace", "python", "tracing", "observability", "agent-skills"],
+  "displayName": "NarrativeTrace for Python",
+  "supportUrl": "https://github.com/narrativetrace/narrativetrace-python/issues",
+  "privacyPolicyUrl": "https://narrativetrace.ai/privacy",
+  "documentationUrl": "https://github.com/narrativetrace/narrativetrace-python/tree/main/documentation",
+  "icon": "./.claude-plugin/icon.png"
+}

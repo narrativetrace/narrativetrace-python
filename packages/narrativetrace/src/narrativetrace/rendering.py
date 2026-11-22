@@ -25,31 +25,31 @@ just its value), rather than a bare ``str(key)`` that bypassed every guard uncon
 one part renders ``<error: <TypeName>>`` -- the exception's own type name, never ``str(exc)``
 (a message can carry the very value that failed to render).
 
-**Platform-defined types are trusted for native stringification even though they carry state**:
-the "never trust a composite's own stringification" rule above is correct for application types
-but too broad for the standard library's own value types -- ``pathlib.Path``, ``datetime``,
-``decimal.Decimal``, ``uuid.UUID``, ``fractions.Fraction`` and ``ipaddress.*`` all carry instance
-state (populated ``__slots__``) and were walked field-by-field into unreadable or inaccessible
-output. ``_is_platform_type`` decides by ORIGIN, never by name: a type whose ``__module__`` names
-a top-level standard-library package (``sys.stdlib_module_names``), or whose C implementation is
-not a heap type at all (a genuine interpreter built-in), is trusted; a user subclass of a platform
-type is not, because a subclass's own ``__module__`` is wherever *it* was defined, never inherited
-from its base. A user class that merely shares a platform type's name is not trusted either -- the
-identity test never looks at the name. Other runtimes key the same decision on the defining
-class loader or assembly; the trusted text is still
-scanned, escaped and capped, and still redacted by field NAME first -- a field or parameter named
-``token`` typed ``pathlib.Path`` still renders ``[REDACTED]``.
+**Stateless leaves are an explicit allowlist of exact types**: the "never trust a composite's own
+stringification" rule above is correct for application types but too broad for the standard
+library's own value types -- ``pathlib`` paths, ``datetime``, ``decimal.Decimal``, ``uuid.UUID``,
+``fractions.Fraction`` and ``ipaddress`` values all carry instance state (populated ``__slots__``)
+and were walked field-by-field into unreadable or inaccessible output. :data:`_STATELESS_LEAF_TYPES`
+names, one by one, the types whose own text is a pure read of the number, moment, identifier or
+locator they hold; it is keyed on the EXACT type (``type(value) in ...``, never ``isinstance``), so
+a user subclass -- whose ``__str__`` is application code -- is not on it. Being defined by the
+standard library is a precondition of that list, never a substitute for it: a ``deque`` or a
+``SimpleNamespace`` is standard-library and prints whatever its payload prints. Those wrappers are
+walked instead (:func:`_wrapper_view`, a field walk), so the payload keeps its redaction by name,
+its caps and the cycle guard. The leaf text is still scanned, escaped and capped, and still
+redacted by field NAME first -- a field or parameter named ``token`` typed ``pathlib.Path`` still
+renders ``[REDACTED]``.
 
-**Platform origin is the ONLY thing that earns a value its own string conversion** -- never "this
-value has no field I can see". Carrying no readable instance state used to be read as "a stateless
-leaf", the one shape whose own ``str()`` rendering may call, and that inference is false: a
-``ctypes.Structure`` subclass holds its fields in C-level descriptors, an extension type holds
-them in a C struct, an ordinary class can hold them in a module-level table keyed by identity or
-in a closure -- ``vars()`` is empty for all three while their own ``__repr__`` prints every field
-they hold, straight past redaction into the trace. Emptiness is therefore not evidence of nothing
-to hide; it is most often evidence of state this renderer cannot reach. Such a value renders as
-its type name alone (``<TypeName>``): visible as a value, bounded, unread. See :func:`_shape_of`,
-the single decision both channels share.
+**Being on the leaf allowlist is the ONLY thing that earns a value its own string conversion** --
+never "this value has no field I can see". Carrying no readable instance state used to be read as "a
+stateless leaf", the one shape whose own ``str()`` rendering may call, and that inference is false:
+a ``ctypes.Structure`` subclass holds its fields in C-level descriptors, an extension type holds
+them in a C struct, an ordinary class can hold them in a module-level table keyed by identity or in
+a closure -- ``vars()`` is empty for all three while their own ``__repr__`` prints every field they
+hold, straight past redaction into the trace. Emptiness is therefore not evidence of nothing to
+hide; it is most often evidence of state this renderer cannot reach. Such a value renders as its
+type name alone (``<TypeName>``): visible as a value, bounded, unread. See :func:`_shape_of`, the
+single decision both channels share.
 
 Depth limiting (a security fuzz suite finding): an identity-based cycle guard answers "have I been
 here before", never "how deep am I" -- a linear chain of distinct objects never repeats an
@@ -68,12 +68,23 @@ element carries no name to redact by.
 
 from __future__ import annotations
 
+import array
 import asyncio
+import collections
 import concurrent.futures
 import contextvars
 import dataclasses
+import datetime
+import decimal
+import fractions
+import functools
+import gc
 import inspect
+import ipaddress
+import pathlib
 import sys
+import types
+import uuid
 from collections.abc import Callable, Collection, Iterable, Iterator
 from contextlib import contextmanager
 from enum import Enum
@@ -81,7 +92,9 @@ from typing import Any, ClassVar, cast
 
 from narrativetrace.escape import control_sanitize
 from narrativetrace.markers import is_field_not_traced
+from narrativetrace.national_id_shapes import SHORTEST_BARE_DIGIT_SECRET
 from narrativetrace.redaction import REDACTED_MARKER, RedactionPolicy
+from narrativetrace.secret_value_shapes import PAN_MIN_DIGITS
 from narrativetrace.values import (
     BoolVal,
     FloatVal,
@@ -134,14 +147,44 @@ point at, and reads better repeated."""
 
 _TRUSTED_NUMERIC_TYPES = (int, float)
 
-_NUMERIC_SCAN_MIN_LENGTH = 12
-"""Shortest number text worth a value-shape scan (B-206): no card number is shorter. Same value in
-every runtime."""
+_STATELESS_LEAF_TYPES: frozenset[type] = frozenset(
+    {
+        bool,
+        int,
+        float,
+        complex,
+        str,
+        bytes,
+        bytearray,
+        decimal.Decimal,
+        fractions.Fraction,
+        datetime.date,
+        datetime.time,
+        datetime.datetime,
+        datetime.timedelta,
+        datetime.timezone,
+        uuid.UUID,
+        pathlib.PurePosixPath,
+        pathlib.PureWindowsPath,
+        pathlib.PosixPath,
+        pathlib.WindowsPath,
+        ipaddress.IPv4Address,
+        ipaddress.IPv6Address,
+        ipaddress.IPv4Network,
+        ipaddress.IPv6Network,
+        ipaddress.IPv4Interface,
+        ipaddress.IPv6Interface,
+    }
+)
+"""The exact types whose own string conversion rendering may call: each prints only the number,
+moment, identifier or locator it holds, never a value an application handed it. Matched on
+``type(value)`` itself, so a subclass is not a member. Enum members are leaves too, but by their
+own scalar branch (:meth:`ValueRenderer._render_scalar`), not by this set."""
 
-_HEAP_TYPE_FLAG = 1 << 9
-"""``Py_TPFLAGS_HEAPTYPE``: set on every ordinary Python class, clear only on a type allocated
-statically inside the interpreter (``int``, ``str``, ``datetime.datetime``, ...). A stable CPython
-ABI flag, not a private implementation detail."""
+_NUMERIC_SCAN_MIN_LENGTH = min(PAN_MIN_DIGITS, SHORTEST_BARE_DIGIT_SECRET)
+"""Shortest number text worth a value-shape scan: no card number and no bare-digit national id is
+shorter, so the common small number never pays for the scan. Derived from the matchers, so a
+shorter bare-digit matcher lowers it."""
 
 _RENDERING: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "narrativetrace_rendering", default=False
@@ -153,15 +196,15 @@ The hazard: rendering must not open a span for a call the application never made
 reflectively invoking an instrumented accessor during parameter/return capture).
 Python has no bytecode weaving -- tracing here is entirely :func:`~narrativetrace.trace_object
 .trace_object`'s proxy -- but the same shape of hazard reaches it differently: a value being
-rendered exposes a hook that runs arbitrary application code (the ``@narrative_summary`` method,
-or -- for a value whose ORIGIN earns it its own text, since neither a composite's nor a fieldless
-value's ``__str__``/``__repr__`` is trusted, see the module docstring -- that own ``__str__``,
-which an enum member or a platform subclass can still override), and that hook calls a method on
-an object held as a field or closure that is itself wrapped by ``trace_object``. Calling that
-wrapped method through ``_TracedProxy.__getattr__`` genuinely dispatches into the proxy's call
-wrapper, opening and closing a real span for it -- attributed as a root when rendering runs during
-parameter capture (before ``enter_method``), or nested under the very call being rendered when it
-runs on the return value (rendered while that call's own span is still the active-stack top, before
+rendered exposes a hook that runs arbitrary application code (the ``@narrative_summary`` method, or
+-- for a value whose exact type earns it its own text, since neither a composite's nor a fieldless
+value's ``__str__``/``__repr__`` is trusted, see the module docstring -- that own ``__str__``, which
+an enum member or a platform subclass can still override), and that hook calls a method on an object
+held as a field or closure that is itself wrapped by ``trace_object``. Calling that wrapped method
+through ``_TracedProxy.__getattr__`` genuinely dispatches into the proxy's call wrapper, opening and
+closing a real span for it -- attributed as a root when rendering runs during parameter capture
+(before ``enter_method``), or nested under the very call being rendered when it runs on the return
+value (rendered while that call's own span is still the active-stack top, before
 ``exit_method_with_return`` pops it).
 
 Checked by :func:`~narrativetrace.trace_object.trace_object`'s call wrapper (:func:`is_rendering`)
@@ -445,10 +488,11 @@ class ValueRenderer:
     def numeric_text_is_secret(self, text: str) -> bool:
         """Whether a number's own text is a secret by shape (B-206, the numeric contract).
 
-        Twelve or more characters -- no card number is shorter, so the common small number never
-        pays for the scan -- that the value-shape axis recognises, which for digits means a
-        Luhn-valid card number. A 16-digit PAN held as an ``int`` is the same secret as the same
-        digits in a ``str``: the shape axis asks what the bytes say, not which type holds them.
+        Text at least as long as the shortest secret a matcher recognises -- so the common small
+        number never pays for the scan -- that the value-shape axis recognises: a Luhn-valid card
+        number or a checksum-valid national id. A 16-digit PAN held as an ``int`` is the same
+        secret as the same digits in a ``str``: the shape axis asks what the bytes say, not which
+        type holds them.
         The flat and structured numeric branches and the narration scalar all ask this one
         method, so the paths cannot drift."""
         return len(text) >= _NUMERIC_SCAN_MIN_LENGTH and self.redaction_policy.should_redact_value(
@@ -520,6 +564,8 @@ class ValueRenderer:
         origin = _enumeration_of(value)
         if origin is _Enumeration.DECLARED:
             return self._render_elements_hook(value, walk)
+        if origin is _Enumeration.WRAPPER:
+            return self._render_wrapper(value, walk)
         if origin is _Enumeration.COLLECTION:
             return self._render_collection(value, walk)
         if origin is _Enumeration.MAP:
@@ -543,6 +589,19 @@ class ValueRenderer:
         except Exception as exc:  # a rogue hook must not break capture
             return _error_marker(exc)
         return self._render_capped_items(items, walk)
+
+    def _render_wrapper(self, value: object, walk: _RenderWalk) -> str:
+        if walk.seen(value):
+            return _identity_marker(value)
+        walk.enter(value)
+        try:
+            try:
+                view = _wrapper_view(value)
+            except Exception:  # a wrapper that cannot be read renders as its type name
+                return _opaque_marker(value)
+            return self._render(view, walk)
+        finally:
+            walk.exit(value)
 
     def _render_collection(self, value: Any, walk: _RenderWalk) -> str:
         if walk.seen(value):
@@ -823,6 +882,8 @@ class ValueRenderer:
         origin = _enumeration_of(value)
         if origin is _Enumeration.DECLARED:
             return self._render_structured_elements_hook(value, walk)
+        if origin is _Enumeration.WRAPPER:
+            return self._render_structured_wrapper(value, walk)
         if origin is _Enumeration.COLLECTION:
             return self._render_structured_collection(value, walk)
         if origin is _Enumeration.MAP:
@@ -847,6 +908,19 @@ class ValueRenderer:
     def _render_structured_items(self, items: list[object], walk: _RenderWalk) -> RenderedValue:
         shown = items[: self.max_collection_items]
         return ListVal([self._render_structured_element(item, walk) for item in shown])
+
+    def _render_structured_wrapper(self, value: object, walk: _RenderWalk) -> RenderedValue:
+        if walk.seen(value):
+            return StringVal(_identity_marker(value))
+        walk.enter(value)
+        try:
+            try:
+                view = _wrapper_view(value)
+            except Exception:  # a wrapper that cannot be read renders as its type name
+                return StringVal(_opaque_marker(value))
+            return self._render_structured(view, walk)
+        finally:
+            walk.exit(value)
 
     def _render_structured_collection(self, value: Any, walk: _RenderWalk) -> RenderedValue:
         if walk.seen(value):
@@ -971,7 +1045,7 @@ class _Shape(Enum):
 
     OWN_STRING = "own-string"
     """Rendered through the value's own string conversion -- the one string conversion rendering
-    may call, and only for a type the platform itself defines (see :func:`_is_platform_type`)."""
+    may call, and only for an exact type on :data:`_STATELESS_LEAF_TYPES`."""
 
     OPAQUE = "opaque"
     """Rendered as its type name alone: present in the trace, bounded, and unread."""
@@ -981,8 +1055,8 @@ def _shape_of(value: object) -> _Shape:
     """Which of the three renderings ``value`` gets -- the rendering rule's decision point.
 
     A value whose components are DECLARED (a dataclass, an ``attrs`` class, a ``NamedTuple``) is
-    introspected by declaration, whatever else it also is. A type the platform defines renders
-    through its own string conversion, trusted by ORIGIN (:func:`_is_platform_type`). Anything else
+    introspected by declaration, whatever else it also is. An exact type on the stateless-leaf
+    allowlist renders through its own string conversion. Anything else
     carrying readable instance state is introspected field by field.
 
     Everything remaining is a value that carries no state reflection can read -- and that is NOT a
@@ -1002,8 +1076,10 @@ def _shape_of(value: object) -> _Shape:
         return _Shape.FIELDS
     if _is_named_tuple(value):
         return _Shape.FIELDS
-    if _is_platform_type(type(value)):
+    if type(value) in _STATELESS_LEAF_TYPES:
         return _Shape.OWN_STRING
+    if isinstance(value, type):
+        return _Shape.OPAQUE  # a class's namespace is its methods, not state a reader wants
     if _has_instance_state(value):
         return _Shape.FIELDS
     return _Shape.OPAQUE
@@ -1082,6 +1158,56 @@ def _map_items(value: dict[Any, Any]) -> list[tuple[object, object]]:
     return list(dict.items(value))
 
 
+def _view_class(name: str, *fields: str) -> type:
+    """A dataclass called ``name`` with the given fields: how a wrapper's state is shown, under
+    the wrapper's own type name, through the ordinary field walk."""
+    return dataclasses.make_dataclass(name, list(fields))
+
+
+_DequeView = _view_class("deque", "items")
+_ArrayView = _view_class("array", "items")
+_MappingProxyView = _view_class("mappingproxy", "mapping")
+_ChainMapView = _view_class("ChainMap", "maps")
+_PartialView = _view_class("partial", "func", "args", "keywords")
+
+
+def _callable_name(func: object) -> str:
+    """``module.qualname`` of a plain function, builtin or class; any other callable is shown by
+    its type name, since reading a name off an arbitrary object may run its own attribute hook."""
+    if type(func) in (types.FunctionType, types.BuiltinFunctionType, type):
+        return f"{getattr(func, '__module__', '?')}.{getattr(func, '__qualname__', '?')}"
+    return f"<{type(func).__name__}>"
+
+
+def _mapping_proxy_target(value: Any) -> dict[Any, Any]:
+    """The ``dict`` a ``MappingProxyType`` wraps, read from the proxy's references so no method of
+    the wrapped mapping runs. Raises for a proxy over anything but a ``dict``."""
+    targets = gc.get_referents(value)
+    if len(targets) != 1 or not isinstance(targets[0], dict):
+        raise TypeError("mapping proxy over a non-dict")
+    return targets[0]
+
+
+_WRAPPER_VIEWS: dict[type, Callable[[Any], object]] = {
+    collections.deque: lambda v: _DequeView(items=list(v)),
+    array.array: lambda v: _ArrayView(items=list(v)),
+    types.MappingProxyType: lambda v: _MappingProxyView(mapping=_mapping_proxy_target(v)),
+    collections.ChainMap: lambda v: _ChainMapView(maps=list(vars(v)["maps"])),
+    functools.partial: lambda v: _PartialView(
+        func=_callable_name(v.func), args=v.args, keywords=v.keywords
+    ),
+}
+"""The exact standard-library wrappers that hold application values, each mapped to the function
+that builds a field view of what the wrapper holds. Keyed on the exact type: a subclass is user
+code and takes the ordinary path. Reads state only (``list`` over a ``deque``/``array``, the
+instance's own ``maps``, a proxy's referent, a partial's ``func``/``args``/``keywords``)."""
+
+
+def _wrapper_view(value: object) -> object:
+    """The field view of an exact standard-library wrapper (see :data:`_WRAPPER_VIEWS`)."""
+    return _WRAPPER_VIEWS[type(value)](value)
+
+
 class _Enumeration(Enum):
     """Whether, and how, a value's elements may be walked: the ONE origin decision of the
     rendering rule, asked once per value by BOTH channels
@@ -1092,6 +1218,10 @@ class _Enumeration(Enum):
 
     DECLARED = "declared"
     """The type declares ``__narrative_elements__``: enumerate through the hook (asked first)."""
+
+    WRAPPER = "wrapper"
+    """An exact standard-library wrapper (:data:`_WRAPPER_VIEWS`): walked through a field view of
+    the state it holds, never through its own text, which would print the payload's ``repr``."""
 
     COLLECTION = "collection"
     """An exact platform collection, or a user subclass read through the ancestor's own state."""
@@ -1110,6 +1240,8 @@ def _enumeration_of(value: object) -> _Enumeration:
     """The verdict for one value -- the single place the enumeration order is decided."""
     if _has_elements_hook(value):
         return _Enumeration.DECLARED
+    if type(value) in _WRAPPER_VIEWS:
+        return _Enumeration.WRAPPER
     if isinstance(value, _COLLECTION_TYPES) and not _is_named_tuple(value):
         return _Enumeration.COLLECTION
     if isinstance(value, dict):
@@ -1190,35 +1322,6 @@ def read_backing_field(obj: object, name: str) -> object:
     return STATE_MISSING
 
 
-def _is_platform_type(cls: type) -> bool:
-    """Whether ``cls`` is defined by the platform (the standard library or the interpreter
-    itself) rather than the application -- the carve-out that lets a stateful platform value like
-    ``pathlib.Path`` or ``uuid.UUID`` keep its own ``str()`` instead of being walked field-by-field
-    (see the module docstring).
-
-    Decided by ORIGIN, never by name: a class's ``__module__`` is set to wherever *that class* was
-    defined and is not inherited down to subclasses, so a user subclass of a platform type (its
-    ``__module__`` is the user's module) and a user class that merely shares a platform type's name
-    (its ``__module__`` is never a standard-library top-level package) both correctly fail this
-    test -- a name or a prefix comparison would get both wrong. The second branch (no heap-type
-    flag) catches a genuine interpreter built-in whose reported ``__module__`` is ``"builtins"``
-    all the same, and is an identity signal rather than a module name -- CPython has no
-    loader for a type the interpreter itself allocates, so the heap-type flag is that signal here.
-
-    A type that NAMES an origin is judged by that origin alone; the heap-type flag decides only for
-    a type that names none. A third-party C extension can perfectly well allocate its types
-    statically too, so a bare "not a heap type" test would hand an extension module's own types the
-    trust meant for the interpreter's -- and an extension type's fields live in a C struct no
-    reflection here can read, which is precisely the value that must not stand behind its own text
-    (see :func:`_shape_of`).
-    """
-    module = getattr(cls, "__module__", None)
-    top_level = module.partition(".")[0] if module else None
-    if top_level is not None:
-        return top_level in sys.stdlib_module_names
-    return not (cls.__flags__ & _HEAP_TYPE_FLAG)
-
-
 def _has_instance_state(value: object) -> bool:
     """Whether ``value`` actually carries at least one populated instance attribute -- a
     non-empty ``__dict__``, or a set ``__slots__`` slot, own or inherited.
@@ -1233,7 +1336,7 @@ def _has_instance_state(value: object) -> bool:
     leak. Anything that DOES carry a field is introspected field-by-field even when it also
     overrides ``__str__``/``__repr__`` -- the family invariant that a composite's native
     stringification is never trusted -- and anything that does not is rendered as its type name
-    unless its ORIGIN earns it its own string conversion (see :func:`_shape_of`)."""
+    unless its exact type earns it its own string conversion (see :func:`_shape_of`)."""
     if hasattr(value, "__dict__"):
         return bool(vars(value))
     return any(hasattr(value, name) for name in _slot_names(type(value)))

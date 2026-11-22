@@ -149,7 +149,7 @@ class TestRenderBodyAdversarial:
         rendered = render_claude_skill(skill, _resolve)
         assert rendered == (
             _VENDOR_FRONTMATTER
-            + "allowed-tools: Bash(uv *), Bash(git *)\n---\n\n"
+            + "---\n\n"
             + "# demo-skill\n\n"
             + "## 1. Ask the user\n\n"
             + "**Flagged:** unstudied\n\n"

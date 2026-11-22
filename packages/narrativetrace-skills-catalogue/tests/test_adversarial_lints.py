@@ -44,13 +44,13 @@ class TestAllowedToolsViolationsAdversarial:
         skill = _skill(allowed_tools=("Bash(git (flow) *)",))
         violations = allowed_tools_violations((skill,))
         assert len(violations) == 1
-        assert "rendered platform spelling" in violations[0]
+        assert "platform tool-pattern spelling" in violations[0]
 
     def test_tool_with_only_opening_paren(self) -> None:
         skill = _skill(allowed_tools=("Bash(git",))
         violations = allowed_tools_violations((skill,))
         assert len(violations) == 1
-        assert "rendered platform spelling" in violations[0]
+        assert "platform tool-pattern spelling" in violations[0]
 
     def test_tool_with_unicode(self) -> None:
         skill = _skill(allowed_tools=("gît",))

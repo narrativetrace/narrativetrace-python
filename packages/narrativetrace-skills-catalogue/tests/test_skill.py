@@ -4,6 +4,8 @@
 # Copyright (c) 2026 Empower Agile
 from __future__ import annotations
 
+import narrativetrace_skills
+import narrativetrace_skills.skill as skill_module
 import pytest
 from narrativetrace_skills.skill import (
     COMMAND_VOCABULARY,
@@ -13,7 +15,6 @@ from narrativetrace_skills.skill import (
     SkillSection,
     SkillStep,
     SnippetStep,
-    claude_tool_pattern,
     command_strings,
     description_fits_budget,
     first_token,
@@ -40,12 +41,10 @@ class TestCommandVocabulary:
         assert COMMAND_VOCABULARY == ("uv", "git")
 
 
-class TestClaudeToolPattern:
-    def test_wraps_a_command_as_a_bash_tool_pattern(self) -> None:
-        assert claude_tool_pattern("git") == "Bash(git *)"
-
-    def test_wraps_the_project_wrapper_command_too(self) -> None:
-        assert claude_tool_pattern("uv") == "Bash(uv *)"
+class TestTheClaudeToolPatternIsGone:
+    def test_the_catalogue_no_longer_spells_a_platform_tool_pattern(self) -> None:
+        assert not hasattr(skill_module, "claude_tool_pattern")
+        assert not hasattr(narrativetrace_skills, "claude_tool_pattern")
 
 
 class TestFirstToken:

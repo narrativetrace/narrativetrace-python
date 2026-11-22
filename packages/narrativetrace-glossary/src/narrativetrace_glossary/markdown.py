@@ -49,12 +49,18 @@ _KIND_HEADINGS = {
 _HEADING_RUN = re.compile(r"#+")
 _FENCE_OPENER = re.compile(r"(`{3,}|~{3,})")
 _LIST_MARKER = re.compile(r"([-*+]|\d+[.)])(?=\s|$)")
+_THEMATIC_BREAK = re.compile(r"(\*[ ]*){3,}$|(_[ ]*){3,}$")
+_BLOCKQUOTE_MARKER = re.compile(r">")
+_UNDERLINE_RUN = re.compile(r"(-+|=+)[ ]*$")
+_INDENT = re.compile(r" {0,3}")
 
 
 def _escape_line_start(line: str) -> str:
     """Backslash-escapes a leading construct that would open block structure at this line."""
-    indent = line[: len(line) - len(line.lstrip())]
+    indent = _INDENT.match(line).group()  # type: ignore[union-attr]
     body = line[len(indent) :]
+    if body.startswith((" ", "\t")):
+        return line
     heading = _HEADING_RUN.match(body)
     if heading:
         return indent + "".join("\\" + char for char in heading.group()) + body[heading.end() :]
@@ -64,6 +70,8 @@ def _escape_line_start(line: str) -> str:
     marker = _LIST_MARKER.match(body)
     if marker:
         return indent + "\\" + body
+    if _UNDERLINE_RUN.match(body) or _THEMATIC_BREAK.match(body) or _BLOCKQUOTE_MARKER.match(body):
+        return indent + "\\" + body
     if body.startswith("|"):
         return indent + "\\" + body
     return line
@@ -72,9 +80,15 @@ def _escape_line_start(line: str) -> str:
 def prose(text: str) -> str:
     """Neutralises free text interpolated as a paragraph so it cannot forge block structure.
 
-    Line by line, a leading ``#`` run (one backslash per character), a leading code fence
-    (three or more backticks or tildes), a list marker, or a leading ``|`` is backslash-escaped,
-    so a description can neither add a heading, leave a fence open, nor start a list or table row.
+    Line by line, a line indented by up to three spaces is checked as if the indent were absent
+    and keeps its indent before the escape; four or more spaces is an indented code block and is
+    left untouched. A leading ``#`` run (one backslash per character), a leading code fence
+    (three or more backticks or tildes), a list marker, a thematic break (three or more ``*`` or
+    ``_``, spaces allowed between), a line made only of ``-`` or only of ``=`` (a setext underline
+    or a dash rule, whatever the line above it), a leading ``>`` or a leading ``|`` is
+    backslash-escaped, so a description can neither add a heading, leave a fence open, draw a rule,
+    open a blockquote,
+    nor start a list or table row.
     Line breaks are kept: a description may legitimately span paragraphs.
     """
     return "\n".join(_escape_line_start(line) for line in text.splitlines())

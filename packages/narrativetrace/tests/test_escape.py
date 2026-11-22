@@ -135,6 +135,19 @@ class TestMarkdownCode:
         assert not any(ord(c) <= 0x1F or 0x7F <= ord(c) <= 0x9F for c in rendered)
 
 
+def _split_cells(row: str) -> list[str]:
+    """Splits a row on every ``|`` not preceded by an odd run of backslashes (the GFM rule)."""
+    cells, current, backslashes = [], "", 0
+    for char in row[1:]:
+        if char == "|" and backslashes % 2 == 0:
+            cells.append(current)
+            current = ""
+        else:
+            current += char
+        backslashes = backslashes + 1 if char == "\\" else 0
+    return cells
+
+
 class TestMarkdownTableCell:
     def test_each_line_break_form_collapses_to_one_space(self) -> None:
         assert collapse_line_breaks("a\r\nb\nc\rd") == "a b c d"
@@ -142,12 +155,24 @@ class TestMarkdownTableCell:
     def test_a_pipe_is_escaped_and_line_breaks_collapse(self) -> None:
         assert markdown_table_cell("a|b\nc") == "a\\|b c"
 
-    def test_a_code_span_cell_escapes_the_pipe_and_outgrows_a_backtick_run(self) -> None:
-        assert markdown_code_span_cell("x|`y\nz") == "`` x\\|`y z ``"
+    def test_a_code_span_cell_percent_encodes_the_pipe_and_the_backtick(self) -> None:
+        assert markdown_code_span_cell("x|`y\nz") == "`x%7C%60y z`"
+
+    def test_a_code_span_cell_percent_encodes_a_lone_backtick(self) -> None:
+        assert markdown_code_span_cell("a`b") == "`a%60b`"
+
+    def test_a_code_span_cell_leaves_a_backslash_alone(self) -> None:
+        assert markdown_code_span_cell("a\\|b") == "`a\\%7Cb`"
+
+    def test_a_backslash_before_a_pipe_cannot_cancel_the_pipe_escape(self) -> None:
+        assert len(_split_cells(f"| {markdown_table_cell('a\\|b')} |")) == 1
+
+    def test_a_backslash_is_doubled(self) -> None:
+        assert markdown_table_cell("a\\b") == "a\\\\b"
 
     @given(st.text())
     def test_no_cell_holds_a_raw_line_break_or_an_unescaped_pipe(self, text: str) -> None:
         cell = markdown_table_cell(text)
         assert "\n" not in cell
         assert "\r" not in cell
-        assert "|" not in cell.replace("\\|", "")
+        assert len(_split_cells(f"| {cell} |")) == 1

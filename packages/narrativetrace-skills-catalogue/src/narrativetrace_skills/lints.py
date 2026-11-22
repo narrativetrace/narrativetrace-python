@@ -38,20 +38,20 @@ def catalogue_vocabulary_violations(skills: tuple[Skill, ...]) -> tuple[str, ...
 
 def allowed_tools_violations(skills: tuple[Skill, ...]) -> tuple[str, ...]:
     """Every declared ``allowed_tools`` entry that is not a bare command of the closed
-    vocabulary: either a rendered platform spelling (``Bash(...)``, which belongs ONLY to
-    ``render.claude.claude_tool_pattern``) or a command outside :data:`COMMAND_VOCABULARY`.
+    vocabulary: either a platform tool-pattern spelling (``Bash(...)``) or a command outside
+    :data:`COMMAND_VOCABULARY`.
 
-    Pins the split this catalogue depends on: the catalogue declares COMMANDS, the renderer
-    spells them for the platform. A hand-written ``Bash(git *)`` here would render as
-    ``Bash(Bash(git *) *)`` -- a rule matching nothing, in a field whose whole purpose is to
-    match something."""
+    A catalogue entry is the COMMAND, as data about what the skill runs. No renderer turns it into
+    frontmatter any more (the directory accepts ``allowed-tools`` beyond read-only tools only from
+    verified organizations), so this keeps the declared set one vocabulary: a platform spelling in
+    the catalogue would be a second, unreadable one."""
     violations: list[str] = []
     for skill in skills:
         for tool in skill.allowed_tools:
             if "(" in tool:
                 violations.append(
-                    f'{skill.canonical_name}: allowed tool "{tool}" is a rendered platform '
-                    "spelling — declare the bare command and let the renderer spell it"
+                    f'{skill.canonical_name}: allowed tool "{tool}" is a platform tool-pattern '
+                    "spelling — declare the bare command"
                 )
             elif tool not in COMMAND_VOCABULARY:
                 violations.append(
@@ -143,9 +143,10 @@ verb (``narrativetrace feedback ...``). A tuple rather than one literal because 
 publishing command is a question somebody has to answer, not a regex somebody widens."""
 
 
-def _executed_commands(skill: Skill) -> tuple[str, ...]:
+def executed_commands(skill: Skill) -> tuple[str, ...]:
     """Every string the agent RUNS for ``skill``: its steps' commands, then its steps' ``verify``
-    commands -- a verify runs in the same turn, so it can publish exactly like a command does."""
+    commands -- a verify runs in the same turn, so it can publish exactly like a command does, and
+    the plugin README discloses it like any other command."""
     verifies = tuple(step.verify for step in skill.steps if step.verify)
     return (*command_strings(skill), *verifies)
 
@@ -154,17 +155,19 @@ def publishing_not_pre_approved(skills: tuple[Skill, ...]) -> tuple[str, ...]:
     """A skill whose steps can make something public must declare NO allowed tool that would
     pre-approve the command doing it.
 
-    INTENT: the Claude flavour's ``allowed-tools`` grants its listed tools for the turn that LOADS
-    the skill, without prompting. A reporting skill that declared ``uv`` would pre-approve its own
-    reporting command and stop the harness asking exactly where asking is the product. One
-    violation per publishing command or ``verify`` that runs one, in catalogue order (commands
-    before verifies within a skill), naming the skill, the tool and the command."""
+    INTENT: a Claude ``allowed-tools`` line grants its listed tools for the turn that LOADS the
+    skill, without prompting, so a reporting skill that declared ``uv`` would pre-approve its own
+    reporting command and stop the harness asking exactly where asking is the product. No rendered
+    page carries the line today, and this lint keeps the declared set honest so that the safety
+    property survives if a flavour ever emits it again. One violation per publishing command or
+    ``verify`` that runs one, in catalogue order (commands before verifies within a skill), naming
+    the skill, the tool and the command."""
     return tuple(
         f'{skill.canonical_name}: declares allowed tool "{first_token(command)}", which '
         f'pre-approves its own publishing command "{command}" -- a skill that files something '
         "public must let the harness ask"
         for skill in skills
-        for command in _executed_commands(skill)
+        for command in executed_commands(skill)
         if any(pattern.search(command) for pattern in _PUBLISHING_COMMANDS)
         and first_token(command) in skill.allowed_tools
     )
@@ -184,16 +187,44 @@ def promotion_not_pre_approved(skills: tuple[Skill, ...]) -> tuple[str, ...]:
     pre-approve the promotion.
 
     INTENT: the pin is gated — show the whole ``.received.nt``, ask once, end the turn; the
-    promotion runs only after the user's yes, in a later turn. A Claude-flavour ``allowed-tools``
-    grants its tools for the turn that LOADS the skill, so a pinning skill that declared ``uv``
-    would let the promotion run in the very turn the gate says must stop. One violation per
-    promoting command or ``verify`` that runs one, naming the skill, the tool and the command."""
+    promotion runs only after the user's yes, in a later turn. A Claude ``allowed-tools`` line, were
+    one ever rendered, would grant its tools for the turn that LOADS the skill, so a pinning skill
+    that declared ``uv`` would let the promotion run in the very turn the gate says must stop. One
+    violation per promoting command or ``verify`` that runs one, naming the skill, the tool and the
+    command."""
     return tuple(
         f'{skill.canonical_name}: declares allowed tool "{first_token(command)}", which '
         f'pre-approves its own promotion "{command}" -- a skill that pins a baseline must let '
         "the harness ask"
         for skill in skills
-        for command in _executed_commands(skill)
+        for command in executed_commands(skill)
         if any(pattern.search(command) for pattern in _PROMOTING_COMMANDS)
         and first_token(command) in skill.allowed_tools
+    )
+
+
+_NARRATIVETRACE_DISTRIBUTION = r"narrativetrace(?:-[a-z0-9]+)*(?:\[[^\]]*\])?"
+_PINNED_DISTRIBUTION = re.compile(
+    rf"(?<![\w.-]){_NARRATIVETRACE_DISTRIBUTION}\s*(?:===|==|~=|!=|>=|<=|>|<)\s*\d[\w.*+!-]*"
+)
+"""A NarrativeTrace distribution (``narrativetrace``, ``narrativetrace-clarity``, an extra) followed
+by a version specifier with a digit: ``==``, ``~=``, ``>=`` and the rest of PEP 440's operators."""
+
+
+def pinned_narrativetrace_versions(skills: tuple[Skill, ...]) -> tuple[str, ...]:
+    """Every NarrativeTrace distribution, in any skill's shipped text, that carries a version
+    specifier instead of naming the package alone.
+
+    INTENT: the Python skills pin no NarrativeTrace version by design. ``uv add narrativetrace``
+    with no specifier resolves the newest release from PyPI, so a release that leaves the skills
+    alone leaves their pages byte-identical, and a page never names a number that is not yet
+    published. Scoped to NarrativeTrace's own distributions, like the documentation's version
+    lint: another project's version in a command (``pytest==8.3.4``) or a ``requires-python`` bound
+    is its own fact and is not flagged."""
+    return tuple(
+        f'{skill.canonical_name}: pins a NarrativeTrace version in "{match.group(0)}" -- name the '
+        "package without a version"
+        for skill in skills
+        for text in _prose_of(skill)
+        for match in _PINNED_DISTRIBUTION.finditer(text)
     )

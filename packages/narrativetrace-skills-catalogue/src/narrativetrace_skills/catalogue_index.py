@@ -16,6 +16,7 @@ from narrativetrace_skills.catalogue.narrativetrace_explain import NARRATIVETRAC
 from narrativetrace_skills.catalogue.narrativetrace_feedback import NARRATIVETRACE_FEEDBACK
 from narrativetrace_skills.catalogue.narrativetrace_verify import NARRATIVETRACE_VERIFY
 from narrativetrace_skills.catalogue.pro_listings import PRO_LISTINGS
+from narrativetrace_skills.claude_listing import ClaudeListing
 from narrativetrace_skills.marketplace import MarketplaceListing, MarketplaceOwner
 from narrativetrace_skills.openai_listing import OpenAiListing
 from narrativetrace_skills.pro_listing import ProListing
@@ -50,6 +51,7 @@ MARKETPLACE: MarketplaceListing = MarketplaceListing(
     plugin_source="./.claude",
     license="Apache-2.0",
     homepage="https://narrativetrace.ai",
+    repository="https://github.com/narrativetrace/narrativetrace-python",
     keywords=("narrativetrace", "python", "tracing", "observability", "agent-skills"),
 )
 
@@ -72,6 +74,17 @@ OPENAI_DIRECTORY: OpenAiListing = OpenAiListing(
     ),
     brand_color="#00845a",
     website_url=MARKETPLACE.homepage,
+)
+
+# How this repository presents MARKETPLACE to Anthropic's plugin directory: the same listing,
+# titled with the display name the OpenAI listing uses, plus the support, privacy and
+# documentation links the directory shows.
+CLAUDE_DIRECTORY: ClaudeListing = ClaudeListing(
+    base=MARKETPLACE,
+    display_name=OPENAI_DIRECTORY.display_name,
+    support_url=MARKETPLACE.repository + "/issues",
+    privacy_policy_url="https://narrativetrace.ai/privacy",
+    documentation_url=MARKETPLACE.repository + "/tree/main/documentation",
 )
 
 

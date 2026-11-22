@@ -16,6 +16,7 @@ def _listing(**overrides: object) -> MarketplaceListing:
         "plugin_source": "./.claude",
         "license": "Apache-2.0",
         "homepage": "https://narrativetrace.ai",
+        "repository": "https://github.com/narrativetrace/narrativetrace-x",
         "keywords": ("tracing", "agent-skills"),
     }
     base.update(overrides)
@@ -39,6 +40,7 @@ class TestMarketplaceListing:
         assert listing.plugin_source == "./.claude"
         assert listing.license == "Apache-2.0"
         assert listing.homepage == "https://narrativetrace.ai"
+        assert listing.repository == "https://github.com/narrativetrace/narrativetrace-x"
         assert listing.keywords == ("tracing", "agent-skills")
 
     def test_keywords_is_a_tuple_even_when_given_a_list(self) -> None:

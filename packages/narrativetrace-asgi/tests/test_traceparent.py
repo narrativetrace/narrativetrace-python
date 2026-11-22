@@ -85,5 +85,14 @@ class TestFormat:
         assert parsed.sampled is True
 
     def test_unsampled_format(self) -> None:
-        header = format_traceparent(TraceId.generate(), SpanId.generate(), sampled=False)
+        header = format_traceparent(TraceId.generate(), SpanId.generate(), flags=0)
         assert header.endswith("-00")
+
+    def test_the_whole_flags_byte_is_written_verbatim(self) -> None:
+        header = format_traceparent(TraceId.generate(), SpanId.generate(), flags=0xFF)
+        assert header.endswith("-ff")
+
+    def test_flags_outside_a_byte_are_refused(self) -> None:
+        for bad in (-1, 256):
+            with pytest.raises(ValueError):
+                format_traceparent(TraceId.generate(), SpanId.generate(), flags=bad)

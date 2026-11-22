@@ -204,7 +204,7 @@ a red row saying "the registry path does not work" when the vendor tool was simp
 than no row.
 
 `grade_the_registry.sh` grades the three things only a registry case can be asked — no vendor page
-written through a link (keyed on `allowed-tools` or `when_to_use`, the lines only the vendor
+written through a link (keyed on `when_to_use`, the one line only the vendor
 flavour carries), the installer refusing nothing so no `--force` is needed (read out of a real `init --dry-run --json`
 plan, never an exit code a dry run always leaves at zero), and the registry's own files still the
 registry's — then delegates the whole of what the prompt promises to `grade_the_prompt.sh`.

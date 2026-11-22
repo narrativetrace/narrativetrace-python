@@ -25,7 +25,7 @@ from narrativetrace.national_id_shapes import is_national_id
 _JWT_HEADER_PREFIX = "eyJ"
 _JWT_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
 
-_PAN_MIN_DIGITS = 13
+PAN_MIN_DIGITS = 13
 _PAN_MAX_DIGITS = 19
 _PAN_SEPARATORS = frozenset(" -")
 
@@ -62,7 +62,7 @@ def is_pan_like(value: str) -> bool:
     if not all(_is_ascii_digit(char) or char in _PAN_SEPARATORS for char in value):
         return False
     digits = [char for char in value if _is_ascii_digit(char)]
-    if not (_PAN_MIN_DIGITS <= len(digits) <= _PAN_MAX_DIGITS):
+    if not (PAN_MIN_DIGITS <= len(digits) <= _PAN_MAX_DIGITS):
         return False
     return _luhn_valid(digits)
 

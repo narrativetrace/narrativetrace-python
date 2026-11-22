@@ -18,6 +18,8 @@ from pathlib import Path
 from narrativetrace_skills.catalogue_index import MARKETPLACE, SKILLS
 from narrativetrace_skills.render.marketplace import render_marketplace_json
 
+from narrativetrace_tooling.feedback.public_repository import SLUG
+
 
 def _repo_root() -> Path:
     for candidate in Path(__file__).resolve().parents:
@@ -68,6 +70,14 @@ class TestCatalogueMarketplace:
 
     def test_the_listing_declares_the_open_licence_the_pages_ship_under(self) -> None:
         assert MARKETPLACE.license == "Apache-2.0"
+
+    def test_the_listing_names_the_public_repository_the_feedback_verb_files_into(self) -> None:
+        assert MARKETPLACE.repository == f"https://github.com/{SLUG}"
+        assert MARKETPLACE.repository == "https://github.com/narrativetrace/narrativetrace-python"
+
+    def test_the_marketplace_entry_does_not_carry_the_repository(self) -> None:
+        # The repository is a plugin-manifest field; the marketplace entry keeps its own shape.
+        assert '"repository"' not in render_marketplace_json(MARKETPLACE)
 
     def test_the_listing_carries_search_keywords_and_a_homepage(self) -> None:
         assert "narrativetrace" in MARKETPLACE.keywords

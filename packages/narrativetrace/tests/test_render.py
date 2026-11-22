@@ -195,6 +195,17 @@ class TestMarkdownDocument:
         body = doc[doc.index("## Trace:") :]
         assert "<img" not in body
 
+    def test_escapes_a_hostile_class_name_in_the_trace_heading(self) -> None:
+        root = TraceNode(_sig("<img src=x onerror=alert(1)>", "run"), [], Returned('"ok"'))
+
+        doc = MarkdownRenderer().render_document(
+            _tree(root), TraceMetadata("s", ScenarioResult.SUCCESS)
+        )
+
+        heading = next(line for line in doc.splitlines() if line.startswith("## Trace:"))
+        assert "&lt;img" in heading
+        assert "<img" not in heading
+
 
 class TestFrontmatter:
     def test_counts_and_yaml_escaping(self) -> None:
@@ -245,6 +256,65 @@ class TestFrontmatter:
     def test_plain_text_stays_unquoted(self) -> None:
         fm = FrontmatterBuilder().scenario("happy path").build(_tree())
         assert "scenario: happy path\n" in fm
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "2026-11-09",
+            "2026-11-09 10:20:30",
+            "2026-11-09T10:20:30Z",
+            "2026-11-09t10:20:30.5+01:00",
+            "yes",
+            "No",
+            "ON",
+            "off",
+            "y",
+            "N",
+            "True",
+            "FALSE",
+            "null",
+            "Null",
+            "~",
+            "42",
+            "-42",
+            "+42",
+            "1_000",
+            "0x1f",
+            "0X1F",
+            "0b101",
+            "017",
+            "1.50",
+            ".5",
+            "1.",
+            "1e5",
+            "1.5E-3",
+            "1_0.5",
+            ".inf",
+            "-.INF",
+            "+.Inf",
+            ".nan",
+            ".NaN",
+        ],
+    )
+    def test_a_scalar_a_yaml_reader_would_retype_is_quoted(self, value: str) -> None:
+        fm = FrontmatterBuilder().scenario(value).run_name(value).build(_tree())
+        assert f'scenario: "{value}"\n' in fm
+        assert f'run: "{value}"\n' in fm
+
+    @pytest.mark.parametrize(
+        "value",
+        ["yesterday", "nope", "2026-11", "2026-11-09x", "1.2.3", "0x", "0xzz", "e5", "1e", ".inf2",
+         "nullable", "42abc", "_1", "+", ".", "x1.5", "09.5.1"],
+    )  # fmt: skip
+    def test_a_near_miss_of_a_retyped_scalar_stays_bare(self, value: str) -> None:
+        fm = FrontmatterBuilder().scenario(value).build(_tree())
+        assert f"scenario: {value}\n" in fm
+
+    def test_a_trace_id_made_only_of_digits_is_quoted(self) -> None:
+        ctx = SpanContext(trace_id=TraceId("1" * 32), span_id=SpanId("a" * 16))
+        root = TraceNode(_sig("Svc", "run"), [], Returned("ok"), span_context=ctx)
+        fm = FrontmatterBuilder().build(_tree(root))
+        assert f'trace_id: "{"1" * 32}"\n' in fm
 
     def test_a_bmp_noncharacter_is_escaped(self) -> None:
         # Security fuzz suite finding: U+FFFE/U+FFFF are outside control_sanitize's definition of

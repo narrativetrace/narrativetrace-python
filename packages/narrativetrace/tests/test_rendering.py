@@ -494,9 +494,10 @@ class _TokenHolder:
 
 
 class TestPlatformTypeCarveOut:
-    """Owner ruling, 2026-09-12: native stringification is trusted for a platform-defined type
-    even though it carries instance state -- keyed on ORIGIN (``__module__``'s top-level package,
-    or a non-heap C type), never on a name prefix or a hand-kept allow-list."""
+    """Native stringification is trusted for an exact type on the stateless-leaf allowlist, even
+    though the type carries instance state. The origin rule this replaces trusted any
+    standard-library type, so a ``deque`` or ``SimpleNamespace`` printed its payload through the
+    payload's own ``repr``; the allowlist replaces it, and the wrappers are walked instead."""
 
     def test_pathlib_path_renders_short(self, renderer: ValueRenderer) -> None:
         value = pathlib.PurePosixPath("/etc/passwd")
@@ -521,6 +522,22 @@ class TestPlatformTypeCarveOut:
     def test_ipaddress_renders_short(self, renderer: ValueRenderer) -> None:
         value = ipaddress.ip_address("192.168.0.1")
         assert renderer.render(value) == "192.168.0.1"
+
+    def test_a_platform_type_off_the_allowlist_renders_as_its_type_name(
+        self, renderer: ValueRenderer
+    ) -> None:
+        assert renderer.render(range(3)) == "<range>"
+        assert renderer.render(ValueError("payload")) == "<ValueError>"
+        assert renderer.render(int) == "<type>"
+        assert renderer.render_structured(range(3)) == StringVal("<range>")
+        assert renderer.render_structured(int) == StringVal("<type>")
+
+    def test_a_user_subclass_of_a_leaf_type_is_not_a_leaf(self, renderer: ValueRenderer) -> None:
+        class Money(decimal.Decimal):
+            def __str__(self) -> str:
+                return "LEAK-TEXT"
+
+        assert renderer.render(Money("1.5")) == "<Money>"
 
     def test_structured_channel_agrees(self, renderer: ValueRenderer) -> None:
         value = uuid.uuid4()

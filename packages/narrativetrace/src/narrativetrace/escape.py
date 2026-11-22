@@ -117,15 +117,21 @@ def collapse_line_breaks(text: str) -> str:
 
 
 def markdown_table_cell(text: str) -> str:
-    """Escapes ``|`` and collapses line breaks so ``text`` stays inside one table cell.
+    """Escapes ``\\`` and ``|`` and collapses line breaks so ``text`` stays inside one table cell.
 
-    The one table-cell escape for every Markdown table NarrativeTrace writes (the glossary view
-    and the clarity report).
+    The backslash is escaped first: a ``\\`` already in ``text`` would otherwise pair with the
+    escape added for a ``|`` after it, leaving the pipe live and splitting the row. Pass raw text,
+    never text that is already escaped. The one table-cell escape for every Markdown table
+    NarrativeTrace writes (the glossary view and the clarity report).
     """
-    return collapse_line_breaks(text.replace("|", "\\|"))
+    return collapse_line_breaks(text.replace("\\", "\\\\").replace("|", "\\|"))
 
 
 def markdown_code_span_cell(text: str) -> str:
-    """:func:`markdown_table_cell` for content shown as a code span: line breaks collapse, ``|`` is
-    escaped, and the span's fence outgrows any backtick run."""
-    return markdown_code(markdown_table_cell(text))
+    """Renders ``text`` as a code span that stays inside one table cell.
+
+    Line breaks collapse, ``|`` becomes ``%7C`` and a backtick becomes ``%60``: a backslash has no
+    power inside a code span, so a backslash escape would show literally and a ``|`` would still
+    end the cell. Backslashes are kept as they are. Pass raw text.
+    """
+    return markdown_code(collapse_line_breaks(text).replace("|", "%7C").replace("`", "%60"))

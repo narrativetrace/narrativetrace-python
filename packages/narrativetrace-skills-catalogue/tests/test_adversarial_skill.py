@@ -8,43 +8,8 @@ from __future__ import annotations
 
 from narrativetrace_skills.skill import (
     Skill,
-    claude_tool_pattern,
     first_token,
 )
-
-
-class TestClaudeToolPatternAdversarial:
-    """Edge cases and boundary conditions for claude_tool_pattern."""
-
-    def test_empty_string_command(self) -> None:
-        # Empty command should still be wrapped
-        result = claude_tool_pattern("")
-        assert result == "Bash( *)"
-
-    def test_command_with_parentheses(self) -> None:
-        # Command with parentheses in its name (hypothetical, but adversarial)
-        result = claude_tool_pattern("git(flow)")
-        assert result == "Bash(git(flow) *)"
-
-    def test_command_with_special_characters(self) -> None:
-        # Command with dashes and numbers
-        result = claude_tool_pattern("uv-2.0")
-        assert result == "Bash(uv-2.0 *)"
-
-    def test_command_with_unicode(self) -> None:
-        # Unicode characters in command name (unlikely but adversarial)
-        result = claude_tool_pattern("gît")
-        assert result == "Bash(gît *)"
-
-    def test_command_with_trailing_spaces(self) -> None:
-        # Trailing spaces should be included as-is (no strip)
-        result = claude_tool_pattern("git  ")
-        assert result == "Bash(git   *)"
-
-    def test_command_with_leading_spaces(self) -> None:
-        # Leading spaces should be included
-        result = claude_tool_pattern("  git")
-        assert result == "Bash(  git *)"
 
 
 class TestFirstTokenAdversarial:

@@ -4,6 +4,8 @@
 # Copyright (c) 2026 Empower Agile
 from __future__ import annotations
 
+import re
+
 from narrativetrace_skills.render.claude import render_claude_skill
 from narrativetrace_skills.skill import (
     CommandStep,
@@ -53,15 +55,22 @@ class TestFrontmatter:
         rendered = render_claude_skill(_skill(when_to_use="use it here"), _resolve)
         assert 'when_to_use: "use it here"' in rendered
 
-    def test_allowed_tools_renders_bash_tool_patterns_not_bare_commands(self) -> None:
-        # A bare command name pre-approves nothing in Claude Code's own syntax -- allowed-tools
-        # lists TOOLS, not commands (see skill.claude_tool_pattern).
-        rendered = render_claude_skill(_skill(allowed_tools=("uv", "git")), _resolve)
-        assert "allowed-tools: Bash(uv *), Bash(git *)" in rendered
+    def test_frontmatter_is_name_and_description_alone_for_a_skill_without_when_to_use(
+        self,
+    ) -> None:
+        rendered = render_claude_skill(_skill(), _resolve)
+        assert re.match(r"---\nname: demo-skill\ndescription: [^\n]*\n---\n", rendered)
 
-    def test_no_allowed_tools_omits_the_line_rather_than_emitting_an_empty_value(self) -> None:
-        # An empty `allowed-tools:` is not "pre-approve nothing" to every reader of the page, and
-        # a skill that can publish must leave the harness asking: the LINE is what is absent.
+    def test_renders_no_allowed_tools_line_however_many_commands_the_skill_declares(
+        self,
+    ) -> None:
+        # The plugin directory accepts `allowed-tools` beyond read-only tools only from verified
+        # organizations, so a declared command set renders no line at all.
+        rendered = render_claude_skill(_skill(allowed_tools=("uv", "git")), _resolve)
+        assert "allowed-tools" not in rendered
+        assert "Bash(" not in rendered
+
+    def test_no_allowed_tools_line_for_a_skill_that_declares_none_either(self) -> None:
         rendered = render_claude_skill(_skill(allowed_tools=()), _resolve)
         assert "allowed-tools" not in rendered
 

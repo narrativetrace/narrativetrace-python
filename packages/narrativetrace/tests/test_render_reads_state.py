@@ -534,11 +534,13 @@ class TestFieldlessValueIsNeverDescribedByItsOwnText:
     def test_a_platform_leaf_still_renders_through_its_own_string_conversion(
         self, renderer: ValueRenderer
     ) -> None:
-        # The other half of the rule: trust is granted by ORIGIN, so the standard library's own
-        # value types keep their text -- a fieldless-value guard that swallowed those would be a
-        # regression in every trace, not a fix.
+        # The other half of the rule: an exact type on the stateless-leaf allowlist keeps its
+        # text -- a fieldless-value guard that swallowed those would be a regression in every
+        # trace, not a fix. (The origin rule this replaces trusted any standard-library type, so
+        # ``range`` once printed through its own text; it is not on the allowlist and now renders
+        # as its type name.)
         assert renderer.render(uuid.UUID(int=7)) == "00000000-0000-0000-0000-000000000007"
         assert renderer.render(decimal.Decimal("1.50")) == "1.50"
         assert renderer.render(pathlib.PurePosixPath("/srv/data")) == "/srv/data"
         assert renderer.render(datetime.date(2024, 1, 31)) == "2024-01-31"
-        assert renderer.render(range(3)) == "range(0, 3)"
+        assert renderer.render(range(3)) == "<range>"

@@ -16,11 +16,17 @@ name is legitimate only inside a Claude plugin whose own prefix already carries 
 ``.claude/skills/`` directory, which is itself a flat namespace, not a plugin, so the canonical,
 globally self-identifying name is the only one safe to render here.
 
-``allowed-tools`` carries TOOL PATTERNS (``claude_tool_pattern``), never the catalogue's bare
-command names: Claude Code's own syntax lists tools, spelled ``Tool`` or ``Tool(specifier)``, so
-a bare ``git`` there names a tool that does not exist and pre-approves nothing at all. A skill
-declaring none gets NO ``allowed-tools`` line, never an empty one: the line grants its tools for the
-turn that loads the skill, and a skill that can publish must leave the harness asking.
+No ``allowed-tools`` line, ever. Anthropic's plugin directory accepts ``allowed-tools`` beyond the
+read-only tools (Read, Grep, Glob, LS) only from verified organizations, and this publisher is not
+one; its validation blocked a submission on exactly this line. So the page never pre-approves a
+command: a user gets Claude Code's normal permission prompt the first time a skill runs ``uv`` or
+``git``.
+
+A skill's declared ``allowed_tools`` stay in the model as the closed set of commands it runs, which
+``lints.allowed_tools_violations`` and the lints that keep a publishing or promoting skill from
+ever declaring its own command still read, and which the plugin README discloses. They are data
+about the skill, not a rendering: nothing here turns them into frontmatter, and
+``tests/test_claude_plugin_files.py`` fails if a committed page carries the key.
 """
 
 from __future__ import annotations
@@ -32,7 +38,7 @@ from narrativetrace_skills.render._body import (
     common_frontmatter_lines,
     render_skill_page,
 )
-from narrativetrace_skills.skill import Skill, claude_tool_pattern
+from narrativetrace_skills.skill import Skill
 
 
 def render_claude_skill(skill: Skill, resolve_snippet: ResolveSnippet) -> str:
@@ -43,8 +49,5 @@ def _render_frontmatter(skill: Skill) -> str:
     lines = ["---", *common_frontmatter_lines(skill)]
     if skill.when_to_use:
         lines.append(f"when_to_use: {json.dumps(skill.when_to_use)}")
-    if skill.allowed_tools:
-        tools = ", ".join(claude_tool_pattern(tool) for tool in skill.allowed_tools)
-        lines.append(f"allowed-tools: {tools}")
     lines.append("---")
     return "\n".join(lines)

@@ -23,12 +23,16 @@ import pytest
 from scripts.skills_render import (
     _carrier_skills_dir,
     _check_all,
+    _claude_plugin_icon_path,
+    _claude_plugin_json_path,
+    _claude_plugin_readme_path,
     _core_bundled_skills_dir,
     _cursor_marketplace_json_path,
     _cursor_plugin_json_path,
     _cursor_rule_path,
     _fix_all,
     _marketplace_json_path,
+    _openai_logo_path,
     _openai_plugin_json_path,
     _rendered_agents_md,
     _rendered_carrier_files,
@@ -154,6 +158,67 @@ class TestMarketplaceFileMatchesTheTypedCatalogue:
         _fix_all(tmp_path)
         _marketplace_json_path(tmp_path).write_text("tampered", encoding="utf-8")
         assert _marketplace_json_path(tmp_path) in _check_all(tmp_path)
+
+
+class TestClaudePluginFilesMatchTheTypedCatalogue:
+    """The plugin folder's own manifest, icon and README under `.claude/`, which Anthropic's
+    plugin directory reads: rendered from the listing and the catalogue, the icon a byte copy of
+    the OpenAI package's logo."""
+
+    def test_the_files_live_in_the_plugin_folder_the_marketplace_entry_names(self) -> None:
+        assert (
+            _claude_plugin_json_path() == REPO_ROOT / ".claude" / ".claude-plugin" / "plugin.json"
+        )
+        assert _claude_plugin_icon_path() == REPO_ROOT / ".claude" / ".claude-plugin" / "icon.png"
+        assert _claude_plugin_readme_path() == REPO_ROOT / ".claude" / "README.md"
+
+    def test_the_icon_source_is_the_committed_openai_logo(self) -> None:
+        assert _openai_logo_path() == (
+            REPO_ROOT
+            / "packages"
+            / "narrativetrace-skills-catalogue"
+            / "openai-plugin"
+            / "assets"
+            / "logo.png"
+        )
+
+    def test_fix_all_writes_all_three_and_check_all_covers_them(self, tmp_path: Path) -> None:
+        written = _fix_all(tmp_path)
+        for path in (
+            _claude_plugin_json_path(tmp_path),
+            _claude_plugin_icon_path(tmp_path),
+            _claude_plugin_readme_path(tmp_path),
+        ):
+            assert path in written
+        assert _claude_plugin_icon_path(tmp_path).read_bytes() == _openai_logo_path().read_bytes()
+        assert _check_all(tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "path_of",
+        [_claude_plugin_json_path, _claude_plugin_readme_path],
+    )
+    def test_check_all_flags_a_hand_edited_text_file(
+        self, path_of: Callable[[Path], Path], tmp_path: Path
+    ) -> None:
+        _fix_all(tmp_path)
+        path_of(tmp_path).write_text("tampered", encoding="utf-8")
+        assert path_of(tmp_path) in _check_all(tmp_path)
+
+    def test_check_all_flags_an_icon_that_is_not_the_logo(self, tmp_path: Path) -> None:
+        _fix_all(tmp_path)
+        _claude_plugin_icon_path(tmp_path).write_bytes(b"not the logo")
+        assert _claude_plugin_icon_path(tmp_path) in _check_all(tmp_path)
+
+    @pytest.mark.parametrize(
+        "path_of",
+        [_claude_plugin_json_path, _claude_plugin_icon_path, _claude_plugin_readme_path],
+    )
+    def test_check_all_flags_a_missing_file(
+        self, path_of: Callable[[Path], Path], tmp_path: Path
+    ) -> None:
+        _fix_all(tmp_path)
+        path_of(tmp_path).unlink()
+        assert path_of(tmp_path) in _check_all(tmp_path)
 
 
 class TestOpenAiPluginJsonMatchesTheTypedCatalogue:

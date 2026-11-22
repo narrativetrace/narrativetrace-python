@@ -39,14 +39,14 @@ class TestTheSkillIsInTheCatalogue:
         assert find_skill("add-narrativetrace-clarity") is ADD_NARRATIVETRACE_CLARITY
         assert ADD_NARRATIVETRACE_CLARITY in SKILLS
 
-    def test_pre_approves_exactly_the_toolchain_a_non_publishing_skill_may(self) -> None:
+    def test_declares_exactly_the_toolchain_a_non_publishing_skill_runs(self) -> None:
         assert ADD_NARRATIVETRACE_CLARITY.allowed_tools == ("uv", "git")
         assert publishing_not_pre_approved(SKILLS) == ()
 
-    def test_claude_page_grants_uv_and_git_and_codex_page_grants_nothing(self) -> None:
+    def test_neither_flavours_page_carries_an_allowed_tools_line(self) -> None:
         claude = render_claude_skill(ADD_NARRATIVETRACE_CLARITY, _resolve)
         codex = render_codex_skill(ADD_NARRATIVETRACE_CLARITY, _resolve)
-        assert "allowed-tools: Bash(uv *), Bash(git *)\n" in claude
+        assert "allowed-tools" not in claude
         assert "allowed-tools" not in codex
 
     def test_sits_beside_the_other_skills_on_the_shared_fixture(self) -> None:

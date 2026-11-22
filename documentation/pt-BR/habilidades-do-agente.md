@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob bb3220316e6b | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob 3cc0bff8fd79 | translated: 2026-10-20 | reviewed: - -->
 
 # Habilidades do agente
 
@@ -147,7 +147,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.5.1",
+  "carrier": "narrativetrace-skills==0.5.2",
   "actions": [
     {
       "kind": "create",
@@ -356,24 +356,31 @@ Nenhuma habilidade é editada manualmente.
 `.../catalogue/narrativetrace_doctor.py`, `.../catalogue/narrativetrace_feedback.py` e
 `.../catalogue/add_narrativetrace_clarity.py` são as fontes
 da verdade; `python scripts/skills_render.py --fix` regenera o `.claude/skills/<nome>/SKILL.md` de
-cada habilidade, seu equivalente de Codex em `.agents/skills/`, a própria seção do `AGENTS.md` deste repositório, e `.claude-plugin/marketplace.json` — a listagem
-que faz deste repositório um marketplace de plugins do Claude Code — a partir delas, e `python
+cada habilidade, seu equivalente de Codex em `.agents/skills/`, a própria seção do `AGENTS.md` deste repositório, `.claude-plugin/marketplace.json` — a listagem
+que faz deste repositório um marketplace de plugins do Claude Code — e os próprios
+`.claude/.claude-plugin/plugin.json`, `icon.png` e `.claude/README.md` do plugin, que o diretório
+de plugins do Claude lê, a partir delas, e `python
 scripts/skills_render.py --check` (integrado ao `uv run poe check`) falha a build no momento em
 que qualquer um deles se desalinha da fonte tipada. Todo bloco de código
 que uma página renderizada mostra é incorporado a partir de código-fonte real e testado, através
 da mesma convenção de marcador `<!-- snippet: -->` que o restante da documentação deste
 repositório já usa — nunca um exemplo digitado manualmente. Uma verificação de Tier A mantém
 citações a notas de planejamento privadas fora de todas as páginas: frases de justificativa são
-publicadas, a citação que nomeia a nota não. Uma segunda verificação guarda a única linha de
-frontmatter cuja ausência é uma virtude: uma habilidade cujos passos podem tornar algo público —
-hoje, `narrativetrace-feedback` — não deve declarar `allowed-tools`, porque esse campo pré-aprova as
-ferramentas listadas durante o turno que carrega a habilidade, e uma habilidade de relatórios que
-pré-aprovasse o seu próprio comando de relatório deixaria o arnês de perguntar exatamente onde
-perguntar é o ponto. A página do Claude Code de uma habilidade assim não tem nenhuma linha
-`allowed-tools`, em vez de uma vazia. Uma terceira verificação submete à mesma regra, pelo mesmo
-motivo, uma habilidade que promove uma baseline de aprovação — hoje, `narrativetrace-verify` e
-`narrativetrace-debug`: a promoção roda por `uv run narrativetrace-approve`, e o sim que ela espera
-é o seu.
+publicadas, a citação que nomeia a nota não. As páginas do Claude renderizadas não trazem nenhuma linha `allowed-tools`, porque o diretório de
+plugins só aceita essa chave além das ferramentas somente de leitura de publicadores verificados: o
+usuário recebe o aviso de permissão normal do Claude Code na primeira vez que uma habilidade executa
+`uv` ou `git`. Uma segunda verificação continua guardando o conjunto de comandos que cada
+habilidade declara: uma habilidade cujos passos podem tornar algo público — hoje,
+`narrativetrace-feedback` — não deve declarar nenhuma ferramenta que pré-aprovasse o seu próprio
+comando de relatório, de modo que um flavor que um dia volte a emitir a chave não possa fazer o
+arnês deixar de perguntar exatamente onde perguntar é o ponto. Uma terceira verificação submete à
+mesma regra, pelo mesmo motivo, uma habilidade que promove uma baseline de aprovação — hoje,
+`narrativetrace-verify` e `narrativetrace-debug`: a promoção roda por
+`uv run narrativetrace-approve`, e o sim que ela espera é o seu. Uma quarta verificação faz a build
+falhar diante de uma versão fixada do NarrativeTrace em qualquer habilidade
+(`narrativetrace==…`, `narrativetrace>=…`): as habilidades nomeiam apenas o pacote, então o `uv`
+resolve a versão mais recente a partir do PyPI e um release que não toca nas habilidades deixa
+suas páginas inalteradas.
 
 ## Avaliando-as
 

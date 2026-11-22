@@ -46,6 +46,8 @@ def traceparent_header() -> str | None:
     nor an adopted remote parent: the header cannot omit the field and none is invented. The
     context's trace id is read only when a header is returned, so a ``None`` leaves the trace
     untouched and the next root starts its own rather than continuing the previous one (B-217).
+    The flags byte is the one the request adopted (sampled when none was), so an upstream
+    not-sampled decision is forwarded, not overwritten (B-256).
     """
     context = get_narrative_context()
     if context is None:
@@ -53,7 +55,7 @@ def traceparent_header() -> str | None:
     parent = context.current_span_id()
     if parent is None:
         return None
-    return format_traceparent(context.trace_id(), parent)
+    return format_traceparent(context.trace_id(), parent, flags=context.trace_flags())
 
 
 def attach_traceparent(request: Any) -> None:

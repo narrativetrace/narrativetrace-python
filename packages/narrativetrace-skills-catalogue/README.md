@@ -11,10 +11,12 @@ Private (`Private :: Do Not Upload`) — never published itself; only the pages 
   `Skill` dataclasses: steps, `verify` commands, failure notes, always/never rules.
   `narrativetrace-feedback` can publish, so it declares no `allowed_tools`.
 * `narrativetrace_skills.render` — pure functions turning a `Skill` into a rendered `SKILL.md` page
-  or the `AGENTS.md` snippet.
+  or the `AGENTS.md` snippet, and the listing into the Claude plugin's own `plugin.json` and
+  README. The Claude pages carry no `allowed-tools` line.
 * `narrativetrace_skills.lints` — Tier A lints: description budget, closed command vocabulary,
-  no private-planning-note citations, Pro-listing status agreement with the feature guide, and
-  that a skill whose steps can publish pre-approves no tool.
+  no private-planning-note citations, Pro-listing status agreement with the feature guide, that a
+  skill whose steps can publish pre-approves no tool, and that no skill pins a NarrativeTrace
+  version.
 * `narrativetrace_skills.replay` — Tier A2 oracle replay: mechanically executes a skill's own step
   data against its fixture, no LLM.
 

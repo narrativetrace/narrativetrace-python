@@ -14,6 +14,9 @@ from __future__ import annotations
 
 from narrativetrace_skills import SKILLS
 from scripts.skills_render import (
+    _claude_plugin_icon_path,
+    _claude_plugin_json_path,
+    _claude_plugin_readme_path,
     _claude_skill_md_path,
     _codex_skill_md_path,
     _cursor_marketplace_json_path,
@@ -32,6 +35,14 @@ class TestNoticeNamesEveryRenderTarget:
         first_skill = SKILLS[0].canonical_name
         claude_root = _claude_skill_md_path(first_skill).parent.parent
         assert str(claude_root.relative_to(REPO_ROOT)) in NOTICE_TEXT
+
+    def test_names_the_claude_plugins_own_manifest_icon_and_readme(self) -> None:
+        for path in (
+            _claude_plugin_json_path(),
+            _claude_plugin_icon_path(),
+            _claude_plugin_readme_path(),
+        ):
+            assert str(path.relative_to(REPO_ROOT)) in NOTICE_TEXT
 
     def test_names_the_open_standard_page_root(self) -> None:
         first_skill = SKILLS[0].canonical_name

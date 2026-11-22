@@ -11,6 +11,7 @@ skills (``narrativetrace-doctor``, ``add-narrative-tracing``) do and how they're
 from __future__ import annotations
 
 from narrativetrace_skills.catalogue_index import (
+    CLAUDE_DIRECTORY,
     MARKETPLACE,
     OPENAI_DIRECTORY,
     PRO_LISTINGS,
@@ -18,13 +19,16 @@ from narrativetrace_skills.catalogue_index import (
     find_pro_listing,
     find_skill,
 )
+from narrativetrace_skills.claude_listing import ClaudeListing
 from narrativetrace_skills.lints import (
     CATALOGUE_CHAR_BUDGET,
     allowed_tools_violations,
     catalogue_description_chars,
     catalogue_vocabulary_violations,
     citation_violations,
+    executed_commands,
     listings_disagreeing_with_feature_guide,
+    pinned_narrativetrace_versions,
     promotion_not_pre_approved,
     publishing_not_pre_approved,
     unparseable_commands,
@@ -42,6 +46,11 @@ from narrativetrace_skills.render.agents_md import (
 from narrativetrace_skills.render.carrier import render_carrier_files
 from narrativetrace_skills.render.catalogue_manifest import render_catalogue_manifest
 from narrativetrace_skills.render.claude import render_claude_skill
+from narrativetrace_skills.render.claude_plugin_json import (
+    CLAUDE_PLUGIN_ICON_PATH,
+    render_claude_plugin_json,
+)
+from narrativetrace_skills.render.claude_plugin_readme import render_claude_plugin_readme
 from narrativetrace_skills.render.codex import render_codex_skill
 from narrativetrace_skills.render.cursor_plugin import (
     render_cursor_marketplace_json,
@@ -64,7 +73,6 @@ from narrativetrace_skills.skill import (
     SkillStep,
     SnippetStep,
     StepBody,
-    claude_tool_pattern,
     command_strings,
     description_fits_budget,
     first_token,
@@ -72,17 +80,20 @@ from narrativetrace_skills.skill import (
     vocabulary_violations,
 )
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 __all__ = [
     "AGENTS_MD_BEGIN",
     "AGENTS_MD_END",
     "CATALOGUE_CHAR_BUDGET",
+    "CLAUDE_DIRECTORY",
+    "CLAUDE_PLUGIN_ICON_PATH",
     "COMMAND_VOCABULARY",
     "MARKETPLACE",
     "OPENAI_DIRECTORY",
     "PRO_LISTINGS",
     "SKILLS",
+    "ClaudeListing",
     "CommandStep",
     "FailureNote",
     "MarketplaceListing",
@@ -103,20 +114,23 @@ __all__ = [
     "catalogue_description_chars",
     "catalogue_vocabulary_violations",
     "citation_violations",
-    "claude_tool_pattern",
     "command_strings",
     "description_fits_budget",
+    "executed_commands",
     "extract_agents_md_section",
     "find_pro_listing",
     "find_skill",
     "first_token",
     "listings_disagreeing_with_feature_guide",
     "openai_package_entries",
+    "pinned_narrativetrace_versions",
     "promotion_not_pre_approved",
     "publishing_not_pre_approved",
     "render_agents_md_snippet",
     "render_carrier_files",
     "render_catalogue_manifest",
+    "render_claude_plugin_json",
+    "render_claude_plugin_readme",
     "render_claude_skill",
     "render_codex_skill",
     "render_cursor_marketplace_json",

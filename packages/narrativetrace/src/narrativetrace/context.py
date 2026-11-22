@@ -227,6 +227,17 @@ class NarrativeContext(ABC):
         """Returns the current trace id, generating one eagerly if absent."""
         return TraceId.generate()
 
+    def trace_flags(self) -> int:
+        """Returns the W3C trace-flags byte of the current scope (sampled default if none adopted).
+
+        The same value every span this scope creates carries as
+        :attr:`~narrativetrace.span.SpanContext.trace_flags`: the flags byte
+        :meth:`adopt_trace_id` took from an inbound ``traceparent`` (bit 0 = sampled), else
+        ``0x01``. A propagation header writes it back unchanged so the upstream sampling decision
+        is not overwritten on the wire. Unlike :meth:`trace_id` it never generates or arms anything.
+        """
+        return _SAMPLED
+
     def adopt_trace_id(
         self,
         trace_id: TraceId,
@@ -1067,6 +1078,9 @@ class ContextVarNarrativeContext(NarrativeContext):
         if stack.trace_id is None:
             stack.trace_id = TraceId.generate()
         return stack.trace_id
+
+    def trace_flags(self) -> int:
+        return self._get_stack().trace_flags
 
     def adopt_trace_id(
         self,

@@ -134,25 +134,19 @@ class Spawner(Protocol):
 
 Clock = Callable[[], date]
 
-_LAUNCHER_SESSION_VARIABLES = frozenset(
-    {
-        "CLAUDECODE",
-        "CLAUDE_PID",
-        "CLAUDE_EFFORT",
-        "CLAUDE_CODE_SESSION_ID",
-        "CLAUDE_CODE_CHILD_SESSION",
-        "CLAUDE_CODE_MESSAGING_SOCKET",
-        "CLAUDE_CODE_MESSAGING_TOKEN",
-        "CLAUDE_CODE_SESSION_ATTENDED",
-        "CLAUDE_CODE_ENTRYPOINT",
-        "CLAUDE_CODE_EXECPATH",
-    }
-)
+_LAUNCHER_SESSION_PREFIXES = ("CLAUDECODE", "CLAUDE_")
 """What an agent session that LAUNCHED this runner leaves in the environment: its id, its
-messaging socket and token, its effort level. Inherited, they make the trial's own agent a child
-of the launcher -- a trial measured against the operator's session, not the product (found
-2026-10-08, running the runner from inside one). Never the login: that is a file, seeded on
-purpose (``isolated_agent_config``)."""
+messaging socket and token, its effort level, a background job's own directory. Inherited, they
+make the trial's own agent a child of the launcher -- a trial measured against the operator's
+session, not the product (found 2026-10-08, running the runner from inside one). The whole family
+is withheld by prefix, not by a list of names: the agent CLI adds variables release by release,
+and a named list leaked the two a background session sets (found 2026-11-21). What the trial
+itself needs of that family -- its isolated ``CLAUDE_CONFIG_DIR`` -- it sets in ``env``. Never the
+login: that is a file, seeded on purpose (``isolated_agent_config``)."""
+
+
+def _is_launcher_session_variable(name: str) -> bool:
+    return name.startswith(_LAUNCHER_SESSION_PREFIXES)
 
 
 def default_spawner(
@@ -165,10 +159,10 @@ def default_spawner(
     ``env`` is MERGED over the ambient environment rather than replacing it: a vendor CLI that lost
     ``PATH``, ``HOME`` or the terminal it inherited would fail for a reason the case never touched.
     The launcher's own session variables are the one exception
-    (:data:`_LAUNCHER_SESSION_VARIABLES`). Standard input is ``/dev/null``: the agent CLI otherwise
+    (:data:`_LAUNCHER_SESSION_PREFIXES`). Standard input is ``/dev/null``: the agent CLI otherwise
     waits three seconds on every turn for input nobody sends.
     """
-    ambient = {k: v for k, v in os.environ.items() if k not in _LAUNCHER_SESSION_VARIABLES}
+    ambient = {k: v for k, v in os.environ.items() if not _is_launcher_session_variable(k)}
     child_env = {**ambient, **env}
     if stdout_to is None:
         subprocess.run(  # nosec B603 - argv is a fixed, pre-tokenised list; no shell involved

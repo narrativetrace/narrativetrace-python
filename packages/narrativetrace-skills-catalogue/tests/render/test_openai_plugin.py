@@ -30,6 +30,7 @@ def _listing(**base_overrides: object) -> OpenAiListing:
         "plugin_source": "./.claude",
         "license": "Apache-2.0",
         "homepage": "https://narrativetrace.ai",
+        "repository": "https://github.com/narrativetrace/narrativetrace-x",
         "keywords": ("tracing", "agent-skills"),
     }
     base_fields.update(base_overrides)

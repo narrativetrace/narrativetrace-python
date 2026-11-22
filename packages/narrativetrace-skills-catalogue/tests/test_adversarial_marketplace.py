@@ -22,6 +22,7 @@ def _listing(**overrides: object) -> MarketplaceListing:
         "plugin_source": "./.claude",
         "license": "Apache-2.0",
         "homepage": "https://narrativetrace.ai",
+        "repository": "https://github.com/narrativetrace/narrativetrace-x",
         "keywords": ("tracing", "agent-skills"),
     }
     base.update(overrides)

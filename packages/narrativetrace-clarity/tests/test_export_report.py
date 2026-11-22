@@ -89,7 +89,7 @@ class TestReportCellsStayInTheirTable:
         issue = ClarityIssue("cat", "x|y\nz", "do it", Severity.HIGH, 1, 3.0)
         report = render("S", _result(0.4, [issue]))
         assert [line for line in report.splitlines() if line.startswith("| HIGH")] == [
-            "| HIGH | cat | `x\\|y z` | do it |"
+            "| HIGH | cat | `x%7Cy z` | do it |"
         ]
 
     def test_a_pipe_and_a_newline_in_a_suggestion_and_category_stay_in_one_row(self) -> None:
@@ -97,6 +97,13 @@ class TestReportCellsStayInTheirTable:
         report = render("S", _result(0.4, [issue]))
         assert [line for line in report.splitlines() if line.startswith("| LOW")] == [
             "| LOW | c\\|at egory | `e` (x2) | su\\|gg est |"
+        ]
+
+    def test_a_backslash_before_a_pipe_in_a_suggestion_keeps_the_row_whole(self) -> None:
+        issue = ClarityIssue("cat", "e", "a\\|b", Severity.LOW, 1, 1.0)
+        report = render("S", _result(0.4, [issue]))
+        assert [line for line in report.splitlines() if line.startswith("| LOW")] == [
+            "| LOW | cat | `e` | a\\\\\\|b |"
         ]
 
     def test_a_newline_in_a_scenario_name_stays_in_the_single_report_and_detail_headings(

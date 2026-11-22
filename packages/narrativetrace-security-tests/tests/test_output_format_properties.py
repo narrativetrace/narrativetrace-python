@@ -78,8 +78,18 @@ def _frontmatter_block(markdown_document: str) -> str:
     return "\n".join(lines[1:end])
 
 
+_NUMERIC_FRONTMATTER_KEYS = frozenset({"duration_ms", "method_count", "error_count"})
+"""The frontmatter keys this runtime emits as YAML numbers on purpose; every other value is text."""
+
+
 def _assert_frontmatter_parses_as_yaml(markdown_document: str) -> None:
-    yaml.safe_load(_frontmatter_block(markdown_document))
+    parsed = yaml.safe_load(_frontmatter_block(markdown_document))
+    retyped = {
+        key: value
+        for key, value in parsed.items()
+        if key not in _NUMERIC_FRONTMATTER_KEYS and not isinstance(value, str)
+    }
+    assert not retyped, f"a YAML reader retyped frontmatter values away from strings: {retyped!r}"
 
 
 def _assert_well_formed(name: str, text: str) -> None:
@@ -179,6 +189,33 @@ class TestCorpusStringsNarrationRoute:
     ) -> None:
         tree = captured_value_tree('"ok"')
         _check_every_format(tree, metadata_for(case.value))
+
+
+_RETYPED_SCALARS = [
+    "2026-11-09",
+    "yes",
+    "null",
+    "42",
+    "0x1f",
+    "1_000",
+    "1.50",
+    ".inf",
+]
+
+
+class TestFrontmatterValuesStayText:
+    @pytest.mark.parametrize("scalar", _RETYPED_SCALARS)
+    def test_a_scenario_that_looks_like_another_yaml_type_is_read_back_as_text(
+        self, scalar: str
+    ) -> None:
+        tree = captured_value_tree('"ok"')
+        document = every_output(tree, metadata_for(scalar))["markdown-document"]
+        parsed = yaml.safe_load(_frontmatter_block(document))
+        assert parsed["scenario"] == scalar
+
+    def test_the_oracle_refuses_a_value_a_reader_retyped(self) -> None:
+        with pytest.raises(AssertionError, match=r"\Aa YAML reader retyped"):
+            _assert_frontmatter_parses_as_yaml("---\ntype: trace\nscenario: 42\n---\n")
 
 
 _DEFAULT_MAX_STRING_LENGTH = 200

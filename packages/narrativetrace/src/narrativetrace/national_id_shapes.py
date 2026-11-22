@@ -47,11 +47,18 @@ import re
 _RUT = re.compile(r"(?:\d{1,2}\.\d{3}\.\d{3}|\d{7,8})-[0-9kK]")
 """Chile: 7-8 digits, optional thousands dots, and a mod-11 verifier that may be ``K``."""
 
-_CPF = re.compile(r"[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}|[0-9]{11}")
+_CPF_DIGITS = 11
+_CNPJ_DIGITS = 14
+_NIR_DIGITS = 15
+_CHINESE_ID_DIGITS = 18
+
+_CPF = re.compile(rf"[0-9]{{3}}\.[0-9]{{3}}\.[0-9]{{3}}-[0-9]{{2}}|[0-9]{{{_CPF_DIGITS}}}")
 """Brazil: 11 ASCII digits (a value in another script is not a candidate), written bare or as
 ``NNN.NNN.NNN-NN``."""
 
-_CNPJ = re.compile(r"[0-9]{2}\.[0-9]{3}\.[0-9]{3}/[0-9]{4}-[0-9]{2}|[0-9]{14}")
+_CNPJ = re.compile(
+    rf"[0-9]{{2}}\.[0-9]{{3}}\.[0-9]{{3}}/[0-9]{{4}}-[0-9]{{2}}|[0-9]{{{_CNPJ_DIGITS}}}"
+)
 """Brazil: 14 ASCII digits (a value in another script is not a candidate), written bare or as
 ``NN.NNN.NNN/NNNN-NN``."""
 
@@ -72,6 +79,12 @@ digits are never accepted and why the reserved area/group/serial values below st
 checksum this scheme does not have."""
 
 _US_SSN_NEVER_ISSUED_AREAS = frozenset({"000", "666"})
+
+SHORTEST_BARE_DIGIT_SECRET = min(_CPF_DIGITS, _CNPJ_DIGITS, _NIR_DIGITS, _CHINESE_ID_DIGITS)
+"""Length of the shortest national id a matcher accepts as a bare run of digits (CPF, 11). A
+matcher that needs a separator or a letter (RUT, SSN, DNI/NIE) cannot match a number's own text
+and does not count. The numeric value-shape scan starts here, so no bare-digit secret is shorter
+than the scan's floor."""
 
 _PUNCTUATION = re.compile(r"[.\-/]")
 _SPACE = re.compile(" ")

@@ -98,9 +98,10 @@ PUBLISHIGNORE_STRIP_SNIPPET = _extract(
     r'\ndone < "\$REPO_ROOT/\.publishignore"\n'
 )
 # The plugin-root guard (Phase 4 milestone 1): from its `plugin_root=` assignment through the
-# "holds only skills/" success line -- the two checks (missing root, stray content) in one block.
+# "holds exactly" success line -- the checks (missing root, stray content, missing manifest, icon
+# or README) in one block.
 PLUGIN_ROOT_GUARD_SNIPPET = _extract(
-    r'plugin_root="\$STAGE/\.claude".*?the plugin root holds only skills/\."\n'
+    r'plugin_root="\$STAGE/\.claude".*?the plugin root holds exactly[^\n]*\n'
 )
 
 
@@ -128,6 +129,32 @@ def _minimal_png(itxt_text: str | None = None) -> bytes:
         chunks.append(_png_chunk(b"iTXt", itxt_data))
     chunks.append(_png_chunk(b"IEND", b""))
     return signature + b"".join(chunks)
+
+
+def _run_name_hits_in(stage: Path, tmp_path: Path, allow_contents: str) -> str:
+    """Run the real script's `name_hits=` computation against the staged tree given."""
+    allow = tmp_path / ".publishallow"
+    allow.write_text(allow_contents, encoding="utf-8")
+    script = "\n".join(
+        [
+            "set -euo pipefail",
+            f'STAGE="{stage}"',
+            f'allow="{allow}"',
+            TRACE_PATTERN_LINE,
+            NAME_HITS_SNIPPET,
+            'printf "%s" "$name_hits"',
+        ]
+    )
+    result = subprocess.run(  # nosec B603, B607 # fixed argv (bash -c + this test's own script
+        # string built above from repo-local literals and the real script's extracted snippet),
+        # no shell metacharacter expansion beyond bash -c itself, no untrusted input
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=tmp_path,
+    )
+    return result.stdout
 
 
 def _run_name_hits(tmp_path: Path, allow_contents: str) -> str:
@@ -176,21 +203,41 @@ def _run_plugin_root_guard(stage: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _plugin_root(stage: Path, *, skip: tuple[str, ...] = ()) -> Path:
+    """A staged plugin root holding exactly what the directory needs: one skill page, the
+    manifest, the icon and the README. `skip` leaves one of the three out."""
+    root = stage / ".claude"
+    (root / "skills" / "a").mkdir(parents=True)
+    (root / "skills" / "a" / "SKILL.md").write_text("x", encoding="utf-8")
+    (root / ".claude-plugin").mkdir()
+    for relative in (".claude-plugin/plugin.json", ".claude-plugin/icon.png", "README.md"):
+        if relative not in skip:
+            (root / relative).write_text("x", encoding="utf-8")
+    return root
+
+
 class TestPluginRootGuard:
-    def test_a_clean_plugin_root_passes(self, tmp_path: Path) -> None:
+    def test_a_clean_plugin_root_passes_and_lists_its_files(self, tmp_path: Path) -> None:
         stage = tmp_path / "stage"
-        (stage / ".claude" / "skills" / "a").mkdir(parents=True)
-        (stage / ".claude" / "skills" / "a" / "SKILL.md").write_text("x", encoding="utf-8")
+        _plugin_root(stage)
 
         result = _run_plugin_root_guard(stage)
 
         assert result.returncode == 0, result.stdout
-        assert "the plugin root holds only skills/." in result.stdout
+        for listed in (
+            ".claude/.claude-plugin/icon.png",
+            ".claude/.claude-plugin/plugin.json",
+            ".claude/README.md",
+            ".claude/skills/a/SKILL.md",
+        ):
+            assert listed in result.stdout
+        assert "the plugin root holds exactly skills/, README.md and .claude-plugin/" in (
+            result.stdout
+        )
 
     def test_a_stray_directory_under_claude_fails(self, tmp_path: Path) -> None:
         stage = tmp_path / "stage"
-        (stage / ".claude" / "skills").mkdir(parents=True)
-        (stage / ".claude" / "commands").mkdir(parents=True)
+        (_plugin_root(stage) / "commands").mkdir()
 
         result = _run_plugin_root_guard(stage)
 
@@ -200,13 +247,37 @@ class TestPluginRootGuard:
 
     def test_a_stray_file_directly_under_claude_fails(self, tmp_path: Path) -> None:
         stage = tmp_path / "stage"
-        (stage / ".claude" / "skills").mkdir(parents=True)
-        (stage / ".claude" / "settings.local.json").write_text("{}", encoding="utf-8")
+        (_plugin_root(stage) / "settings.local.json").write_text("{}", encoding="utf-8")
 
         result = _run_plugin_root_guard(stage)
 
         assert result.returncode == 1
         assert ".claude/settings.local.json" in result.stdout
+
+    def test_a_stray_file_beside_the_manifest_fails(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (_plugin_root(stage) / ".claude-plugin" / "marketplace.json").write_text(
+            "{}", encoding="utf-8"
+        )
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 1
+        assert ".claude/.claude-plugin/marketplace.json" in result.stdout
+
+    @pytest.mark.parametrize(
+        "missing", [".claude-plugin/plugin.json", ".claude-plugin/icon.png", "README.md"]
+    )
+    def test_a_plugin_root_without_its_manifest_icon_or_readme_fails(
+        self, tmp_path: Path, missing: str
+    ) -> None:
+        stage = tmp_path / "stage"
+        _plugin_root(stage, skip=(missing,))
+
+        result = _run_plugin_root_guard(stage)
+
+        assert result.returncode == 1
+        assert f".claude/{missing}" in result.stdout
 
     def test_a_missing_plugin_root_fails(self, tmp_path: Path) -> None:
         stage = tmp_path / "stage"
@@ -253,6 +324,50 @@ class TestPublishignoreLeavesThePluginRootAlone:
         assert (stage / ".claude-plugin" / "marketplace.json").is_file()
         assert (stage / ".claude" / "skills" / "a.md").is_file()
         assert not (stage / ".claude" / "settings.local.json").exists()
+
+    def test_the_plugins_own_manifest_icon_and_readme_survive_the_strip(
+        self, tmp_path: Path
+    ) -> None:
+        stage = tmp_path / "stage"
+        _plugin_root(stage)
+
+        _run_publishignore_strip(stage)
+
+        for relative in (".claude-plugin/plugin.json", ".claude-plugin/icon.png", "README.md"):
+            assert (stage / ".claude" / relative).is_file(), relative
+
+
+class TestPublishallowClearsThePluginFiles:
+    """The trace gate's name and content filters, run with the REAL `.publishallow`, clear the
+    plugin folder's own files and no stray beside them."""
+
+    def test_the_three_new_files_and_the_directory_clear_the_name_gate(
+        self, tmp_path: Path
+    ) -> None:
+        stage = tmp_path / "stage"
+        _plugin_root(stage)
+        allow = (REPO_ROOT / ".publishallow").read_text(encoding="utf-8")
+
+        hits = _run_name_hits_in(stage, tmp_path, allow)
+
+        for cleared in (
+            "./.claude/.claude-plugin",
+            "./.claude/.claude-plugin/plugin.json",
+            "./.claude/.claude-plugin/icon.png",
+            "./.claude/README.md",
+        ):
+            assert cleared not in hits.splitlines(), cleared
+
+    def test_an_unreviewed_file_beside_them_is_still_caught(self, tmp_path: Path) -> None:
+        stage = tmp_path / "stage"
+        (_plugin_root(stage) / ".claude-plugin" / "notes-claude.md").write_text(
+            "x", encoding="utf-8"
+        )
+        allow = (REPO_ROOT / ".publishallow").read_text(encoding="utf-8")
+
+        hits = _run_name_hits_in(stage, tmp_path, allow)
+
+        assert "./.claude/.claude-plugin/notes-claude.md" in hits.splitlines()
 
 
 class TestNameHitsAllowlistFiltering:

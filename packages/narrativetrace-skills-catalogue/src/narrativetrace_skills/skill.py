@@ -140,7 +140,8 @@ class Skill:
     """Repo-root-relative fixture the skill is exercised against."""
     steps: tuple[SkillStep, ...]
     allowed_tools: tuple[str, ...]
-    """Emitted into ``allowed-tools`` — the command vocabulary this skill uses."""
+    """The commands this skill runs, as bare vocabulary entries: data for the lints and the plugin
+    README. No rendered page turns it into an ``allowed-tools`` line."""
     when_to_use: str | None = None
     always: tuple[ReasonedRule, ...] = ()
     never: tuple[ReasonedRule, ...] = ()
@@ -160,21 +161,6 @@ def command_strings(skill: Skill) -> tuple[str, ...]:
         if isinstance(step.body, CommandStep)
         for command in step.body.commands
     )
-
-
-def claude_tool_pattern(command: str) -> str:
-    """The Claude Code ``allowed-tools`` spelling of one vocabulary command: a ``Bash(<command>
-    *)`` permission rule. A bare command name (``"git"``) names no tool Claude Code recognises
-    and pre-approves nothing -- ``allowed-tools`` lists TOOLS, and a permission rule is spelled
-    ``Tool`` or ``Tool(specifier)``. The trailing ``" *"`` is load-bearing twice: a rule's
-    wildcard sits after the subcommand, and it also matches the bare command on its own, which is
-    what lets ``Bash(uv *)`` cover a plain ``uv``.
-
-    The ONLY place this platform spelling is written -- the catalogue declares bare commands
-    (:data:`Skill.allowed_tools`), :mod:`narrativetrace_skills.render.claude` is the one caller,
-    and :func:`narrativetrace_skills.lints.allowed_tools_violations` is what keeps a hand-written
-    pattern out of the catalogue itself."""
-    return f"Bash({command} *)"
 
 
 def first_token(command: str) -> str:

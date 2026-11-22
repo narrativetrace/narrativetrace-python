@@ -2,7 +2,6 @@
 name: add-narrative-tracing
 description: "Installs NarrativeTrace into a Python project and gets it to a first trace. Use when NarrativeTrace is not yet installed, a project needs its very first traced call, or traces need to reach a real logger instead of bare print statements. Installs narrativetrace with uv add, wraps an object with trace_object, renders and runs the first trace, then wires the stdlib logging bridge so traces reach your logger. Applies the doctor's framework-wiring fixes for the frameworks the project already uses, and runs narrativetrace doctor to confirm the install is correctly wired -- narrativetrace-doctor owns diagnosis from there -- and previews the agent-skills install so the next session finds them. Say 'add narrative tracing to my service', 'install narrativetrace', 'get a trace in 60 seconds', 'wrap this object so I can see a trace', or 'send my traces to my logger' to invoke it."
 when_to_use: "A project does not have NarrativeTrace yet, or has the package installed but has never produced a trace, or traces print to the console but nothing forwards them to a real logger."
-allowed-tools: Bash(uv *), Bash(git *)
 ---
 
 # add-narrative-tracing

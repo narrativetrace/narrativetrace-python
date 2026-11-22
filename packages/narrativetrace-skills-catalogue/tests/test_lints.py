@@ -12,6 +12,7 @@ from narrativetrace_skills.lints import (
     catalogue_vocabulary_violations,
     citation_violations,
     listings_disagreeing_with_feature_guide,
+    pinned_narrativetrace_versions,
     promotion_not_pre_approved,
     publishing_not_pre_approved,
     unparseable_commands,
@@ -66,7 +67,7 @@ class TestAllowedToolsViolations:
         skill = _skill(allowed_tools=("Bash(git *)",))
         violations = allowed_tools_violations((skill,))
         assert len(violations) == 1
-        assert "rendered platform spelling" in violations[0]
+        assert "platform tool-pattern spelling" in violations[0]
         assert "demo-skill" in violations[0]
 
     def test_rejects_a_command_outside_the_closed_vocabulary(self) -> None:
@@ -287,3 +288,59 @@ class TestPromotionNotPreApproved:
     def test_a_pre_approved_tool_other_than_the_promotions_is_not_a_violation(self) -> None:
         skill = _reporting_skill(_PROMOTES, allowed_tools=("git",))
         assert promotion_not_pre_approved((skill,)) == ()
+
+
+class TestPinnedNarrativeTraceVersions:
+    """The skills pin no NarrativeTrace version: the package manager resolves the newest release
+    from the registry, so a release that leaves the skills alone leaves their pages unchanged."""
+
+    @staticmethod
+    def _hits(text: str, *, as_command: bool = True) -> tuple[str, ...]:
+        body = CommandStep(commands=(text,)) if as_command else CommandStep(commands=())
+        skill = _skill(
+            canonical_name="narrativetrace-x",
+            description="d" if as_command else text,
+            steps=(SkillStep(title="s", body=body, verify="uv run pytest"),),
+        )
+        return pinned_narrativetrace_versions((skill,))
+
+    @pytest.mark.parametrize(
+        "pinned",
+        [
+            "narrativetrace==1.2.3",
+            "narrativetrace>=1.2.3",
+            "narrativetrace~=1.2",
+            "narrativetrace<2",
+            "narrativetrace-clarity==0.5.2",
+            "narrativetrace-pytest >= 0.5.2",
+            "narrativetrace[otel]==1.2.3",
+        ],
+    )
+    def test_flags_a_pinned_narrativetrace_distribution(self, pinned: str) -> None:
+        assert self._hits(f"uv add '{pinned}'") == (
+            f'narrativetrace-x: pins a NarrativeTrace version in "{pinned}" -- name the '
+            "package without a version",
+        )
+
+    def test_flags_a_pin_in_a_description_as_well_as_in_a_command(self) -> None:
+        assert len(self._hits("Pins narrativetrace==1.2.3 here.", as_command=False)) == 1
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "uv add narrativetrace",
+            "uv add --dev narrativetrace-clarity",
+            "uv add narrativetrace-pytest",
+            "uv add pytest==8.3.4",
+            "uv add 'structlog>=24.1'",
+            "requires-python = '>=3.10'",
+            "uv run narrativetrace doctor",
+            "version = '0.1.0'",
+            "narrative-traces/traces",
+            "NARRATIVETRACE_OUTPUT=out",
+        ],
+    )
+    def test_leaves_the_package_name_alone_and_other_projects_versions_and_examples(
+        self, text: str
+    ) -> None:
+        assert self._hits(text) == ()

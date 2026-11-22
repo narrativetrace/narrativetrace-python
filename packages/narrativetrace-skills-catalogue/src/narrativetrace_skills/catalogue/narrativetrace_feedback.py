@@ -11,10 +11,10 @@ Filing is public and permanent, so the decision has to be the user's, in a turn 
 not inferred from the turn that asked, and not from a summary of a report they never saw.
 
 **@llmNote** This skill declares NO allowed tools, and that is a safety property rather than an
-omission. A Claude-flavour ``allowed-tools`` grants its listed tools for the turn that loads the
-skill, without prompting -- so a skill that declared ``uv`` would pre-approve its own reporting
-command. :func:`narrativetrace_skills.lints.publishing_not_pre_approved` fails the build if that is
-ever added back.
+omission. No rendered page carries an ``allowed-tools`` line today, and were one ever to, a skill
+that declared ``uv`` would pre-approve its own reporting command.
+:func:`narrativetrace_skills.lints.publishing_not_pre_approved` fails the build if that is ever
+added back.
 """
 
 from __future__ import annotations
