@@ -1,8 +1,8 @@
 [project]
 name = "narrativetrace-workspace"
-version = "0.5.2"
+version = "0.5.3"
 description = "Workspace root for NarrativeTrace for Python"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 # Virtual workspace root: no distribution is built from this file.
 
 [tool.uv.workspace]
@@ -82,6 +82,25 @@ security = [
 [tool.poe.tasks.test]
 cmd = "pytest"
 help = "Run the pytest suite across the workspace"
+
+# The supported floor is Python 3.11 (requires-python); ruff/mypy at py311 guard the syntax per
+# commit, this runs the real suite on a real 3.11 interpreter. A SEPARATE environment
+# (.venv-floor) keeps the main .venv untouched. Not in `check`: too slow per commit; CI runs it
+# as the test-floor job. The interpreter assertion makes a silent fall-back to another Python a
+# failure, never a green run on the wrong version.
+[tool.poe.tasks.test-floor-interpreter]
+sequence = [
+    { cmd = "uv sync --all-packages --python 3.11", env = { UV_PROJECT_ENVIRONMENT = ".venv-floor" } },
+    { cmd = "uv run --python 3.11 python -c \"import sys; assert sys.version_info[:2] == (3, 11), sys.version\"", env = { UV_PROJECT_ENVIRONMENT = ".venv-floor" } },
+]
+help = "Prepare .venv-floor on Python 3.11 and assert the interpreter is exactly 3.11"
+
+[tool.poe.tasks.test-floor]
+sequence = [
+    { ref = "test-floor-interpreter" },
+    { cmd = "uv run --python 3.11 pytest", env = { UV_PROJECT_ENVIRONMENT = ".venv-floor" } },
+]
+help = "Run the whole pytest suite on Python 3.11 (the supported floor) in a separate .venv-floor"
 
 [tool.poe.tasks.lint]
 cmd = "ruff check --no-cache ."
@@ -515,7 +534,7 @@ slice of."""
 # --------------------------------------------------------------------------- #
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 src = ["packages/narrativetrace/src", "packages/narrativetrace-tooling/src"]
 # The master's read-only reference copy: another runtime's files, kept byte-identical to the original.
 extend-exclude = ["planning"]
@@ -578,7 +597,7 @@ exclude_dirs = ["mutants"]
 skips = ["B101", "B105", "B404"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 strict = true
 warn_unused_configs = true
 files = [

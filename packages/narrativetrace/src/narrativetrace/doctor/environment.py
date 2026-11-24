@@ -82,10 +82,12 @@ def _resolve_package_info(name: str) -> PackageInfo | None:
     except importlib_metadata.PackageNotFoundError:
         return None
     requires = tuple(dist.requires or ())
+    metadata = dist.metadata
+    requires_python = metadata["Requires-Python"] if "Requires-Python" in metadata else None
     return PackageInfo(
         name=name,
         version=dist.version,
-        requires_python=dist.metadata.get("Requires-Python"),
+        requires_python=requires_python,
         requires=requires,
     )
 

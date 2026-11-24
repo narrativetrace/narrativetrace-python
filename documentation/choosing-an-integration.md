@@ -111,7 +111,7 @@ design, an internal decision (PY-001, PY-004, PY-005) this page does not need to
 
 ## Platform ceilings
 
-Every path above assumes CPython ≥ 3.12. Flask (WSGI) and Django middleware are **planned, not
+Every path above assumes CPython ≥ 3.11. Flask (WSGI) and Django middleware are **planned, not
 shipped** — the same request-boundary contract as `narrativetrace-asgi` is the intended shape, but
 there is no package to install today; see the [Feature Guide](feature-guide.md) for status. There
 is no PyPy or GraalPy compatibility testing.

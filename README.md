@@ -264,7 +264,7 @@ stream, same handlers. NarrativeTrace only adds to what is already there.
 ## Add it to one test
 
 The shortest path from "interesting library" to "I saw a useful trace of my own code" is the
-pytest plugin. Python ≥ 3.12.
+pytest plugin. Python ≥ 3.11.
 
 **1. Install it** — pulls in the core, the diagram renderers, and the clarity engine:
 

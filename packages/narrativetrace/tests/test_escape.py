@@ -165,7 +165,8 @@ class TestMarkdownTableCell:
         assert markdown_code_span_cell("a\\|b") == "`a\\%7Cb`"
 
     def test_a_backslash_before_a_pipe_cannot_cancel_the_pipe_escape(self) -> None:
-        assert len(_split_cells(f"| {markdown_table_cell('a\\|b')} |")) == 1
+        cell = markdown_table_cell("a\\|b")
+        assert len(_split_cells(f"| {cell} |")) == 1
 
     def test_a_backslash_is_doubled(self) -> None:
         assert markdown_table_cell("a\\b") == "a\\\\b"

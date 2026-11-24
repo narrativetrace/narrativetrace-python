@@ -1,8 +1,8 @@
-<!-- source: documentation/guides/installation.md blob 625a9fe01d77 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/installation.md blob aeb656150ffa | translated: 2026-11-24 | reviewed: - -->
 
 # Instalación
 
-NarrativeTrace apunta a Python ≥ 3.12 y se distribuye como un conjunto de paquetes: un núcleo sin
+NarrativeTrace apunta a Python ≥ 3.11 y se distribuye como un conjunto de paquetes: un núcleo sin
 dependencias de terceros más integraciones opcionales.
 
 ```bash

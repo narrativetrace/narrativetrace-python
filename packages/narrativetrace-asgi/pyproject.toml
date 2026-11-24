@@ -1,9 +1,9 @@
 [project]
 name = "narrativetrace-asgi"
-version = "0.5.2"
+version = "0.5.3"
 description = "ASGI middleware (Starlette/FastAPI) for narrativetrace request tracing"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = "BUSL-1.1"
 # See packages/narrativetrace/pyproject.toml: one byte-identical copy of the root LICENSE per
 # distribution, because PEP 639 forbids reaching out of the project directory.

@@ -1,4 +1,4 @@
-<!-- source: README.md blob 081d90592f83 | translated: 2026-11-20 | reviewed: - -->
+<!-- source: README.md blob 9cf5aebf5c52 | translated: 2026-11-24 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -267,7 +267,7 @@ Una sentencia `logger.info(...)` escrita a mano junto a una llamada trazada se m
 ## Añádelo a una sola prueba
 
 El camino más corto desde «librería interesante» hasta «vi una traza útil de mi propio código» es
-el plugin de pytest. Python ≥ 3.12.
+el plugin de pytest. Python ≥ 3.11.
 
 **1. Instálalo** — trae consigo el núcleo, los renderizadores de diagramas y el motor de claridad:
 

@@ -1,4 +1,4 @@
-<!-- source: documentation/agent-skills.md blob 3cc0bff8fd79 | translated: 2026-10-20 | reviewed: - -->
+<!-- source: documentation/agent-skills.md blob c8a396942906 | translated: 2026-10-20 | reviewed: - -->
 
 # Habilidades del agente
 
@@ -151,7 +151,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.5.2",
+  "carrier": "narrativetrace-skills==0.5.3",
   "actions": [
     {
       "kind": "create",

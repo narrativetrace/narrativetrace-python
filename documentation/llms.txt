@@ -105,7 +105,7 @@ Run: `uv run pytest`. Expected: `1 passed`.
 
 ## Runtime support
 
-- **Python ≥ 3.12** — every package in the family declares `requires-python = ">=3.12"`. CI builds and tests on Python 3.12 only; newer interpreters are expected to work but nothing here runs them.
+- **Python ≥ 3.11** — every package in the family declares `requires-python = ">=3.11"`. CI builds and tests on Python 3.12 and runs the whole suite on a Python 3.11 floor job; newer interpreters are expected to work but nothing here runs them.
 - **The core (`narrativetrace`) has no third-party dependency.** It is pure Python on the standard library (`contextvars`, `threading`, `asyncio`, `logging`, `tomllib`), so it needs a CPython-compatible interpreter with those modules. It is not built or tested for browser, WebAssembly or other restricted runtimes.
 - **ASGI middleware** (`narrativetrace-asgi`) is for ASGI apps — Starlette and FastAPI. Its tests drive Starlette (≥ 0.37) and FastAPI (≥ 0.110) through Starlette's test client and `httpx`; no ASGI server is started by the test suite or CI (`examples/fastapi_service` documents running under uvicorn), so running under one is expected to work, not tested. It traces `http` requests only; any other scope type passes through untouched. Neither Starlette nor FastAPI is a dependency of the package — you bring your own.
 - **Not for:** Flask, Django or any WSGI app — no integration ships for them (the doctor lists both as "no integration shipped").

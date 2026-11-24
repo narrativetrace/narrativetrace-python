@@ -110,7 +110,7 @@ class GlossaryTerm:
     kind: TermKind
     status: TermStatus
     definition: str | None = None
-    translations: Mapping[str, str] = _NO_TRANSLATIONS
+    translations: Mapping[str, str] = field(default_factory=lambda: _NO_TRANSLATIONS)
     synonyms: Sequence[SynonymAlias] = ()
     sources: Sequence[str] = ()
     first_seen: date = field(kw_only=True)
@@ -255,9 +255,9 @@ class Glossary:
     A context map whose key disagrees with the context's own name is rejected as misfiled.
     """
 
-    contexts: Mapping[str, BoundedContext] = _NO_CONTEXTS
+    contexts: Mapping[str, BoundedContext] = field(default_factory=lambda: _NO_CONTEXTS)
     terms: Sequence[GlossaryTerm] = ()
-    abbreviations: Mapping[str, str] = _NO_ABBREVIATIONS
+    abbreviations: Mapping[str, str] = field(default_factory=lambda: _NO_ABBREVIATIONS)
     schema_version: int = GLOSSARY_SCHEMA_VERSION
 
     def __post_init__(self) -> None:

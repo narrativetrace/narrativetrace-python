@@ -190,7 +190,7 @@ def _is_directory_not_a_link(path: Path) -> bool:
     """Whether a path is a real directory, never one reached THROUGH a symbolic link.
 
     **@llmNote** ``Path.is_dir()`` follows links, and ``follow_symlinks=False`` only arrived in 3.13
-    while this library supports 3.12 — so the test is spelled with ``lstat``. This is the one thing
+    while this library supports 3.11 — so the test is spelled with ``lstat``. This is the one thing
     that is not optional: the follow-by-default test reads a linked skill directory back as a
     real one.
     """

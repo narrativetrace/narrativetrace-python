@@ -20,19 +20,23 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 _DEFAULT_CLOCK = time.monotonic
 
+K = TypeVar("K")
+V = TypeVar("V")
+
 
 @dataclass(slots=True, eq=False)
-class _TimedEntry[V]:
+class _TimedEntry(Generic[V]):
     """Compared by identity: a replacement entry never equals the one it replaced."""
 
     value: V
     created: float
 
 
-class PerishableMap[K, V]:
+class PerishableMap(Generic[K, V]):
     """A capacity- and TTL-bounded map with an eviction callback.
 
     Thread-safe (B-169): an :class:`~threading.RLock` guards every read-modify-write, because the

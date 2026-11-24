@@ -138,7 +138,7 @@ uv run narrativetrace init --dry-run
 <!-- snippet: examples/sixty_seconds/build/agent-skills-init-preview.json -->
 ```json
 {
-  "carrier": "narrativetrace-skills==0.5.2",
+  "carrier": "narrativetrace-skills==0.5.3",
   "actions": [
     {
       "kind": "create",

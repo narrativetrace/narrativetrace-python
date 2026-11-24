@@ -13,7 +13,7 @@ from narrativetrace_tooling.doctor.types import DoctorSnapshot, Finding
 from narrativetrace_tooling.doctor.version_lite import satisfies
 
 ID = "toolchain.python-version"
-_DEFAULT_RANGE = ">=3.12"
+_DEFAULT_RANGE = ">=3.11"
 
 
 def _required_range(snapshot: DoctorSnapshot) -> str:

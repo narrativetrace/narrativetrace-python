@@ -33,7 +33,7 @@ import threading
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from inspect import Parameter, Signature
-from typing import Any
+from typing import Any, TypeVar
 
 from narrativetrace._boundary import PROPAGATED_EXCEPTIONS
 from narrativetrace._generated import is_generated_member, is_generated_target, module_name_of
@@ -48,8 +48,10 @@ from narrativetrace.template import resolve as _resolve_template
 
 _DEFAULT_RENDERER = ValueRenderer()
 
+T = TypeVar("T")
 
-def trace_object[T](
+
+def trace_object(
     target: T,
     context: NarrativeContext,
     *,

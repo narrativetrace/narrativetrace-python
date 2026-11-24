@@ -1,4 +1,4 @@
-<!-- source: README.md blob 081d90592f83 | translated: 2026-11-20 | reviewed: - -->
+<!-- source: README.md blob 9cf5aebf5c52 | translated: 2026-11-24 | reviewed: - -->
 
 # NarrativeTrace (Python)
 
@@ -267,7 +267,7 @@ existe.
 ## Adicione a um teste
 
 O caminho mais curto de "biblioteca interessante" a "vi um trace útil do meu próprio código" é o
-plugin do pytest. Python ≥ 3.12.
+plugin do pytest. Python ≥ 3.11.
 
 **1. Instale-o** — traz o core, os renderizadores de diagrama e o motor de clareza:
 

@@ -25,6 +25,9 @@ from __future__ import annotations
 import threading
 import uuid
 from collections.abc import Callable
+from typing import TypeVar
+
+T = TypeVar("T")
 
 MAX_OUTPUT_CHARS = 4 * 1024 * 1024
 """Mirrors Java's ``MAX_OUTPUT_BYTES``; this runtime measures characters, not encoded bytes."""
@@ -50,7 +53,7 @@ def contains_nowhere(sentinel: str, outputs: dict[str, str]) -> None:
         assert prefix not in text, f"{name} leaked a prefix of the sentinel"
 
 
-def no_new_threads[T](work: Callable[[], T]) -> T:
+def no_new_threads(work: Callable[[], T]) -> T:
     """The oracle that rendering starts no background thread that outlives the call."""
     before = {t.ident for t in threading.enumerate()}
     result = work()

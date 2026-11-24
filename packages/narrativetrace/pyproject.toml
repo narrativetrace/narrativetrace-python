@@ -1,9 +1,9 @@
 [project]
 name = "narrativetrace"
-version = "0.5.2"
+version = "0.5.3"
 description = "Narrative execution tracing for Python — human- and LLM-readable traces"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = "BUSL-1.1 AND Apache-2.0"
 # BSL 1.1 requires the licence on every copy, and PEP 639 forbids `..` here — so each
 # distribution keeps its own byte-identical copy of the root LICENSE, gated by
@@ -15,6 +15,7 @@ authors = [{ name = "narrativetrace contributors" }]
 keywords = ["tracing", "observability", "narrative", "debugging"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
 ]

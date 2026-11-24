@@ -1,4 +1,4 @@
-<!-- source: documentation/choosing-an-integration.md blob 8b4000cc757c | translated: 2026-10-28 | reviewed: 2026-09-03 -->
+<!-- source: documentation/choosing-an-integration.md blob e847090d3033 | translated: 2026-11-24 | reviewed: 2026-09-03 -->
 
 # Eligiendo una integración
 
@@ -117,7 +117,7 @@ que esta página no necesita volver a litigar.
 
 ## Límites de la plataforma
 
-Todos los caminos anteriores asumen CPython ≥ 3.12. El middleware de Flask (WSGI) y Django está
+Todos los caminos anteriores asumen CPython ≥ 3.11. El middleware de Flask (WSGI) y Django está
 **planificado, pero aún no publicado** — el mismo contrato de límite de petición que
 `narrativetrace-asgi` es la forma prevista, pero hoy no hay ningún paquete que instalar; consulta la
 [Guía de funcionalidades](guia-de-funcionalidades.md) para conocer su estado. No se realizan pruebas

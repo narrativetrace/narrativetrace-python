@@ -31,3 +31,20 @@ jobs:
       # by default (verified 2026-09-12); see scripts/install-node.sh and documentation/duplication.md.
       - run: scripts/install-node.sh
       - run: uv run poe check
+
+  # The supported floor is Python 3.11: ruff/mypy at py311 guard the syntax, this runs the whole
+  # suite on a real 3.11 interpreter. The assertion makes a wrong image a failure. The setup steps
+  # mirror the check job's (full tag list, trusted workspace, Node), so a test that reads git or
+  # shells out to Node sees the same environment on the floor as on the main interpreter.
+  test-floor:
+    runs-on: ubuntu-latest
+    container: ghcr.io/astral-sh/uv:python3.11-bookworm
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: uv sync --all-packages
+      - run: scripts/install-node.sh
+      - run: uv run python -c "import sys; assert sys.version_info[:2] == (3, 11), sys.version"
+      - run: uv run pytest

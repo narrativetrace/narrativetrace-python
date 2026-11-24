@@ -1,6 +1,6 @@
 # Installation
 
-NarrativeTrace targets Python ≥ 3.12 and is distributed as a set of packages: a core with no
+NarrativeTrace targets Python ≥ 3.11 and is distributed as a set of packages: a core with no
 third-party dependencies plus optional integrations.
 
 ```bash

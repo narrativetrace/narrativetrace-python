@@ -1,8 +1,8 @@
-<!-- source: documentation/guides/installation.md blob 625a9fe01d77 | translated: 2026-09-12 | reviewed: - -->
+<!-- source: documentation/guides/installation.md blob aeb656150ffa | translated: 2026-11-24 | reviewed: - -->
 
 # Instalação
 
-O NarrativeTrace tem como alvo o Python ≥ 3.12 e é distribuído como um conjunto de pacotes: um core sem dependências de terceiros
+O NarrativeTrace tem como alvo o Python ≥ 3.11 e é distribuído como um conjunto de pacotes: um core sem dependências de terceiros
 mais integrações opcionais.
 
 ```bash

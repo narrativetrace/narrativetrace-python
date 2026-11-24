@@ -16,8 +16,15 @@ class TestCheckPythonVersion:
         finding = check_python_version(make_snapshot(python_version="3.12.4"))
         assert finding.status == "pass"
 
+    def test_the_default_range_admits_the_python_3_11_floor(
+        self, make_snapshot: MakeSnapshot
+    ) -> None:
+        finding = check_python_version(make_snapshot(python_version="3.11.0"))
+        assert finding.status == "pass"
+        assert ">=3.11" in finding.message
+
     def test_fails_when_interpreter_is_too_old(self, make_snapshot: MakeSnapshot) -> None:
-        finding = check_python_version(make_snapshot(python_version="3.9.0"))
+        finding = check_python_version(make_snapshot(python_version="3.10.9"))
         assert finding.status == "fail"
         assert finding.fix != ""
 
